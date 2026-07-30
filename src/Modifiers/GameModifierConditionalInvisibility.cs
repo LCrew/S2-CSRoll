@@ -1,0 +1,279 @@
+using SwiftlyS2.Shared.GameEventDefinitions;
+using SwiftlyS2.Shared.Misc;
+using SwiftlyS2.Shared.Natives;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.SchemaDefinitions;
+
+namespace CSRoll.Modifiers;
+
+/// <summary>
+/// The player(s) this rolled for are invisible while silent - making any sound (footsteps, gunfire,
+/// reload, grenade throw) reveals them, and they fade invisible again after a config-tunable
+/// cooldown of continued silence. Scoped the same way every other per-player modifier is (via
+/// IsAssignedTo/AssignedSlots) - this used to pick one random player itself instead, which meant it
+/// couldn't participate in normal per-player random rolls at all (whoever the roll "gave" it to and
+/// whoever actually turned invisible could be two different people). All the per-slot cosmetic state
+/// below (fade alpha, HTML refresh timing, last-sound timestamps) is keyed by slot rather than a
+/// single chosen one, since more than one assigned player is now possible.
+///
+/// Fade: transitions use a real alpha blend (RenderMode_t.kRenderTransAlpha + Color alpha channel)
+/// ramped over FadeDurationSeconds, not an instant ShouldBlockTransmitEntity toggle. Going invisible
+/// ramps alpha down to 0 while still network-visible, THEN transmit-blocks once fully transparent
+/// (no visible pop). Going visible transmit-UNblocks first (so the client has an entity to render
+/// at all) starting from alpha 0, then ramps up to fully opaque - the reverse order, for the same
+/// reason. CheckHidePlayer/base hide-unhide plumbing still gate the final settled network state;
+/// the alpha ramp is purely the cosmetic transition layered on top.
+///
+/// Status HUD: a center-HTML box is kept continuously visible (re-sent on a short refresh interval
+/// with a duration slightly longer than that interval, so it never visibly expires) showing the
+/// player's CURRENT target state instantly (green INVISIBLE / red VISIBLE - based on the logical
+/// silence check, not the cosmetic fade progress, so feedback is immediate) plus a live countdown
+/// to the next invisibility while visible.
+/// </summary>
+public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleBase
+{
+    private const float VisibleAlpha = 255f;
+    private const float InvisibleAlpha = 0f;
+    private const float HtmlRefreshIntervalSeconds = 0.1f;
+    private const int HtmlDurationMs = 400;
+
+    private readonly Dictionary<int, float> _lastSoundTime = [];
+    private readonly Dictionary<int, float> _currentAlpha = [];
+    private readonly Dictionary<int, float> _lastAlphaUpdateTime = [];
+    private readonly Dictionary<int, float> _lastHtmlUpdateTime = [];
+
+    private Guid _soundHookId;
+    private Guid _fireHookId;
+    private Guid _reloadHookId;
+    private Guid _grenadeHookId;
+    private Guid _spawnResetHookId;
+
+    public GameModifierConditionalInvisibility()
+    {
+        Name = "ConditionalInvisibility";
+        Description = "One random player is invisible while silent - any sound briefly reveals them";
+        SupportsRandomRounds = true;
+        SupportsPerPlayerRandomization = true;
+        IncompatibleModifiers = ["FullInvisibility"];
+    }
+
+    protected override bool CheckHidePlayer(IPlayer player) => IsAssignedTo(player.Slot) && IsSilent(player.Slot);
+
+    protected override void OnEnabled()
+    {
+        base.OnEnabled();
+
+        // player_sound is CS2's own generic "audible player noise" event - hooked as the primary
+        // signal. The other three are hooked too as a belt-and-suspenders safety net in case
+        // player_sound doesn't cover every action - calling MarkSoundMade redundantly is harmless.
+        _soundHookId = Core.GameEvent.HookPost<EventPlayerSound>(OnPlayerSound);
+        _fireHookId = Core.GameEvent.HookPost<EventWeaponFire>(OnWeaponFire);
+        _reloadHookId = Core.GameEvent.HookPost<EventWeaponReload>(OnWeaponReload);
+        _grenadeHookId = Core.GameEvent.HookPost<EventGrenadeThrown>(OnGrenadeThrown);
+
+        // Runs Pre, before the base class's own Post EventPlayerSpawn hook re-checks
+        // CheckHidePlayer, so a fresh life never inherits a stale cooldown from the last one.
+        _spawnResetHookId = Core.GameEvent.HookPre<EventPlayerSpawn>(OnPlayerSpawnPre);
+
+        Core.Event.OnTick += OnTick;
+    }
+
+    protected override void OnDisabled()
+    {
+        Core.Event.OnTick -= OnTick;
+
+        Core.GameEvent.Unhook(_soundHookId);
+        Core.GameEvent.Unhook(_fireHookId);
+        Core.GameEvent.Unhook(_reloadHookId);
+        Core.GameEvent.Unhook(_grenadeHookId);
+        Core.GameEvent.Unhook(_spawnResetHookId);
+
+        foreach (var slot in AssignedSlots)
+        {
+            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } player)
+            {
+                ResetRenderState(player);
+            }
+        }
+
+        _lastSoundTime.Clear();
+        _currentAlpha.Clear();
+        _lastAlphaUpdateTime.Clear();
+        _lastHtmlUpdateTime.Clear();
+
+        base.OnDisabled();
+    }
+
+    private bool IsSilent(int slot) =>
+        !_lastSoundTime.TryGetValue(slot, out var last) ||
+        Core.Engine.GlobalVars.CurrentTime - last >= Runtime.Config.ConditionalInvisibility.SoundCooldownSeconds;
+
+    private void OnTick()
+    {
+        var now = Core.Engine.GlobalVars.CurrentTime;
+
+        foreach (var slot in AssignedSlots)
+        {
+            if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true, IsAlive: true } player || player.PlayerPawn is not { } pawn)
+            {
+                continue;
+            }
+
+            var desiredHidden = IsSilent(slot);
+            var settledHidden = CachedHiddenSlots.Contains(slot);
+
+            AdvanceFade(player, slot, pawn, desiredHidden, settledHidden, now);
+            RefreshStatusHtml(player, slot, desiredHidden, now);
+        }
+    }
+
+    private void AdvanceFade(IPlayer player, int slot, CCSPlayerPawn pawn, bool desiredHidden, bool settledHidden, float now)
+    {
+        var lastUpdate = _lastAlphaUpdateTime.TryGetValue(slot, out var last) ? last : now;
+        var deltaTime = MathF.Max(0f, now - lastUpdate);
+        _lastAlphaUpdateTime[slot] = now;
+
+        var currentAlpha = _currentAlpha.TryGetValue(slot, out var alpha) ? alpha : VisibleAlpha;
+        var fadeDuration = MathF.Max(0.05f, Runtime.Config.ConditionalInvisibility.FadeDurationSeconds);
+        var step = 255f * deltaTime / fadeDuration;
+
+        if (desiredHidden && !settledHidden)
+        {
+            // Fading toward invisible - still network-visible, ramp alpha down first.
+            currentAlpha = MathF.Max(InvisibleAlpha, currentAlpha - step);
+            _currentAlpha[slot] = currentAlpha;
+            ApplyAlpha(pawn, currentAlpha);
+
+            if (currentAlpha <= InvisibleAlpha)
+            {
+                HidePlayer(player);
+            }
+        }
+        else if (!desiredHidden && settledHidden)
+        {
+            // Just decided to reveal - unblock transmission now (the client needs an entity to
+            // render at all before any alpha value means anything), starting fully transparent so
+            // there's no instant pop to opaque.
+            UnhidePlayer(player);
+            currentAlpha = InvisibleAlpha;
+            _currentAlpha[slot] = currentAlpha;
+            ApplyAlpha(pawn, currentAlpha);
+        }
+        else if (!desiredHidden && !settledHidden && currentAlpha < VisibleAlpha)
+        {
+            currentAlpha = MathF.Min(VisibleAlpha, currentAlpha + step);
+            _currentAlpha[slot] = currentAlpha;
+            ApplyAlpha(pawn, currentAlpha);
+
+            if (currentAlpha >= VisibleAlpha)
+            {
+                ResetRenderState(player);
+            }
+        }
+    }
+
+    private static void ApplyAlpha(CCSPlayerPawn pawn, float alpha)
+    {
+        pawn.RenderMode = RenderMode_t.kRenderTransAlpha;
+        pawn.RenderModeUpdated();
+        pawn.Render = new Color((byte)255, (byte)255, (byte)255, (byte)Math.Clamp(alpha, 0f, 255f));
+        pawn.RenderUpdated();
+    }
+
+    private static void ResetRenderState(IPlayer player)
+    {
+        if (player.PlayerPawn is not { } pawn)
+        {
+            return;
+        }
+
+        pawn.RenderMode = RenderMode_t.kRenderNormal;
+        pawn.RenderModeUpdated();
+        pawn.Render = new Color((byte)255, (byte)255, (byte)255, (byte)255);
+        pawn.RenderUpdated();
+    }
+
+    private void RefreshStatusHtml(IPlayer player, int slot, bool invisible, float now)
+    {
+        if (_lastHtmlUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
+        {
+            return;
+        }
+
+        _lastHtmlUpdateTime[slot] = now;
+
+        string html;
+        if (invisible)
+        {
+            html = "<span color=\"lime\" class=\"fontWeight-bold fontSize-l\">INVISIBLE</span>";
+        }
+        else
+        {
+            var cooldown = Runtime.Config.ConditionalInvisibility.SoundCooldownSeconds;
+            var lastSound = _lastSoundTime.TryGetValue(slot, out var last) ? last : now;
+            var remaining = MathF.Max(0f, cooldown - (now - lastSound));
+            html = "<span color=\"red\" class=\"fontWeight-bold fontSize-l\">VISIBLE</span><br/>" +
+                   $"<span color=\"yellow\">Invisible in {remaining:0.0}s</span>";
+        }
+
+        player.SendCenterHTML(html, HtmlDurationMs);
+    }
+
+    private void MarkSoundMade(int slot) => _lastSoundTime[slot] = Core.Engine.GlobalVars.CurrentTime;
+
+    private HookResult OnPlayerSound(EventPlayerSound @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player)
+        {
+            MarkSoundMade(player.Slot);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private HookResult OnWeaponFire(EventWeaponFire @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player)
+        {
+            MarkSoundMade(player.Slot);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private HookResult OnWeaponReload(EventWeaponReload @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player)
+        {
+            MarkSoundMade(player.Slot);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private HookResult OnGrenadeThrown(EventGrenadeThrown @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player)
+        {
+            MarkSoundMade(player.Slot);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private HookResult OnPlayerSpawnPre(EventPlayerSpawn @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player)
+        {
+            _lastSoundTime.Remove(player.Slot);
+
+            if (IsAssignedTo(player.Slot))
+            {
+                _currentAlpha[player.Slot] = VisibleAlpha;
+                _lastAlphaUpdateTime[player.Slot] = Core.Engine.GlobalVars.CurrentTime;
+            }
+        }
+
+        return HookResult.Continue;
+    }
+}

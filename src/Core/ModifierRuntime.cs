@@ -1,0 +1,837 @@
+using Microsoft.Extensions.Logging;
+
+using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Players;
+
+using CSRoll.Config;
+using CSRoll.Modifiers;
+using CSRoll.Services.Interfaces;
+
+namespace CSRoll.Core;
+
+/// <summary>
+/// Owns the registered/active modifier lists and all add/remove/toggle/random-round business
+/// logic. Direct port of CSRollCore's non-command, non-game-event methods.
+/// </summary>
+public sealed class ModifierRuntime
+{
+    private readonly ISwiftlyCore _core;
+    private readonly ICvarRollbackService _cvarService;
+
+    public CSRollConfig Config { get; set; }
+    public bool RandomRoundsEnabled { get; private set; }
+    public int MinRandomRounds { get; set; }
+    public int MaxRandomRounds { get; set; }
+
+    /// <summary>
+    /// Off by default. When off, per-player random-round assignments ("who got which modifier")
+    /// are never sent to chat at all - each player's own center-HTML banner already tells them
+    /// privately. When toggled on via !debug, that "who got what" breakdown is sent to connected
+    /// admins only, never broadcast to the whole server.
+    /// </summary>
+    public bool DebugMode { get; set; }
+
+    private readonly List<GameModifierBase> _registeredModifiers = [];
+    private readonly List<GameModifierBase> _activeModifiers = [];
+    private List<GameModifierBase> _lastActiveModifiers = [];
+
+    public IReadOnlyList<GameModifierBase> RegisteredModifiers => _registeredModifiers;
+    public IReadOnlyList<GameModifierBase> ActiveModifiers => _activeModifiers;
+
+    public ModifierRuntime(ISwiftlyCore core, CSRollConfig config, ICvarRollbackService cvarService)
+    {
+        _core = core;
+        Config = config;
+        _cvarService = cvarService;
+        MinRandomRounds = config.MinRandomRounds;
+        MaxRandomRounds = config.MaxRandomRounds;
+    }
+
+    public void Initialise(IEnumerable<Func<GameModifierBase>> factories)
+    {
+        InitialiseModifiers(factories);
+        InitialiseCvarModifiers();
+
+        var seenNames = new List<string>();
+        foreach (var modifier in _registeredModifiers)
+        {
+            modifier.Register(_core, this, _cvarService);
+
+            if (seenNames.Contains(modifier.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                _core.Logger.LogWarning("[CSRoll] Duplicate modifier name {Name} - all modifier names should be unique!", modifier.Name);
+                continue;
+            }
+
+            seenNames.Add(modifier.Name);
+        }
+
+        if (Config.RandomRoundsEnabledByDefault)
+        {
+            if (_registeredModifiers.Count == 0)
+            {
+                _core.Logger.LogWarning("[CSRoll] No modifiers are registered! Cannot activate random rounds by default.");
+            }
+            else
+            {
+                RandomRoundsEnabled = true;
+            }
+        }
+    }
+
+    private void InitialiseModifiers(IEnumerable<Func<GameModifierBase>> factories)
+    {
+        _registeredModifiers.Clear();
+
+        foreach (var factory in factories)
+        {
+            var modifier = factory();
+            if (modifier.IsRegistered && !Config.DisabledModifiers.Any(x => x.Equals(modifier.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                _registeredModifiers.Add(modifier);
+            }
+            else
+            {
+                _core.Logger.LogInformation("[CSRoll] Disabled modifier: {Name}", modifier.Name);
+            }
+        }
+    }
+
+    private void InitialiseCvarModifiers()
+    {
+        foreach (var file in _cvarService.FindCvarModifierFiles())
+        {
+            var handle = _cvarService.ParseCvarModifierFile(file);
+            if (handle.ModifierName is null || Config.DisabledModifiers.Contains(handle.ModifierName, StringComparer.OrdinalIgnoreCase))
+            {
+                _core.Logger.LogInformation("[CSRoll] Disabled cvar modifier config: {File}", file);
+                continue;
+            }
+
+            _registeredModifiers.Add(new GameModifierCvar(handle));
+            _core.Logger.LogInformation("[CSRoll] Registered cvar modifier config: {File}", file);
+        }
+    }
+
+    public void Unregister()
+    {
+        RemoveAllModifiers();
+
+        foreach (var modifier in _registeredModifiers)
+        {
+            modifier.Unregister();
+        }
+
+        _lastActiveModifiers.Clear();
+        _registeredModifiers.Clear();
+    }
+
+    public GameModifierBase? GetRegisteredModifierByName(string modifierName) =>
+        _registeredModifiers.FirstOrDefault(m => string.Equals(m.Name, modifierName, StringComparison.OrdinalIgnoreCase));
+
+    public GameModifierBase? GetActiveModifierByName(string modifierName) =>
+        _activeModifiers.FirstOrDefault(m => string.Equals(m.Name, modifierName, StringComparison.OrdinalIgnoreCase));
+
+    public bool AnyModifiersActive() => _activeModifiers.Count > 0;
+
+    public bool IsModifierActive(GameModifierBase? modifier) => modifier is not null && _activeModifiers.Contains(modifier);
+
+    public bool IsModifierActiveByName(string modifierName) => GetActiveModifierByName(modifierName) is not null;
+
+    public bool IsModifierRegistered(GameModifierBase? modifier) => modifier is not null && _registeredModifiers.Contains(modifier);
+
+    public bool IsModifierRegisteredByName(string modifierName) => GetRegisteredModifierByName(modifierName) is not null;
+
+    public void ToggleRandomRounds()
+    {
+        RandomRoundsEnabled = !RandomRoundsEnabled;
+        if (!RandomRoundsEnabled)
+        {
+            RemoveAllModifiers();
+        }
+
+        CSRollUtils.PrintTitleToChatAll(_core, RandomRoundsEnabled ? "Random rounds enabled for next round!" : "Random rounds disabled!");
+        CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildRandomRoundsToggleHtml(RandomRoundsEnabled), 4000);
+    }
+
+    public void ApplyRandomRoundsForRound(bool showBanner = true)
+    {
+        var random = new Random();
+        var appliedAnything = false;
+
+        // Bug fix: this used to also run a supplementary global-only roll every round, originally
+        // added so ConditionalInvisibility/FullInvisibility (which used to opt out of per-player
+        // randomization, picking their own random target internally instead of using the runtime's
+        // assignment) still got a chance while RandomizePlayers was on. That secondary global roll is
+        // removed entirely per explicit instruction: no automatic global/shared activation happens
+        // alongside the per-player roll anymore. ConditionalInvisibility/FullInvisibility now support
+        // per-player randomization directly instead (see their own files), so they lose nothing by
+        // this removal - only modifiers that are still genuinely global-only (KnivesOnly,
+        // PlantAnywhere, etc.) are excluded from the automatic rotation now; they're still fully
+        // usable via an explicit admin !addmodifier.
+        if (Config.RandomizePlayers)
+        {
+            appliedAnything = AssignRandomModifiersPerPlayer(showBanner);
+        }
+        else
+        {
+            var count = random.Next(MinRandomRounds, MaxRandomRounds);
+            if (AddRandomModifiers(count, out _, showBanner))
+            {
+                _lastActiveModifiers = _activeModifiers.ToList();
+                appliedAnything = true;
+            }
+        }
+
+        if (!appliedAnything)
+        {
+            CSRollUtils.PrintTitleToChatAll(_core, "Failed to apply random modifiers! Skipping random round...");
+        }
+    }
+
+    /// <summary>
+    /// Per-player counterpart to AddRandomModifiers: instead of one shared set applied to
+    /// everyone, each connected player independently rolls their own Min..MaxRandomRounds
+    /// modifiers from the SupportsPerPlayerRandomization pool. Two players CAN roll the same
+    /// modifier - the single shared instance just accumulates both slots into AssignedSlots.
+    /// </summary>
+    public bool AssignRandomModifiersPerPlayer(bool showBanner = true)
+    {
+        var pool = _registeredModifiers.Where(m => m.SupportsPerPlayerRandomization).ToList();
+        var players = _core.PlayerManager.GetAllValidPlayers().ToList();
+
+        if (pool.Count == 0 || players.Count == 0)
+        {
+            return false;
+        }
+
+        var random = new Random();
+        var assignedSlotsByModifier = new Dictionary<GameModifierBase, List<int>>();
+        var modifiersByPlayerSlot = new Dictionary<int, List<GameModifierBase>>();
+
+        foreach (var player in players)
+        {
+            var picked = PickRandomModifiersForPlayer(pool, random, player);
+            if (picked.Count == 0)
+            {
+                continue;
+            }
+
+            modifiersByPlayerSlot[player.Slot] = picked;
+            foreach (var modifier in picked)
+            {
+                if (!assignedSlotsByModifier.TryGetValue(modifier, out var slots))
+                {
+                    slots = [];
+                    assignedSlotsByModifier[modifier] = slots;
+                }
+
+                slots.Add(player.Slot);
+            }
+        }
+
+        if (assignedSlotsByModifier.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var (modifier, slots) in assignedSlotsByModifier)
+        {
+            if (_activeModifiers.Contains(modifier))
+            {
+                modifier.AddAssignedSlots(slots);
+            }
+            else
+            {
+                modifier.Activate(slots);
+                _activeModifiers.Add(modifier);
+            }
+        }
+
+        if (DebugMode)
+        {
+            CSRollUtils.PrintTitleToAdminsOnly(_core, "Activating modifiers (randomized per player):");
+            foreach (var (slot, modifiers) in modifiersByPlayerSlot)
+            {
+                var player = _core.PlayerManager.GetPlayer(slot);
+                var playerName = player?.Controller is { IsValid: true } controller ? controller.PlayerName : $"Player {slot}";
+                foreach (var modifier in modifiers)
+                {
+                    CSRollUtils.PrintToAdminsOnly(_core, $"• {playerName}: {CSRollUtils.GetModifierDisplayName(_core, modifier)} - [{CSRollUtils.GetModifierDescription(_core, modifier)}]");
+                }
+            }
+        }
+
+        if (showBanner)
+        {
+            if (Config.ShowCentreMsg)
+            {
+                ShowPerPlayerModifiersBanner(modifiersByPlayerSlot);
+            }
+
+            foreach (var (slot, modifiers) in modifiersByPlayerSlot)
+            {
+                SendOwnModifiersChatMessage(_core.PlayerManager.GetPlayer(slot), modifiers);
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Persistent, scrollback-able "Your modifiers:" chat confirmation for a player's own current
+    /// assignment - unlike the transient center-HTML banner, this stays in chat history and isn't
+    /// gated by DebugMode (that flag only hides *other* players' assignments from non-admins; a
+    /// player seeing their own modifiers is never a privacy concern).
+    /// </summary>
+    private void SendOwnModifiersChatMessage(IPlayer? player, IReadOnlyCollection<GameModifierBase> modifiers)
+    {
+        if (modifiers.Count == 0 || player is not { IsValid: true })
+        {
+            return;
+        }
+
+        CSRollUtils.PrintTitleToChatColored(_core, player, "[gold]Your modifiers:[default]");
+        foreach (var modifier in modifiers)
+        {
+            player.SendChat($"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - {CSRollUtils.GetModifierDescription(_core, modifier)}");
+        }
+    }
+
+    /// <summary>Modifiers listed in Config.RequiresMultiplePlayersPerTeam (e.g. Saint) are excluded unless the relevant team has at least 2 players - no point rolling a "revive a dead teammate" modifier in a 1v1 where there's never a teammate to revive.</summary>
+    private bool MeetsTeamSizeRequirement(GameModifierBase modifier, int teamSize)
+    {
+        return !Config.RequiresMultiplePlayersPerTeam.Contains(modifier.Name, StringComparer.OrdinalIgnoreCase) || teamSize >= 2;
+    }
+
+    private List<GameModifierBase> PickRandomModifiersForPlayer(List<GameModifierBase> pool, Random random, IPlayer player)
+    {
+        var count = random.Next(MinRandomRounds, MaxRandomRounds);
+        if (count <= 0)
+        {
+            return [];
+        }
+
+        var teamSize = player.Controller is { IsValid: true } controller ? _core.PlayerManager.GetInTeam(controller.Team).Count() : 0;
+        var eligiblePool = pool.Where(m => MeetsTeamSizeRequirement(m, teamSize)).ToList();
+
+        return PickCompatibleRandomModifiers(eligiblePool, count, random);
+    }
+
+    /// <summary>
+    /// Picks up to `count` mutually-compatible modifiers from eligiblePool at random.
+    ///
+    /// Bug fix: the old approach pre-resolved every incompatible PAIR in the whole pool up front -
+    /// for every two modifiers in eligiblePool that were incompatible with each other, it flipped a
+    /// coin and permanently removed one, before selection even started. A modifier that happens to
+    /// be incompatible with many others (e.g. ConditionalInvisibility/FullInvisibility listing each
+    /// other plus several weapon-restricting modifiers) accumulated many independent chances to get
+    /// coin-flipped away
+    /// - surviving all of them got exponentially less likely the more incompatibilities it had,
+    /// regardless of whether it would even have been selected. That's confirmed as the reason some
+    /// modifiers were seen 5-10x live while others were never seen at all.
+    ///
+    /// Fix: shuffle first (so every modifier gets an equal starting chance), then greedily walk the
+    /// shuffled order and only skip a candidate if it conflicts with something ALREADY picked - a far
+    /// rarer event than "conflicts with anything anywhere in the whole pool".
+    /// </summary>
+    private static List<GameModifierBase> PickCompatibleRandomModifiers(List<GameModifierBase> eligiblePool, int count, Random random)
+    {
+        if (count <= 0 || eligiblePool.Count == 0)
+        {
+            return [];
+        }
+
+        var shuffled = new List<GameModifierBase>(eligiblePool);
+        for (var i = shuffled.Count - 1; i > 0; i--)
+        {
+            var j = random.Next(i + 1);
+            (shuffled[i], shuffled[j]) = (shuffled[j], shuffled[i]);
+        }
+
+        var picked = new List<GameModifierBase>();
+        foreach (var candidate in shuffled)
+        {
+            if (picked.Count >= count)
+            {
+                break;
+            }
+
+            if (picked.Any(p => p.CheckIfIncompatible(candidate) || candidate.CheckIfIncompatible(p)))
+            {
+                continue;
+            }
+
+            picked.Add(candidate);
+        }
+
+        return picked;
+    }
+
+    private void ShowPerPlayerModifiersBanner(Dictionary<int, List<GameModifierBase>> modifiersByPlayerSlot)
+    {
+        foreach (var (slot, modifiers) in modifiersByPlayerSlot)
+        {
+            if (modifiers.Count == 0)
+            {
+                continue;
+            }
+
+            _core.PlayerManager.GetPlayer(slot)?.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), 6000);
+        }
+    }
+
+    public bool ToggleModifier(GameModifierBase? modifier, out string message)
+    {
+        if (modifier is null)
+        {
+            message = "Modifier is null?";
+            return false;
+        }
+
+        return IsModifierActive(modifier) ? RemoveModifier(modifier, out message) : AddModifier(modifier, out message);
+    }
+
+    public bool ToggleModifierByName(string modifierName, out string message)
+    {
+        if (!IsModifierRegisteredByName(modifierName))
+        {
+            message = $"{modifierName} modifier is not registered.";
+            return false;
+        }
+
+        if (IsModifierActiveByName(modifierName))
+        {
+            RemoveModifierByName(modifierName, out message);
+            return true;
+        }
+
+        return AddModifierByName(modifierName, out message);
+    }
+
+    public bool AddModifierByName(string modifierName, out string message)
+    {
+        if (_registeredModifiers.Count == 0)
+        {
+            message = "No modifiers are registered.";
+            return false;
+        }
+
+        var modifier = GetRegisteredModifierByName(modifierName);
+        if (modifier is not null)
+        {
+            return AddModifier(modifier, out message);
+        }
+
+        message = $"{modifierName} modifier is not registered!";
+        return false;
+    }
+
+    public bool AddModifier(GameModifierBase? modifier, out string message)
+    {
+        if (modifier is null)
+        {
+            message = "Modifier is null?";
+            return false;
+        }
+
+        var blockingNames = _activeModifiers
+            .Where(active => active.CheckIfIncompatible(modifier) || modifier.CheckIfIncompatible(active))
+            .Select(active => CSRollUtils.GetModifierDisplayName(_core, active))
+            .ToList();
+
+        if (blockingNames.Count > 0)
+        {
+            message = $"{CSRollUtils.GetModifierDisplayName(_core, modifier)} modifier is blocked by: " + string.Join(", ", blockingNames);
+            return false;
+        }
+
+        if (_activeModifiers.Contains(modifier))
+        {
+            message = $"{CSRollUtils.GetModifierDisplayName(_core, modifier)} modifier is already active.";
+            return false;
+        }
+
+        ActivateModifiers([modifier]);
+        message = $"Successfully added {CSRollUtils.GetModifierDisplayName(_core, modifier)} modifier.";
+        return true;
+    }
+
+    /// <summary>
+    /// Applies a modifier scoped to just one player's own slot (the !memodifier command), rather
+    /// than everyone (AddModifier/AddModifierByName). If the modifier is already active globally or
+    /// already covers this slot, there's nothing further to do. If it's active for OTHER slots only,
+    /// this slot is added to its existing AssignedSlots instead of reactivating it. Note this only
+    /// actually scopes the effect to one player for modifiers whose own implementation checks
+    /// IsAssignedTo - some modifiers (KnivesOnly, PlantAnywhere, HeadShotOnly, etc.) drive genuinely
+    /// server-wide cvars and will still affect everyone regardless of AssignedSlots, since that's an
+    /// engine limitation those modifiers already document, not something this command can work around.
+    /// </summary>
+    public bool AddModifierToPlayer(string modifierName, int slot, out string message)
+    {
+        var modifier = GetRegisteredModifierByName(modifierName);
+        if (modifier is null)
+        {
+            message = $"{modifierName} modifier is not registered!";
+            return false;
+        }
+
+        var blockingNames = _activeModifiers
+            .Where(active => active != modifier && ModifierAppliesToSlot(active, slot) &&
+                (active.CheckIfIncompatible(modifier) || modifier.CheckIfIncompatible(active)))
+            .Select(active => CSRollUtils.GetModifierDisplayName(_core, active))
+            .ToList();
+
+        if (blockingNames.Count > 0)
+        {
+            message = $"{CSRollUtils.GetModifierDisplayName(_core, modifier)} modifier is blocked by: " + string.Join(", ", blockingNames);
+            return false;
+        }
+
+        if (_activeModifiers.Contains(modifier))
+        {
+            if (ModifierAppliesToSlot(modifier, slot))
+            {
+                message = $"{CSRollUtils.GetModifierDisplayName(_core, modifier)} already applies to you.";
+                return false;
+            }
+
+            modifier.AddAssignedSlots([slot]);
+        }
+        else
+        {
+            modifier.Activate([slot]);
+            _activeModifiers.Add(modifier);
+
+            if (Config.ShowCentreMsg && _core.PlayerManager.GetPlayer(slot) is { IsValid: true } player)
+            {
+                player.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, [modifier]), 6000);
+            }
+        }
+
+        message = $"Applied {CSRollUtils.GetModifierDisplayName(_core, modifier)} to just you.";
+        return true;
+    }
+
+    /// <summary>Empty AssignedSlots means global/"everyone" (the same convention GameModifierBase.IsAssignedTo uses internally) - this is the equivalent check from outside the modifier.</summary>
+    private static bool ModifierAppliesToSlot(GameModifierBase modifier, int slot) =>
+        modifier.AssignedSlots.Count == 0 || modifier.AssignedSlots.Contains(slot);
+
+    public void RemoveModifierByName(string modifierName, out string message)
+    {
+        if (_activeModifiers.Count == 0)
+        {
+            message = "No modifiers are active.";
+            return;
+        }
+
+        var modifier = _activeModifiers.FirstOrDefault(m => string.Equals(m.Name, modifierName, StringComparison.OrdinalIgnoreCase));
+        if (modifier is not null)
+        {
+            RemoveModifier(modifier, out message);
+            return;
+        }
+
+        message = $"{modifierName} modifier is not active.";
+    }
+
+    public bool RemoveModifier(GameModifierBase? modifier, out string message)
+    {
+        if (modifier is null)
+        {
+            message = "Modifier is null?";
+            return false;
+        }
+
+        if (!_activeModifiers.Contains(modifier))
+        {
+            message = $"{CSRollUtils.GetModifierDisplayName(_core, modifier)} modifier is not active.";
+            return true;
+        }
+
+        modifier.Deactivate();
+        _activeModifiers.Remove(modifier);
+        message = $"Removed {CSRollUtils.GetModifierDisplayName(_core, modifier)} modifier.";
+        return true;
+    }
+
+    public void RemoveAllModifiers()
+    {
+        if (_activeModifiers.Count == 0)
+        {
+            return;
+        }
+
+        for (var i = _activeModifiers.Count - 1; i >= 0; i--)
+        {
+            _activeModifiers[i].Deactivate();
+        }
+
+        _activeModifiers.Clear();
+    }
+
+    public bool AddRandomModifier(out GameModifierBase? addedModifier)
+    {
+        if (AddRandomModifiers(1, out var addedModifiers))
+        {
+            addedModifier = addedModifiers[0];
+            return true;
+        }
+
+        addedModifier = null;
+        return false;
+    }
+
+    public bool AddRandomModifiers(int modifierCount, out List<GameModifierBase> addedModifiers, bool showBanner = true)
+    {
+        addedModifiers = [];
+
+        if (modifierCount <= 0)
+        {
+            return true;
+        }
+
+        if (_registeredModifiers.Count == 0)
+        {
+            return false;
+        }
+
+        // Global activation could end up mattering for either team (e.g. Saint procs off whichever
+        // team's player gets a kill), so both teams need to independently qualify.
+        var tCount = _core.PlayerManager.GetT().Count();
+        var ctCount = _core.PlayerManager.GetCT().Count();
+
+        var randomModifiersPool = _registeredModifiers
+            .Where(m => m.SupportsRandomRounds && !_activeModifiers.Contains(m) && (Config.CanRepeat || !_lastActiveModifiers.Contains(m)) &&
+                MeetsTeamSizeRequirement(m, tCount) && MeetsTeamSizeRequirement(m, ctCount) &&
+                !_activeModifiers.Any(active => active.CheckIfIncompatible(m) || m.CheckIfIncompatible(active)))
+            .ToList();
+
+        addedModifiers = PickCompatibleRandomModifiers(randomModifiersPool, modifierCount, new Random());
+
+        if (addedModifiers.Count == 0)
+        {
+            return false;
+        }
+
+        // Bug fix: this shared/global roll had no !debug visibility at all, unlike the per-player
+        // roll's admin listing - live testing found modifiers activated here (e.g. KnivesOnly,
+        // PlantAnywhere - anything that doesn't support per-player randomization, including the
+        // ConditionalInvisibility/FullInvisibility supplementary roll) reported as "hidden": nobody
+        // showed up as having received them in the debug output because there simply wasn't any.
+        if (DebugMode)
+        {
+            CSRollUtils.PrintTitleToAdminsOnly(_core, "Activating modifiers (global/shared roll):");
+            foreach (var modifier in addedModifiers)
+            {
+                CSRollUtils.PrintToAdminsOnly(_core, $"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - [{CSRollUtils.GetModifierDescription(_core, modifier)}]");
+            }
+        }
+
+        ActivateModifiers(addedModifiers, showBanner);
+        return true;
+    }
+
+    private void ActivateModifiers(List<GameModifierBase> modifiers, bool showBanner = true)
+    {
+        if (modifiers.Count == 0)
+        {
+            return;
+        }
+
+        // The center banner is skipped here when showBanner is false (round-start random-round
+        // activation) because it would fire during the spawn/freeze-time animation, before the
+        // player has control - the message either isn't rendered yet or expires before it's
+        // readable. CSRoll.GameEvents.cs shows it again on EventRoundFreezeEnd instead.
+        if (showBanner)
+        {
+            if (Config.ShowCentreMsg)
+            {
+                CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), 6000);
+            }
+
+            foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+            {
+                SendOwnModifiersChatMessage(player, modifiers);
+            }
+        }
+
+        foreach (var modifier in modifiers)
+        {
+            modifier.Activate();
+            _activeModifiers.Add(modifier);
+        }
+    }
+
+    /// <summary>
+    /// Spin-then-reveal for the currently-active set, played exactly once per round via
+    /// ScheduleFreezeTimeBanner: cycles through random modifier names in the center-HTML popup before
+    /// landing on the real result, then fires each affected player's "Your modifiers:" chat message
+    /// at the exact moment their own reveal completes (not before). Nothing re-displays this again
+    /// later in the round - the reveal itself stays up for SpinReveal.RevealDurationSeconds.
+    /// </summary>
+    public void PlaySpinThenRevealActiveModifiersBanner()
+    {
+        if (_activeModifiers.Count == 0)
+        {
+            return;
+        }
+
+        // Bug fix: any active modifier with an EMPTY AssignedSlots is global in scope (e.g. the
+        // ConditionalInvisibility/FullInvisibility supplementary roll in ApplyRandomRoundsForRound,
+        // or an admin !addmodifier on something that doesn't support per-player randomization like
+        // KnivesOnly/PlantAnywhere) - live testing confirmed these were taking effect completely
+        // silently under RandomizePlayers=true: no chat, no spin, not even in the !debug listing,
+        // since the per-player branch below only ever iterates each modifier's AssignedSlots, which
+        // contributes nothing for a global-scope one. These now always get their own broadcast
+        // reveal, regardless of RandomizePlayers.
+        var globalModifiers = _activeModifiers.Where(m => m.AssignedSlots.Count == 0).ToList();
+        if (globalModifiers.Count > 0)
+        {
+            void RevealGlobal()
+            {
+                foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+                {
+                    SendOwnModifiersChatMessage(player, globalModifiers);
+                }
+            }
+
+            if (Config.ShowCentreMsg)
+            {
+                PlaySpinThenRevealAll(CSRollUtils.BuildActivatingModifiersHtml(_core, globalModifiers), RevealGlobal);
+            }
+            else
+            {
+                RevealGlobal();
+            }
+        }
+
+        if (Config.RandomizePlayers)
+        {
+            var modifiersByPlayerSlot = new Dictionary<int, List<GameModifierBase>>();
+            foreach (var modifier in _activeModifiers)
+            {
+                foreach (var slot in modifier.AssignedSlots)
+                {
+                    if (!modifiersByPlayerSlot.TryGetValue(slot, out var modifiers))
+                    {
+                        modifiers = [];
+                        modifiersByPlayerSlot[slot] = modifiers;
+                    }
+
+                    modifiers.Add(modifier);
+                }
+            }
+
+            foreach (var (slot, modifiers) in modifiersByPlayerSlot)
+            {
+                if (modifiers.Count == 0)
+                {
+                    continue;
+                }
+
+                void Reveal() => SendOwnModifiersChatMessage(_core.PlayerManager.GetPlayer(slot), modifiers);
+
+                if (Config.ShowCentreMsg)
+                {
+                    PlaySpinThenReveal(slot, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), Reveal);
+                }
+                else
+                {
+                    Reveal();
+                }
+            }
+
+            return;
+        }
+
+        // Non-RandomizePlayers mode: everything is already global in scope, so globalModifiers above
+        // already covers the whole active set - nothing further to reveal here.
+    }
+
+    /// <summary>
+    /// Eases the per-frame delay from SpinReveal.StartIntervalSeconds (fast) up to
+    /// EndIntervalSeconds (slow) as the spin approaches its last frame - a quadratic curve, so the
+    /// interval grows slowly at first and then noticeably stretches out right before landing, giving
+    /// the classic slot-machine "spin fast, then ease out" feel rather than a constant tick rate.
+    /// </summary>
+    private float GetSpinFrameIntervalSeconds(int frameIndex, int totalFrames)
+    {
+        var t = totalFrames <= 1 ? 1f : (float)frameIndex / (totalFrames - 1);
+        var eased = t * t;
+        return Config.SpinReveal.StartIntervalSeconds + ((Config.SpinReveal.EndIntervalSeconds - Config.SpinReveal.StartIntervalSeconds) * eased);
+    }
+
+    /// <summary>
+    /// Cycles a given player's center-HTML through SpinReveal.SpinCount random modifier names,
+    /// easing from a fast to a slow tick rate, then shows finalHtml for RevealDurationSeconds and
+    /// invokes onRevealed. Implemented as a self-rescheduling chain of Core.Scheduler.DelayBySeconds
+    /// calls (the same primitive ScheduleFreezeTimeBanner already uses successfully) rather than
+    /// DelayAndRepeatBySeconds with a 0-second initial delay - that combination turned out not to
+    /// fire at all on a live server, so this sticks to the one delay primitive already confirmed
+    /// working in this codebase. Re-fetches the player by slot every frame (not a captured IPlayer
+    /// reference) since a delayed scheduler callback can easily outlive a disconnecting player.
+    /// </summary>
+    private void PlaySpinThenReveal(int slot, string finalHtml, Action onRevealed)
+    {
+        if (!Config.SpinReveal.Enabled || _registeredModifiers.Count == 0)
+        {
+            _core.PlayerManager.GetPlayer(slot)?.SendCenterHTML(finalHtml, (int)(Config.SpinReveal.RevealDurationSeconds * 1000));
+            onRevealed();
+            return;
+        }
+
+        PlayNextSpinFrame(slot, 0, Config.SpinReveal.SpinCount, finalHtml, onRevealed);
+    }
+
+    private void PlayNextSpinFrame(int slot, int frameIndex, int totalFrames, string finalHtml, Action onRevealed)
+    {
+        var current = _core.PlayerManager.GetPlayer(slot);
+        if (current is not { IsValid: true })
+        {
+            return;
+        }
+
+        if (frameIndex >= totalFrames)
+        {
+            current.SendCenterHTML(finalHtml, (int)(Config.SpinReveal.RevealDurationSeconds * 1000));
+            onRevealed();
+            return;
+        }
+
+        var randomName = CSRollUtils.GetModifierDisplayName(_core, _registeredModifiers[Random.Shared.Next(_registeredModifiers.Count)]);
+        var interval = GetSpinFrameIntervalSeconds(frameIndex, totalFrames);
+        current.SendCenterHTML(CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
+
+        _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrame(slot, frameIndex + 1, totalFrames, finalHtml, onRevealed));
+    }
+
+    /// <summary>Broadcast counterpart to PlaySpinThenReveal, used for the shared/global (non-RandomizePlayers) activation path where every player sees the same spin land on the same result.</summary>
+    private void PlaySpinThenRevealAll(string finalHtml, Action onRevealed)
+    {
+        if (!Config.SpinReveal.Enabled || _registeredModifiers.Count == 0)
+        {
+            CSRollUtils.ShowMessageCentreAll(_core, finalHtml, (int)(Config.SpinReveal.RevealDurationSeconds * 1000));
+            onRevealed();
+            return;
+        }
+
+        PlayNextSpinFrameAll(0, Config.SpinReveal.SpinCount, finalHtml, onRevealed);
+    }
+
+    private void PlayNextSpinFrameAll(int frameIndex, int totalFrames, string finalHtml, Action onRevealed)
+    {
+        if (frameIndex >= totalFrames)
+        {
+            CSRollUtils.ShowMessageCentreAll(_core, finalHtml, (int)(Config.SpinReveal.RevealDurationSeconds * 1000));
+            onRevealed();
+            return;
+        }
+
+        var randomName = CSRollUtils.GetModifierDisplayName(_core, _registeredModifiers[Random.Shared.Next(_registeredModifiers.Count)]);
+        var interval = GetSpinFrameIntervalSeconds(frameIndex, totalFrames);
+        CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
+
+        _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrameAll(frameIndex + 1, totalFrames, finalHtml, onRevealed));
+    }
+}

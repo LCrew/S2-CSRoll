@@ -1,0 +1,247 @@
+namespace CSRoll.Config;
+
+public class CSRollConfig
+{
+    public bool RandomRoundsEnabledByDefault { get; set; } = false;
+    public bool DisableRandomRoundsInWarmup { get; set; } = false;
+    public bool ShowCentreMsg { get; set; } = true;
+    public bool CanRepeat { get; set; } = false;
+
+    /// <summary>
+    /// Prefix shown before every chat message this plugin sends (e.g. "Added Bhop modifier.").
+    /// Supports SwiftlyS2's chat color tokens - resolved once via SwiftlyS2.Shared.Helper.Colored()
+    /// whenever this config (re)loads. SwiftlyS2 uses square brackets for color tokens (unlike
+    /// CounterStrikeSharp's curly braces) - confirmed via the official porting guide
+    /// (swiftlys2.net/docs/guides/porting-from-css) - so a token must be written "[colorname]",
+    /// never "{colorname}", or it's left as literal text. A literal "[CSRoll]" tag in the middle
+    /// (confirmed working live) relies on "CSRoll" not being a recognized color name, so
+    /// Helper.Colored() leaves that bracketed text exactly as-is rather than stripping it.
+    /// </summary>
+    public string BannerText { get; set; } = "[orange][CSRoll][default] ";
+    public int MinRandomRounds { get; set; } = 1;
+    public int MaxRandomRounds { get; set; } = 1;
+    public string[] DisabledModifiers { get; set; } = [];
+
+    /// <summary>
+    /// When true, random rounds assign each connected player their own independent random
+    /// modifier(s) (from modifiers with SupportsPerPlayerRandomization=true) instead of one
+    /// shared set applied to everyone. ConVar-driven modifiers never participate in this mode -
+    /// they touch server-wide cvars and can't hold a different value per player.
+    /// </summary>
+    public bool RandomizePlayers { get; set; } = true;
+
+    /// <summary>
+    /// TeleportOnReload/TeleportOnHit depend on raw memory signature scanning to
+    /// locate CS2's internal nav-mesh data - inherently fragile and tied to the exact game
+    /// binary. Set to false to skip that scan entirely (e.g. if it crashes the plugin or the
+    /// server on a given CS2 build) without affecting any other modifier.
+    /// </summary>
+    public bool EnableNavMeshTeleports { get; set; } = true;
+
+    /// <summary>Tunables for the ConditionalInvisibility modifier (invisible while silent, briefly visible after any sound).</summary>
+    public ConditionalInvisibilityConfig ConditionalInvisibility { get; set; } = new();
+
+    /// <summary>Tunables for the Speedhack modifier (faster movement).</summary>
+    public SpeedhackConfig Speedhack { get; set; } = new();
+
+    /// <summary>Tunables for the LeadBoots modifier (slower movement - now per-player, previously a server-wide sv_maxspeed cvar).</summary>
+    public LeadBootsConfig LeadBoots { get; set; } = new();
+
+    /// <summary>Tunables for the HighGravity/LowGravity modifiers (per-player GravityScale, previously a server-wide sv_gravity cvar).</summary>
+    public GravityConfig Gravity { get; set; } = new();
+
+    /// <summary>Tunables for the SuperJump modifier (per-player jump velocity boost, previously a server-wide sv_jump_impulse cvar).</summary>
+    public SuperJumpConfig SuperJump { get; set; } = new();
+
+    /// <summary>Tunables for the BiggerExplosions modifier (per-player HE damage multiplier, previously a server-wide sv_hegrenade_damage_multiplier cvar).</summary>
+    public BiggerExplosionsConfig BiggerExplosions { get; set; } = new();
+
+    /// <summary>Tunables for the IncreasedSpread modifier (per-player weapon accuracy penalty, previously a server-wide weapon_accuracy_forcespread cvar).</summary>
+    public IncreasedSpreadConfig IncreasedSpread { get; set; } = new();
+
+    /// <summary>Tunables for the PoisonSmoke modifier (damage dealt per tick to enemies standing in the assigned player's smoke).</summary>
+    public PoisonSmokeConfig PoisonSmoke { get; set; } = new();
+
+    /// <summary>Tunables for the FlashingBullets modifier (per-bullet-hit blind chance).</summary>
+    public FlashingBulletsConfig FlashingBullets { get; set; } = new();
+
+    /// <summary>Tunables for the DisarmingBullets modifier (per-bullet-hit disarm chance).</summary>
+    public DisarmingBulletsConfig DisarmingBullets { get; set; } = new();
+
+    /// <summary>Tunables for the Kamikaze modifier (grenades dropped on death, and their damage multiplier).</summary>
+    public KamikazeConfig Kamikaze { get; set; } = new();
+
+    /// <summary>Tunables for the Revive modifier (escalating chance to survive lethal damage).</summary>
+    public ReviveConfig Revive { get; set; } = new();
+
+    /// <summary>Tunables for the Saint modifier (chance to revive a dead teammate on a kill).</summary>
+    public SaintConfig Saint { get; set; } = new();
+
+    /// <summary>Tunables for the MasterZeus modifier (extended-range zap damage - its cooldown tracks the mp_taser_recharge_time cvar directly instead of a separate config value).</summary>
+    public MasterZeusConfig MasterZeus { get; set; } = new();
+
+    /// <summary>Tunables for the PlantAnywhere modifier (delayed anywhere-plant + extended bomb timer, previously a static ConVarModifiers/*.cfg entry with neither).</summary>
+    public PlantAnywhereConfig PlantAnywhere { get; set; } = new();
+
+    /// <summary>Modifier names excluded from random rolls unless the relevant team has at least this many players - e.g. Saint is pointless in a 1v1 (no teammate to ever revive).</summary>
+    public string[] RequiresMultiplePlayersPerTeam { get; set; } = ["Saint"];
+
+    /// <summary>Tunables for the "slot machine" style spin animation shown in the center-HTML popup before the real assigned modifier(s) are revealed.</summary>
+    public SpinRevealConfig SpinReveal { get; set; } = new();
+}
+
+public class ConditionalInvisibilityConfig
+{
+    /// <summary>Seconds of complete silence required after last making a sound before the player fades invisible again.</summary>
+    public float SoundCooldownSeconds { get; set; } = 2.0f;
+
+    /// <summary>Seconds the visual fade in/out takes (real alpha blend via RenderMode.kRenderTransAlpha, not an instant transmit-block toggle).</summary>
+    public float FadeDurationSeconds { get; set; } = 0.5f;
+}
+
+public class SpeedhackConfig
+{
+    /// <summary>Movement speed multiplier (VelocityModifier mechanism).</summary>
+    public float SpeedMultiplier { get; set; } = 2.0f;
+}
+
+public class LeadBootsConfig
+{
+    /// <summary>Movement speed multiplier (VelocityModifier mechanism) - below 1.0 to feel "heavy".</summary>
+    public float SpeedMultiplier { get; set; } = 0.5f;
+
+    /// <summary>Armor value granted (full kevlar+helmet) to compensate for the reduced mobility.</summary>
+    public int ArmorValue { get; set; } = 100;
+
+    /// <summary>Health granted on top of the normal spawn health.</summary>
+    public int BonusHealth { get; set; } = 50;
+}
+
+public class GravityConfig
+{
+    /// <summary>Per-player GravityScale multiplier for HighGravity (above 1.0 = falls faster).</summary>
+    public float HighGravityMultiplier { get; set; } = 4.0f;
+
+    /// <summary>Per-player GravityScale multiplier for LowGravity (below 1.0 = falls slower).</summary>
+    public float LowGravityMultiplier { get; set; } = 0.25f;
+}
+
+public class SuperJumpConfig
+{
+    /// <summary>Upward velocity (units/sec) applied on jump - CS2's own default is ~301, so this is roughly 2.5x that.</summary>
+    public float JumpVelocityZ { get; set; } = 750f;
+}
+
+public class BiggerExplosionsConfig
+{
+    /// <summary>Multiplier applied to DMG_BLAST damage dealt by the assigned player's grenades.</summary>
+    public float DamageMultiplier { get; set; } = 3.0f;
+}
+
+public class IncreasedSpreadConfig
+{
+    /// <summary>Flat accuracy penalty added to the assigned player's currently held weapon every tick.</summary>
+    public float AccuracyPenalty { get; set; } = 15f;
+}
+
+public class PoisonSmokeConfig
+{
+    /// <summary>Damage dealt once per tick (see TickIntervalSeconds in code) to each enemy standing inside the assigned player's smoke.</summary>
+    public float DamagePerTick { get; set; } = 5f;
+}
+
+public class FlashingBulletsConfig
+{
+    /// <summary>
+    /// Minimum/maximum percent chance for a bullet hit to blind the enemy. A single value is rolled
+    /// from this range once per activation (each time the modifier is applied to a player), not per
+    /// bullet hit - so different activations get different odds within this range, but the odds stay
+    /// fixed for the duration of one activation.
+    /// </summary>
+    public float MinBlindChancePercent { get; set; } = 10f;
+    public float MaxBlindChancePercent { get; set; } = 40f;
+
+    /// <summary>Blind duration in seconds applied on a successful proc.</summary>
+    public float BlindDurationSeconds { get; set; } = 2f;
+}
+
+public class DisarmingBulletsConfig
+{
+    /// <summary>
+    /// Minimum/maximum percent chance to make a hit player drop their weapon. A single value is
+    /// rolled from this range once per activation (each time the modifier is applied to a player -
+    /// e.g. a fresh random round), not per bullet hit - so different rounds get different odds
+    /// within this range, but the odds stay fixed for the duration of one activation.
+    /// </summary>
+    public float MinChancePercent { get; set; } = 1f;
+    public float MaxChancePercent { get; set; } = 20f;
+}
+
+public class KamikazeConfig
+{
+    /// <summary>How many live HE grenades are dropped near the assigned player's body on death.</summary>
+    public int GrenadeCount { get; set; } = 3;
+
+    /// <summary>Damage multiplier applied to the blast damage these specific grenades deal.</summary>
+    public float DamageMultiplier { get; set; } = 1.25f;
+}
+
+public class ReviveConfig
+{
+    /// <summary>
+    /// Minimum/maximum starting percent chance to revive instead of dying. A single value is rolled
+    /// from this range once per activation (not per revive, not per life) and used as the reset
+    /// point every spawn. Deliberately high by design - see the multiplicative decay below for why
+    /// this doesn't make Revive overpowered.
+    /// </summary>
+    public float MinBasePercent { get; set; } = 70f;
+    public float MaxBasePercent { get; set; } = 90f;
+
+    /// <summary>Health the player is set to immediately after a successful revive.</summary>
+    public int HealthAfterRevive { get; set; } = 50;
+}
+
+public class SaintConfig
+{
+    /// <summary>
+    /// Minimum/maximum percent chance that killing an enemy revives one random dead teammate. A
+    /// single value is rolled from this range once per activation (each time the modifier is
+    /// applied to a player), not per kill - so different activations get different odds within this
+    /// range, but the odds stay fixed for the duration of one activation.
+    /// </summary>
+    public float MinRevivePercent { get; set; } = 10f;
+    public float MaxRevivePercent { get; set; } = 50f;
+}
+
+public class MasterZeusConfig
+{
+    /// <summary>Flat damage dealt by a successful extended-range zap. The cooldown between zaps is NOT here - it reads the real mp_taser_recharge_time server cvar live instead, so there's one single source of truth shared with the native close-range zeus recharge.</summary>
+    public float ZapDamage { get; set; } = 200f;
+}
+
+public class PlantAnywhereConfig
+{
+    /// <summary>Seconds into the round before mp_plant_c4_anywhere is turned on - before this, planting still requires a normal bombsite.</summary>
+    public float DelaySeconds { get; set; } = 10f;
+
+    /// <summary>Bomb fuse duration (mp_c4_timer) in seconds while this modifier is active.</summary>
+    public float BombTimerSeconds { get; set; } = 75f;
+}
+
+public class SpinRevealConfig
+{
+    /// <summary>If false, the real modifier assignment is shown immediately with no spin-up animation.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>Seconds between name changes at the very start of the spin - fast.</summary>
+    public float StartIntervalSeconds { get; set; } = 0.06f;
+
+    /// <summary>Seconds between name changes right before landing on the real result - slow (the "ease out").</summary>
+    public float EndIntervalSeconds { get; set; } = 0.55f;
+
+    /// <summary>How many random names to cycle through before landing on the real result.</summary>
+    public int SpinCount { get; set; } = 18;
+
+    /// <summary>How long the real result stays on screen once the spin lands on it.</summary>
+    public float RevealDurationSeconds { get; set; } = 15f;
+}
