@@ -5,7 +5,17 @@ public class CSRollConfig
     public bool RandomRoundsEnabledByDefault { get; set; } = false;
     public bool DisableRandomRoundsInWarmup { get; set; } = false;
     public bool ShowCentreMsg { get; set; } = true;
+
+    /// <summary>Whole-server "don't repeat" for the non-RandomizePlayers shared/global roll only - the same set from last round can't be picked again as a whole. Unrelated to PerPlayerRepeatCooldownRounds below, which is per-player and applies to the per-player roll.</summary>
     public bool CanRepeat { get; set; } = false;
+
+    /// <summary>
+    /// Per-player, per-modifier cooldown for the RandomizePlayers roll: once a specific player rolls
+    /// a specific modifier, that SAME player can't roll that SAME modifier again for this many
+    /// rounds - a different player is entirely unaffected and can still roll it next round. 0 disables
+    /// this cooldown entirely (a player could roll the same modifier again as soon as next round).
+    /// </summary>
+    public int PerPlayerRepeatCooldownRounds { get; set; } = 3;
 
     /// <summary>
     /// Prefix shown before every chat message this plugin sends (e.g. "Added Bhop modifier.").
@@ -37,6 +47,9 @@ public class CSRollConfig
     /// server on a given CS2 build) without affecting any other modifier.
     /// </summary>
     public bool EnableNavMeshTeleports { get; set; } = true;
+
+    /// <summary>Tunables for the RandomHealth modifier (health set to a random number in this range each activation).</summary>
+    public RandomHealthConfig RandomHealth { get; set; } = new();
 
     /// <summary>Tunables for the ConditionalInvisibility modifier (invisible while silent, briefly visible after any sound).</summary>
     public ConditionalInvisibilityConfig ConditionalInvisibility { get; set; } = new();
@@ -103,6 +116,15 @@ public class SpeedhackConfig
 {
     /// <summary>Movement speed multiplier (VelocityModifier mechanism).</summary>
     public float SpeedMultiplier { get; set; } = 2.0f;
+}
+
+public class RandomHealthConfig
+{
+    /// <summary>Lowest possible health value that can be rolled (inclusive).</summary>
+    public int MinHealth { get; set; } = 1;
+
+    /// <summary>Highest possible health value that can be rolled (inclusive).</summary>
+    public int MaxHealth { get; set; } = 250;
 }
 
 public class LeadBootsConfig

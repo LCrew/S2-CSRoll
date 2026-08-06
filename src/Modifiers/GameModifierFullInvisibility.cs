@@ -119,14 +119,22 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
 
-        foreach (var slot in AssignedSlots)
+        // Bug fix: this used to iterate AssignedSlots directly, which is empty for a GLOBAL
+        // activation (!addmodifier, no specific player assignment) - AssignedSlots only ever gets
+        // populated for a per-player roll or !memodifier, even though IsAssignedTo already treats an
+        // empty AssignedSlots as "applies to everyone". Activating via !addmodifier therefore iterated
+        // nothing and never showed the popup to anyone. Iterating every valid player and filtering by
+        // IsAssignedTo (the same pattern used everywhere else in this codebase) correctly covers both
+        // the global and per-player-assigned cases.
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (_lastHtmlUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
+            if (!IsAssignedTo(player.Slot) || !player.IsAlive)
             {
                 continue;
             }
 
-            if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true, IsAlive: true } player)
+            var slot = player.Slot;
+            if (_lastHtmlUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
             {
                 continue;
             }
@@ -179,7 +187,13 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         var weaponType = ctx.Params.Weapon.PlayerWeaponVData?.As<CCSWeaponBaseVData>().WeaponType;
         if (weaponType is { } type && CSRollUtils.AllRangedWeaponTypes.Contains(type))
         {
+            // Bug fix: SetReturn alone doesn't stop the native CanUse function from still running
+            // afterward and doing its own default thing (allowing use) - HookResult.CancelOriginal
+            // is what actually prevents the original from running, per this SDK's own docs for other
+            // Pre hooks. Without it, this SetReturn(false) was a no-op and using a "blocked" weapon
+            // still worked.
             ctx.SetReturn(false);
+            ctx.SetHookResult(HookResult.CancelOriginal);
         }
     }
 
@@ -194,7 +208,9 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         var weaponType = ctx.Params.WeaponVData?.WeaponType;
         if (weaponType is { } type && CSRollUtils.AllRangedWeaponTypes.Contains(type))
         {
+            // Bug fix: see OnCanUseWeapon's remarks above - SetReturn needs SetHookResult(CancelOriginal) to actually stick.
             ctx.SetReturn(AcquireResult.NotAllowedByProhibition);
+            ctx.SetHookResult(HookResult.CancelOriginal);
         }
     }
 

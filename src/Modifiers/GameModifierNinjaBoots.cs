@@ -7,24 +7,19 @@ using CSRoll.Core;
 namespace CSRoll.Modifiers;
 
 /// <summary>
-/// Silent footsteps: cancels EventPlayerFootstep on Pre for the assigned player.
-/// SwiftlyS2.Shared.Misc.HookResult.Stop "cancels the executions of following hooks AND the
-/// original function" (per its own doc comment) - the original function here is what actually
-/// drives the native footstep sound, not just other plugins' handlers, so this genuinely silences
-/// it rather than just suppressing a notification. Same technique long used by SourceMod/CS:GO
-/// "silent steps" plugins for the equivalent event.
-///
-/// Landing-thud caveat: there's no distinct "player landed" event to hook the same way.
-/// EventPlayerFalldamage only fires above the fall-damage threshold, and it's unconfirmed whether
-/// cancelling it would ALSO cancel the fall damage itself (Stop cancels "the original function",
-/// which for that event may include applying the damage, not just playing a sound) - granting free
-/// fall-damage immunity as an unrequested side effect of muting one landing thud isn't an acceptable
-/// trade, so EventPlayerFalldamage is deliberately left alone. A normal (non-damaging) landing likely
-/// reuses the same footstep-sound system already silenced above; a hard landing's distinct thud may
-/// not be - needs live confirmation either way.
-///
-/// Auto-equips a defuse kit on spawn if the assigned player is CT - a silent CT approaching the
-/// bombsite with no defuser would be a strange, half-finished "ninja" fantasy.
+/// KNOWN LIMITATION, confirmed not working: cancelling EventPlayerFootstep on Pre does NOT actually
+/// silence the footstep sound, contrary to this class's original assumption (carried over from
+/// SourceMod/CS:GO-era "silent steps" plugins, a different engine/framework whose event-cancellation
+/// semantics don't necessarily transfer to CS2/SwiftlyS2). Live testing confirms footsteps are still
+/// audible with this modifier active. Investigated the alternative (a native EmitSound-level hook,
+/// the mechanism third-party CS2 tools like AimTux actually use for this) and confirmed via SDK
+/// inspection - both the currently-referenced SwiftlyS2.CS2 1.4.3 and the latest available 1.4.4 -
+/// that no such hook is exposed anywhere in the public SwiftlyS2.Shared API; the only sound-related
+/// surface is SwiftlyS2.Shared.Sounds.SoundEvent (for playing sounds yourself), and an internal-only
+/// SwiftlyS2.Core.Natives.NativeSounds.GetClients exists but isn't reachable from plugin code. The
+/// EventPlayerFootstep cancellation is left in place as a harmless no-op (in case a future SwiftlyS2
+/// version routes this differently) rather than silently removed, but the "no footstep sounds" half
+/// of this modifier does not currently work - only the CT auto-defuser half does.
 /// </summary>
 public sealed class GameModifierNinjaBoots : GameModifierBase
 {

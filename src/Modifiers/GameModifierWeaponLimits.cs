@@ -89,7 +89,14 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
         var weaponType = ctx.Params.WeaponVData?.WeaponType;
         if (weaponType is { } type && TypesToStrip.Contains(type))
         {
+            // Bug fix: SetReturn alone doesn't stop the native CanAcquire function from still
+            // running afterward and doing its own default thing (allowing the acquisition) - this
+            // SDK's own docs for other Pre hooks (TakeDamage, join-server) are explicit that
+            // HookResult.Stop/CancelOriginal is what actually prevents the original from running;
+            // without it here, every SetReturn(NotAllowedByProhibition) call in this codebase was a
+            // no-op and buying/picking up "blocked" weapon types silently still worked.
             ctx.SetReturn(AcquireResult.NotAllowedByProhibition);
+            ctx.SetHookResult(HookResult.CancelOriginal);
         }
     }
 

@@ -46,6 +46,16 @@ public sealed class ModifierRuntime
     private Dictionary<GameModifierBase, List<int>>? _pendingAssignedSlotsByModifier;
     private Dictionary<int, List<GameModifierBase>>? _pendingModifiersByPlayerSlot;
 
+    /// <summary>
+    /// Backs Config.PerPlayerRepeatCooldownRounds: keyed by (the specific player's stable
+    /// IPlayer.SessionId, modifier name) rather than Slot, so a new player connecting into a
+    /// recently-vacated slot doesn't inherit a stranger's cooldown history - bots all share
+    /// SteamID 0, but each still gets its own distinct SessionId, so this works uniformly for both.
+    /// Value is the round number (_roundNumber) they were assigned it in.
+    /// </summary>
+    private readonly Dictionary<(ulong SessionId, string ModifierName), int> _lastRoundAssignedPerPlayer = [];
+    private int _roundNumber;
+
     public IReadOnlyList<GameModifierBase> RegisteredModifiers => _registeredModifiers;
     public IReadOnlyList<GameModifierBase> ActiveModifiers => _activeModifiers;
 
@@ -135,6 +145,8 @@ public sealed class ModifierRuntime
 
         _lastActiveModifiers.Clear();
         _registeredModifiers.Clear();
+        _lastRoundAssignedPerPlayer.Clear();
+        _roundNumber = 0;
     }
 
     public GameModifierBase? GetRegisteredModifierByName(string modifierName) =>
@@ -169,6 +181,11 @@ public sealed class ModifierRuntime
     {
         var random = new Random();
         var appliedAnything = false;
+
+        // Round counter backing Config.PerPlayerRepeatCooldownRounds - incremented once per call
+        // (once per round from OnRoundStart, or again on an explicit !randomroundsreroll, which
+        // reasonably counts as "this round's roll" too rather than a free do-over of the cooldown).
+        _roundNumber++;
 
         // Bug fix: this used to also run a supplementary global-only roll every round, originally
         // added so ConditionalInvisibility/FullInvisibility (which used to opt out of per-player
@@ -259,6 +276,11 @@ public sealed class ModifierRuntime
                 }
 
                 slots.Add(player.Slot);
+
+                // Backs Config.PerPlayerRepeatCooldownRounds - recorded at selection time (this
+                // round's roll), not at commit/activation time, since the roll itself is what should
+                // start the cooldown regardless of when the mechanical effect actually kicks in.
+                _lastRoundAssignedPerPlayer[(player.SessionId, modifier.Name)] = _roundNumber;
             }
         }
 
@@ -354,6 +376,18 @@ public sealed class ModifierRuntime
         return !Config.RequiresMultiplePlayersPerTeam.Contains(modifier.Name, StringComparer.OrdinalIgnoreCase) || teamSize >= 2;
     }
 
+    /// <summary>Backs Config.PerPlayerRepeatCooldownRounds - true if THIS player rolled THIS modifier too recently to roll it again.</summary>
+    private bool IsOnPlayerCooldown(IPlayer player, GameModifierBase modifier)
+    {
+        if (Config.PerPlayerRepeatCooldownRounds <= 0)
+        {
+            return false;
+        }
+
+        return _lastRoundAssignedPerPlayer.TryGetValue((player.SessionId, modifier.Name), out var lastRound) &&
+            _roundNumber - lastRound < Config.PerPlayerRepeatCooldownRounds;
+    }
+
     private List<GameModifierBase> PickRandomModifiersForPlayer(List<GameModifierBase> pool, Random random, IPlayer player)
     {
         var count = random.Next(MinRandomRounds, MaxRandomRounds);
@@ -363,7 +397,7 @@ public sealed class ModifierRuntime
         }
 
         var teamSize = player.Controller is { IsValid: true } controller ? _core.PlayerManager.GetInTeam(controller.Team).Count() : 0;
-        var eligiblePool = pool.Where(m => MeetsTeamSizeRequirement(m, teamSize)).ToList();
+        var eligiblePool = pool.Where(m => MeetsTeamSizeRequirement(m, teamSize) && !IsOnPlayerCooldown(player, m)).ToList();
 
         return PickCompatibleRandomModifiers(eligiblePool, count, random);
     }

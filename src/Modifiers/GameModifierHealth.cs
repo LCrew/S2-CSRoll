@@ -127,5 +127,6 @@ public sealed class GameModifierRandomHealth : GameModifierHealth
         IncompatibleModifiers = ["Juggernaut"];
     }
 
-    protected override int GetHealthValue() => Random.Shared.Next(1, 101);
+    // Random.Next(min, max) is exclusive of max - +1 so the configured MaxHealth is actually reachable.
+    protected override int GetHealthValue() => Random.Shared.Next(Runtime.Config.RandomHealth.MinHealth, Runtime.Config.RandomHealth.MaxHealth + 1);
 }
