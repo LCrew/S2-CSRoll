@@ -34,9 +34,17 @@ namespace CSRoll.Modifiers;
 /// Reworked into a jetpack per explicit request: this used to let a player keep re-triggering
 /// OnJumpLegacy/OnJumpModern while already airborne (nothing checked whether they'd landed yet), so
 /// mashing jump mid-air just re-launched them over and over - visually indistinguishable from flying,
-/// but as an unintended repeated-jump exploit rather than a designed mechanic. Now: the initial jump
-/// off the ground still gets the same height boost as before, but holding jump while airborne
-/// (checked via IMoveData.InAir, not a ground-adjacency guess) instead applies a deliberate,
+/// but as an unintended repeated-jump exploit rather than a designed mechanic.
+///
+/// Bug fix: the first version of this rework added the new thrust mechanic below but never actually
+/// closed the original exploit - BoostJumpVelocity had no ground check at all, so spamming jump
+/// instead of holding it still re-triggered the full-height boost every time, completely bypassing
+/// fuel. See BoostJumpVelocity's own remarks for the CCSPlayerPawn.OnGroundLastTick guard that
+/// actually fixes this now - only a genuine ground-leaving jump gets the big boost.
+///
+/// Now: the initial jump off the ground still gets the same height boost as before, but holding jump
+/// while airborne (checked via IMoveData.InAir, not a ground-adjacency guess) instead applies a
+/// deliberate,
 /// fuel-limited upward thrust via ProcessMovement.Post - the same "last write wins" Post-hook
 /// mechanism the original jump-height fix already proved reliable, just applied every movement tick
 /// instead of once on the jump edge. A capped floor on Velocity.Z (never lowering an already-faster
@@ -123,6 +131,23 @@ public sealed class GameModifierJetpack : GameModifierBase
     private void BoostJumpVelocity(IPlayer? player, IMoveData moveData, string variant)
     {
         if (player is not { IsValid: true } || !IsAssignedTo(player.Slot))
+        {
+            return;
+        }
+
+        // Bug fix: OnJumpLegacy/OnJumpModern can fire again while already airborne - that's exactly
+        // the original pre-jetpack "mash space to keep re-launching" exploit described in the
+        // class-level history above, and nothing here was actually guarding against it: the rework
+        // only ever added the NEW fuel-limited thrust on top, without stopping this ORIGINAL big
+        // boost from re-triggering mid-air. Spamming space therefore still bypassed the fuel system
+        // entirely, which in turn meant fuel never drained and the gauge never had anything to show.
+        // CCSPlayerPawn.OnGroundLastTick reflects whether the player was actually grounded going into
+        // this jump input - IMoveData.InAir/Velocity.Z were already ruled out as reliable signals at
+        // other hook points per the history above, so this uses a distinctly different, already
+        // pawn-level-confirmed field instead. Only a genuine ground-leaving jump gets the big boost;
+        // an already-airborne re-trigger is now a no-op here, leaving mid-air lift entirely to the
+        // deliberate hold-to-thrust mechanic in OnProcessMovement.
+        if (player.PlayerPawn is not { OnGroundLastTick: true })
         {
             return;
         }

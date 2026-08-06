@@ -8,21 +8,26 @@ using CSRoll.Core;
 namespace CSRoll.Modifiers;
 
 /// <summary>
-/// 1 bullet per magazine - every weapon the assigned player equips or reloads is forced to exactly
-/// 1 round in the clip.
+/// 1 bullet per magazine - the assigned player's weapon is kept at exactly 1 round in the clip.
 ///
 /// Bug fix: this used to shrink CBasePlayerWeaponVData.MaxClip1, a field shared by the weapon TYPE
 /// across every player holding one (not a per-instance field) - and did so unconditionally in
 /// OnEnabled/OnDisabled/OnItemEquip/OnWeaponReload with no IsAssignedTo check anywhere at all, so
 /// activating this modifier for one player capped EVERY connected player's matching weapons to 1
-/// bullet, and would have silently ignored !memodifier's "just you" scoping entirely too. Fixed by
-/// never touching the shared VData - Clip1 (a genuine per-instance field, unlike MaxClip1) is
-/// instead force-set back to 1 directly after every equip/reload for the assigned player only,
-/// which achieves the same "always exactly 1 bullet" result without capping anyone else's weapon.
+/// bullet, and would have silently ignored !memodifier's "just you" scoping entirely too.
+///
+/// Bug fix 2: the first per-player rewrite force-set Clip1=1 directly inside the OnWeaponReload
+/// event handler - but that event fires when the reload is TRIGGERED, before the engine has actually
+/// moved any ammo from reserve into the clip, not after. Since reserve ammo is also topped up to max
+/// in that same handler, the native reload completion (which runs some time after this event, once
+/// the reload animation/timing finishes) then had a full reserve to draw from and filled the clip
+/// back up past 1 - "gets a full mag after reloading" was the direct symptom. Fixed by clamping
+/// Clip1 down to 1 every tick instead of reacting to the reload event's timing at all: this is
+/// idempotent, catches the native fill within at most one tick regardless of exactly when it
+/// happens, and needs no assumption about event ordering.
 /// </summary>
 public sealed class GameModifierOnePerMag : GameModifierBase
 {
-    private Guid _equipHookId;
     private Guid _reloadHookId;
 
     public GameModifierOnePerMag()
@@ -36,63 +41,46 @@ public sealed class GameModifierOnePerMag : GameModifierBase
 
     protected override void OnEnabled()
     {
-        _equipHookId = Core.GameEvent.HookPost<EventItemEquip>(OnItemEquip);
+        Core.Event.OnTick += ClampClipToOne;
         // 1-bullet clips would mean constantly running dry without this - top reserve ammo
         // back up to max on every reload so the only limiter is the 1-bullet clip itself.
         _reloadHookId = Core.GameEvent.HookPost<EventWeaponReload>(OnWeaponReload);
-
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
-        {
-            if (!IsAssignedTo(player.Slot) || player.PlayerPawn?.WeaponServices is not { } weaponServices)
-            {
-                continue;
-            }
-
-            foreach (var weapon in weaponServices.MyValidWeapons)
-            {
-                ApplyToWeapon(weapon);
-            }
-        }
     }
 
     protected override void OnDisabled()
     {
-        Core.GameEvent.Unhook(_equipHookId);
+        Core.Event.OnTick -= ClampClipToOne;
         Core.GameEvent.Unhook(_reloadHookId);
     }
 
-    private HookResult OnItemEquip(EventItemEquip @event)
+    private void ClampClipToOne()
     {
-        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
-            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
-            ApplyToWeapon(weapon);
-        }
+            if (!IsAssignedTo(player.Slot) || player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is not { } weapon)
+            {
+                continue;
+            }
 
-        return HookResult.Continue;
+            if (weapon.Clip1 > 1)
+            {
+                weapon.Clip1 = 1;
+                weapon.Clip1Updated();
+            }
+        }
     }
 
     private HookResult OnWeaponReload(EventWeaponReload @event)
     {
         if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
-            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
-        {
-            ApplyToWeapon(weapon);
-        }
-
-        return HookResult.Continue;
-    }
-
-    private static void ApplyToWeapon(CBasePlayerWeapon weapon)
-    {
-        weapon.Clip1 = 1;
-        weapon.Clip1Updated();
-
-        if (weapon.PlayerWeaponVData?.As<CCSWeaponBaseVData>() is { } vData)
+            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon &&
+            weapon.PlayerWeaponVData?.As<CCSWeaponBaseVData>() is { } vData)
         {
             weapon.ReserveAmmo[0] = vData.PrimaryReserveAmmoMax;
             weapon.ReserveAmmoUpdated();
         }
+
+        return HookResult.Continue;
     }
 }
 
