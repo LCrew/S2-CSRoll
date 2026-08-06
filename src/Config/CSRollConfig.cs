@@ -278,4 +278,15 @@ public class SpinRevealConfig
 
     /// <summary>How long the real result stays on screen once the spin lands on it.</summary>
     public float RevealDurationSeconds { get; set; } = 15f;
+
+    /// <summary>
+    /// CS2 soundevent name played on every spin-frame tick (each name flip during the animation) -
+    /// already built into the game, no custom sound asset required. Defaults to the same soft tick
+    /// CS2 itself plays when scrolling through weapons on the buy/select wheel. Empty string disables
+    /// the sound entirely.
+    /// </summary>
+    public string TickSoundEventName { get; set; } = "Player.WeaponSelectionMoveSlot";
+
+    /// <summary>Volume (0-1) for the per-frame spin tick sound.</summary>
+    public float TickSoundVolume { get; set; } = 0.5f;
 }

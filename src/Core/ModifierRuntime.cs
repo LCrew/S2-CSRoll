@@ -1054,6 +1054,7 @@ public sealed class ModifierRuntime
         var randomName = CSRollUtils.GetModifierDisplayName(_core, _registeredModifiers[Random.Shared.Next(_registeredModifiers.Count)]);
         var interval = GetSpinFrameIntervalSeconds(frameIndex, totalFrames);
         current.SendCenterHTML(CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
+        CSRollUtils.PlaySoundToPlayer(current, Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume);
 
         _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrame(slot, frameIndex + 1, totalFrames, finalHtml, onRevealed));
     }
@@ -1083,6 +1084,7 @@ public sealed class ModifierRuntime
         var randomName = CSRollUtils.GetModifierDisplayName(_core, _registeredModifiers[Random.Shared.Next(_registeredModifiers.Count)]);
         var interval = GetSpinFrameIntervalSeconds(frameIndex, totalFrames);
         CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
+        CSRollUtils.PlaySoundToAll(Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume);
 
         _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrameAll(frameIndex + 1, totalFrames, finalHtml, onRevealed));
     }

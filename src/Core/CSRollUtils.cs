@@ -4,6 +4,7 @@ using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
+using SwiftlyS2.Shared.Sounds;
 
 using CSRoll.Modifiers;
 
@@ -79,6 +80,38 @@ public static class CSRollUtils
     {
         var deadTeammates = core.PlayerManager.GetInTeam(team).Where(p => p.IsValid && !p.IsAlive).ToList();
         return deadTeammates.Count > 0 ? deadTeammates[Random.Shared.Next(deadTeammates.Count)] : null;
+    }
+
+    /// <summary>
+    /// Plays a soundevent that's already built into the game (no custom sound asset needed) to one
+    /// player only - confirmed via SDK reflection: SwiftlyS2.Shared.Sounds.SoundEvent takes a
+    /// soundevent name directly, and CRecipientFilter.AddRecipient(slot) scopes who hears it before
+    /// Emit() fires it. An unknown/invalid soundevent name just silently does nothing (no exception),
+    /// so a bad name here fails quietly rather than crashing anything.
+    /// </summary>
+    public static void PlaySoundToPlayer(IPlayer player, string soundName, float volume = 1f, float pitch = 1f)
+    {
+        if (string.IsNullOrEmpty(soundName))
+        {
+            return;
+        }
+
+        using var soundEvent = new SoundEvent(soundName, volume, pitch);
+        soundEvent.Recipients.AddRecipient(player.Slot);
+        soundEvent.Emit();
+    }
+
+    /// <summary>Broadcast counterpart to PlaySoundToPlayer - same soundevent, heard by every currently connected player.</summary>
+    public static void PlaySoundToAll(string soundName, float volume = 1f, float pitch = 1f)
+    {
+        if (string.IsNullOrEmpty(soundName))
+        {
+            return;
+        }
+
+        using var soundEvent = new SoundEvent(soundName, volume, pitch);
+        soundEvent.Recipients.AddAllPlayers();
+        soundEvent.Emit();
     }
 
     /// <summary>DMG_BULLET/DMG_BUCKSHOT are the flags CS2 uses for gunfire damage (as opposed to DMG_SLASH for knives or DMG_BLAST for explosives) - confirmed via SwiftlyS2.CS2.dll's DamageTypes_t enum.</summary>
