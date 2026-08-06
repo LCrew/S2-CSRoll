@@ -45,28 +45,35 @@ namespace CSRoll.Modifiers;
 /// doesn't depend on any movement-hook-internal ground state.
 ///
 /// The initial jump off the ground still gets the same height boost as before (now cooldown-limited
-/// against spam), but holding jump while airborne (checked via IMoveData.InAir, not a
-/// ground-adjacency guess) instead applies a deliberate, fuel-limited upward thrust via
-/// ProcessMovement.Post - the same "last write wins" Post-hook
-/// mechanism the original jump-height fix already proved reliable, just applied every movement tick
-/// instead of once on the jump edge. A capped floor on Velocity.Z (never lowering an already-faster
-/// upward speed, e.g. right after the initial jump) keeps this idempotent regardless of how many
-/// times ProcessMovement fires per server tick under CS2's subtick movement system, so there's no
-/// runaway acceleration to guard against. AirAccelerate.Pre separately boosts in-flight steering by
-/// multiplying CS2's normal air-accelerate value, satisfying the "add air-strafe" half of the
-/// request without needing to fight the physics simulation with a hand-rolled WASD-to-velocity
-/// mapping. Fuel drains only while actually thrusting and regenerates whenever not (grounded or just
-/// coasting/falling), tracked once per server tick (not per ProcessMovement call, since that can fire
-/// more than once per tick) via a per-slot "was thrusting this tick" flag set by the movement hook and
-/// consumed/reset by OnTick. A center-HTML ASCII gauge mirrors the current fuel level back to the
-/// player, throttled to GaugeUpdateIntervalSeconds so it doesn't spam a fresh popup every tick.
+/// against spam), but holding jump while airborne instead applies a deliberate, fuel-limited upward
+/// thrust via ProcessMovement.Post - the same "last write wins" Post-hook mechanism the original
+/// jump-height fix already proved reliable.
+///
+/// Bug fix: "is thrusting" used to be decided independently in two different places that could
+/// disagree - ProcessMovement.Post checked IMoveData.InAir to decide whether to apply the velocity
+/// floor, while a separate per-slot flag set BY that same check fed the fuel-drain/gauge logic in
+/// OnTick. Reports that the gauge never appeared at all point at InAir not reliably reflecting real
+/// air state at that specific hook's timing - the same class of problem OnGroundLastTick turned out
+/// to have in BoostJumpVelocity's own history above. Rather than keep trusting an unverified
+/// movement-hook-internal field, "is thrusting" is now decided exactly ONCE per real server tick, in
+/// OnGameTick, using CBaseEntity.GroundEntity (a CHandle - null Value means airborne, the same
+/// handle-nullness pattern already used successfully elsewhere in this codebase, e.g.
+/// GameModifierKamikaze's Inflictor check) combined with the jump button state. That single per-tick
+/// result is what both applies the velocity floor in ProcessMovement.Post AND drives fuel
+/// drain/regen/the gauge - one source of truth instead of two independently-computed signals that
+/// could silently disagree. AirAccelerate.Pre separately boosts in-flight steering by multiplying
+/// CS2's normal air-accelerate value, satisfying the "add air-strafe" half of the request without
+/// needing to fight the physics simulation with a hand-rolled WASD-to-velocity mapping. The gauge is
+/// now always shown continuously while the modifier is active (not hidden at full/idle), matching
+/// FlankTeleport/ConditionalInvisibility/FullInvisibility's persistent-HUD convention, so there's no
+/// ambiguity about whether it's rendering at all.
 /// </summary>
 public sealed class GameModifierJetpack : GameModifierBase
 {
     private const int GaugeBarWidth = 20;
 
     private readonly Dictionary<int, float> _fuel = [];
-    private readonly Dictionary<int, bool> _isThrustingThisTick = [];
+    private readonly Dictionary<int, bool> _isThrusting = [];
     private readonly Dictionary<int, float> _nextGaugeUpdateTime = [];
     private readonly Dictionary<int, float> _lastBigBoostTime = [];
 
@@ -123,7 +130,7 @@ public sealed class GameModifierJetpack : GameModifierBase
         Core.GameEvent.Unhook(_spawnHookId);
 
         _fuel.Clear();
-        _isThrustingThisTick.Clear();
+        _isThrusting.Clear();
         _nextGaugeUpdateTime.Clear();
         _lastBigBoostTime.Clear();
     }
@@ -177,26 +184,20 @@ public sealed class GameModifierJetpack : GameModifierBase
             return;
         }
 
-        var moveData = ctx.Params.MoveData;
-        var isHoldingJump = player.PressedButtons.HasFlag(GameButtonFlags.Space);
-        var fuel = _fuel.GetValueOrDefault(player.Slot, Runtime.Config.Jetpack.MaxFuel);
-
-        if (!moveData.InAir || !isHoldingJump || fuel <= 0f)
+        // "Is thrusting" is decided once per real tick by OnGameTick (see class-level bug-fix note) -
+        // this just applies it. Safe to call more than once per server tick (CS2's subtick movement
+        // can invoke ProcessMovement several times per tick) since flooring is idempotent.
+        if (!_isThrusting.GetValueOrDefault(player.Slot, false))
         {
             return;
         }
 
-        // Floor (never lower) the current vertical speed at ThrustSpeed rather than adding to it -
-        // safe to call more than once per server tick (CS2's subtick movement can invoke
-        // ProcessMovement several times per tick) without compounding into runaway acceleration, and
-        // never undoes a higher upward speed from the initial jump boost above.
+        var moveData = ctx.Params.MoveData;
         var velocity = moveData.Velocity;
         if (velocity.Z < Runtime.Config.Jetpack.ThrustSpeed)
         {
             moveData.Velocity = new Vector(velocity.X, velocity.Y, Runtime.Config.Jetpack.ThrustSpeed);
         }
-
-        _isThrustingThisTick[player.Slot] = true;
     }
 
     private void OnAirAccelerate(ref AirAccelerateMovementPreContext ctx)
@@ -236,7 +237,12 @@ public sealed class GameModifierJetpack : GameModifierBase
         return HookResult.Continue;
     }
 
-    /// <summary>Once-per-server-tick fuel drain/regen and gauge refresh - deliberately not done inside OnProcessMovement, which can fire more than once per tick and would otherwise drain/regen fuel faster than real time on those ticks.</summary>
+    /// <summary>
+    /// Once-per-server-tick: decides "is thrusting" (the single source of truth ProcessMovement.Post
+    /// consumes - see class-level bug-fix note), drains/regens fuel from that decision, and refreshes
+    /// the gauge. Deliberately not done inside OnProcessMovement, which can fire more than once per
+    /// tick and would otherwise double-count drain/regen on those ticks.
+    /// </summary>
     private void OnGameTick()
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
@@ -253,28 +259,35 @@ public sealed class GameModifierJetpack : GameModifierBase
             var slot = player.Slot;
             var maxFuel = Runtime.Config.Jetpack.MaxFuel;
             var fuel = _fuel.GetValueOrDefault(slot, maxFuel);
-            var wasThrusting = _isThrustingThisTick.GetValueOrDefault(slot, false);
-            _isThrustingThisTick[slot] = false;
 
-            fuel = wasThrusting
+            // CBaseEntity.GroundEntity is a CHandle - a null Value means airborne. This is the
+            // long-established, already-proven-reliable Source-engine ground check (the same
+            // handle-nullness pattern used successfully elsewhere in this codebase), read here during
+            // normal tick processing rather than from inside any movement-hook's own timing.
+            var isAirborne = player.PlayerPawn?.GroundEntity.Value is null;
+            var isHoldingJump = player.PressedButtons.HasFlag(GameButtonFlags.Space);
+            var isThrusting = isAirborne && isHoldingJump && fuel > 0f;
+            _isThrusting[slot] = isThrusting;
+
+            if (Runtime.DebugMode)
+            {
+                Core.Logger.LogInformation("[CSRoll] Jetpack ({Slot}): airborne={Airborne} holdingJump={HoldingJump} fuel={Fuel:0.#} thrusting={Thrusting}",
+                    slot, isAirborne, isHoldingJump, fuel, isThrusting);
+            }
+
+            fuel = isThrusting
                 ? Math.Max(0f, fuel - (Runtime.Config.Jetpack.FuelDrainPerSecond * deltaSeconds))
                 : Math.Min(maxFuel, fuel + (Runtime.Config.Jetpack.FuelRegenPerSecond * deltaSeconds));
 
             _fuel[slot] = fuel;
 
-            UpdateFuelGauge(player, fuel, maxFuel, wasThrusting);
+            UpdateFuelGauge(player, fuel, maxFuel);
         }
     }
 
-    private void UpdateFuelGauge(IPlayer player, float fuel, float maxFuel, bool wasThrusting)
+    /// <summary>Always shown while the modifier is active (not hidden at full/idle) - matching FlankTeleport/ConditionalInvisibility/FullInvisibility's persistent-HUD convention, so there's no ambiguity about whether it's rendering.</summary>
+    private void UpdateFuelGauge(IPlayer player, float fuel, float maxFuel)
     {
-        if (!wasThrusting && fuel >= maxFuel)
-        {
-            // Fully topped up and not currently flying - nothing worth showing. Any previous gauge
-            // popup simply expires on its own rather than being force-cleared.
-            return;
-        }
-
         var now = Core.Engine.GlobalVars.CurrentTime;
         var interval = Runtime.Config.Jetpack.GaugeUpdateIntervalSeconds;
         if (_nextGaugeUpdateTime.TryGetValue(player.Slot, out var nextUpdate) && now < nextUpdate)
@@ -295,7 +308,7 @@ public sealed class GameModifierJetpack : GameModifierBase
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         _fuel.Remove(@event.PlayerId);
-        _isThrustingThisTick.Remove(@event.PlayerId);
+        _isThrusting.Remove(@event.PlayerId);
         _nextGaugeUpdateTime.Remove(@event.PlayerId);
         _lastBigBoostTime.Remove(@event.PlayerId);
     }

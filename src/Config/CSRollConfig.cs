@@ -125,8 +125,13 @@ public class JetpackConfig
     /// <summary>Minimum seconds between initial-jump boosts, per player - stops spamming jump instead of holding it from re-triggering the big boost repeatedly and bypassing fuel entirely. Sustained lift while holding jump is unaffected; that's the separate, uncapped-duration thrust mechanic (ThrustSpeed).</summary>
     public float BigBoostCooldownSeconds { get; set; } = 0.75f;
 
-    /// <summary>Vertical speed (units/sec) floored while holding jump in the air with fuel remaining - deliberately modest so it reads as a light thrust, not a rocket.</summary>
-    public float ThrustSpeed { get; set; } = 280f;
+    /// <summary>
+    /// Vertical speed (units/sec) floored while holding jump in the air with fuel remaining. Bug fix:
+    /// this defaulted to 280 - close to CS2's own ~301 jump impulse - which felt like a sustained full
+    /// jump rather than a light thrust once the gauge/fuel bugs above were fixed and thrust actually
+    /// started engaging reliably. Lowered to read as a gentle lift instead.
+    /// </summary>
+    public float ThrustSpeed { get; set; } = 140f;
 
     /// <summary>Multiplier applied to CS2's normal air-accelerate value while airborne, for stronger in-flight steering during thrust.</summary>
     public float AirStrafeMultiplier { get; set; } = 2.5f;
