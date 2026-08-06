@@ -129,11 +129,8 @@
   "KnivesOnly.DisplayName": "Knives Only",
   "KnivesOnly.Description": "Buy menu is disabled, knives only - unlucky...",
 
-  "RandomWeapon.DisplayName": "Random Weapon",
-  "RandomWeapon.Description": "Buy menu is disabled, random weapon only",
-
-  "RandomWeapons.DisplayName": "Random Weapons",
-  "RandomWeapons.Description": "Buy menu is disabled, random weapons are given out",
+  "RandomLoadout.DisplayName": "Random Loadout",
+  "RandomLoadout.Description": "Buy menu is disabled - random main weapon, pistol and grenades (sometimes with armor)",
 
   "GrenadesOnly.DisplayName": "Walking Grenadier",
   "GrenadesOnly.Description": "You can't shoot, but you've got UNLIMITED grenades",

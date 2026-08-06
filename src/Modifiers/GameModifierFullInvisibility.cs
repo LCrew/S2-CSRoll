@@ -58,7 +58,7 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
             "ConditionalInvisibility",
-            "KnivesOnly", "RandomWeapon", "RandomWeapons", "GrenadesOnly",
+            "KnivesOnly", "RandomLoadout", "GrenadesOnly",
         ];
     }
 

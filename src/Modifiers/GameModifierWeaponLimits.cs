@@ -166,8 +166,7 @@ public sealed class GameModifierKnifeOnly : GameModifierRemoveWeapons
         // menu via a server-wide mp_buy_allow_* cvar (no Client: section), which would affect
         // every player regardless of who rolled this modifier.
         IncompatibleModifiers = [
-            "RandomWeapon",
-            "RandomWeapons",
+            "RandomLoadout",
             "GrenadesOnly",
         ];
     }
@@ -175,19 +174,27 @@ public sealed class GameModifierKnifeOnly : GameModifierRemoveWeapons
     protected override HashSet<CSWeaponType> TypesToStrip => AllRangedWeaponTypes;
 }
 
-public sealed class GameModifierRandomWeapon : GameModifierRemoveWeapons
+/// <summary>
+/// Replaces the old RandomWeapon (one fixed weapon) and RandomWeapons (a fresh random weapon every
+/// spawn, no pistol/nades/armor) modifiers with a single richer one: a full random loadout chosen
+/// once per activation (same weapons every spawn, like the old RandomWeapon) - a random main weapon,
+/// a random pistol, 1-4 random grenades, and a coin-flip for armor+helmet.
+/// </summary>
+public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
 {
-    private string _chosenWeaponName = "";
+    private string _mainWeaponName = "";
+    private string _pistolName = "";
+    private List<string> _grenadeNames = [];
+    private bool _hasArmor;
 
-    public GameModifierRandomWeapon()
+    public GameModifierRandomLoadout()
     {
-        Name = "RandomWeapon";
-        Description = "Buy menu is disabled, random weapon only";
+        Name = "RandomLoadout";
+        Description = "Buy menu is disabled - random main weapon, pistol and grenades (sometimes with armor)";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
             "KnivesOnly",
-            "RandomWeapons",
             "GrenadesOnly",
         ];
     }
@@ -196,36 +203,37 @@ public sealed class GameModifierRandomWeapon : GameModifierRemoveWeapons
 
     protected override void OnEnabled()
     {
-        _chosenWeaponName = CSRollUtils.GetRandomRangedWeaponName();
+        _mainWeaponName = CSRollUtils.GetRandomMainWeaponName();
+        _pistolName = CSRollUtils.GetRandomPistolName();
+        _grenadeNames = CSRollUtils.GetRandomGrenadeNames(Random.Shared.Next(1, 5));
+        _hasArmor = Random.Shared.Next(2) == 0;
         base.OnEnabled();
     }
 
     protected override void GiveReplacementWeapons(IPlayer player)
     {
-        player.PlayerPawn?.ItemServices?.GiveItem(_chosenWeaponName);
-    }
-}
+        var itemServices = player.PlayerPawn?.ItemServices;
+        if (itemServices is null)
+        {
+            return;
+        }
 
-public sealed class GameModifierRandomWeapons : GameModifierRemoveWeapons
-{
-    public GameModifierRandomWeapons()
-    {
-        Name = "RandomWeapons";
-        Description = "Buy menu is disabled, random weapons are given out";
-        SupportsRandomRounds = true;
-        SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = [
-            "KnivesOnly",
-            "RandomWeapon",
-            "GrenadesOnly",
-        ];
-    }
+        itemServices.GiveItem(_mainWeaponName);
+        itemServices.GiveItem(_pistolName);
 
-    protected override HashSet<CSWeaponType> TypesToStrip => AllRangedWeaponTypes;
+        var team = player.Controller is { IsValid: true } controller ? controller.Team : Team.None;
+        foreach (var grenadeName in _grenadeNames)
+        {
+            itemServices.GiveItem(CSRollUtils.ResolveGrenadeName(grenadeName, team));
+        }
 
-    protected override void GiveReplacementWeapons(IPlayer player)
-    {
-        player.PlayerPawn?.ItemServices?.GiveItem(CSRollUtils.GetRandomRangedWeaponName());
+        if (_hasArmor && player.PlayerPawn is { } pawn)
+        {
+            pawn.ArmorValue = 100;
+            pawn.ArmorValueUpdated();
+            itemServices.HasHelmet = true;
+            itemServices.HasHelmetUpdated();
+        }
     }
 }
 
@@ -268,8 +276,7 @@ public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
             "KnivesOnly",
-            "RandomWeapon",
-            "RandomWeapons",
+            "RandomLoadout",
         ];
     }
 

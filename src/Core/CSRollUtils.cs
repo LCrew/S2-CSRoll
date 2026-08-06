@@ -85,10 +85,14 @@ public static class CSRollUtils
     public static bool IsBulletDamage(DamageTypes_t damageType) =>
         (damageType & (DamageTypes_t.DMG_BULLET | DamageTypes_t.DMG_BUCKSHOT)) != 0;
 
-    public static readonly IReadOnlyList<string> RangedWeaponNames =
+    public static readonly IReadOnlyList<string> PistolNames =
     [
         "weapon_deagle", "weapon_elite", "weapon_fiveseven", "weapon_glock", "weapon_hkp2000",
         "weapon_p250", "weapon_tec9", "weapon_usp_silencer", "weapon_cz75a", "weapon_revolver",
+    ];
+
+    public static readonly IReadOnlyList<string> MainWeaponNames =
+    [
         "weapon_mac10", "weapon_mp5sd", "weapon_mp7", "weapon_mp9", "weapon_p90", "weapon_ump45",
         "weapon_bizon", "weapon_ak47", "weapon_aug", "weapon_famas", "weapon_galilar", "weapon_m4a1",
         "weapon_m4a1_silencer", "weapon_sg556", "weapon_ssg08", "weapon_awp", "weapon_g3sg1",
@@ -96,7 +100,29 @@ public static class CSRollUtils
         "weapon_m249", "weapon_negev",
     ];
 
-    public static string GetRandomRangedWeaponName() => RangedWeaponNames[Random.Shared.Next(RangedWeaponNames.Count)];
+    /// <summary>"weapon_incendiary" is a marker, not a real item name - molotov/incendiary is the same grenade under two team-restricted classnames, resolved via ResolveGrenadeName right before it's actually given.</summary>
+    public static readonly IReadOnlyList<string> GrenadeNames =
+    [
+        "weapon_hegrenade", "weapon_flashbang", "weapon_smokegrenade", "weapon_decoy", "weapon_incendiary",
+    ];
+
+    public static string GetRandomPistolName() => PistolNames[Random.Shared.Next(PistolNames.Count)];
+
+    public static string GetRandomMainWeaponName() => MainWeaponNames[Random.Shared.Next(MainWeaponNames.Count)];
+
+    public static List<string> GetRandomGrenadeNames(int count)
+    {
+        var names = new List<string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            names.Add(GrenadeNames[Random.Shared.Next(GrenadeNames.Count)]);
+        }
+
+        return names;
+    }
+
+    public static string ResolveGrenadeName(string name, Team team) =>
+        name == "weapon_incendiary" ? (team == Team.T ? "weapon_molotov" : "weapon_incgrenade") : name;
 
     public static void PrintTitleToChat(ISwiftlyCore core, SwiftlyS2.Shared.Players.IPlayer? player, string message)
     {

@@ -46,8 +46,7 @@ Players (or admins) roll random gameplay-altering modifiers - like Super Jump, S
 | No Spread | Weapons have perfect aim |
 | Wallhack | Free cheats, for free - VAC SAFE |
 | Knives Only | Buy menu is disabled, knives only - unlucky... |
-| Random Weapon | Buy menu is disabled, random weapon only |
-| Random Weapons | Buy menu is disabled, random weapons are given out |
+| Random Loadout | Buy menu is disabled - random main weapon, pistol and grenades (sometimes with armor) |
 | Walking Grenadier | You can't shoot, but you've got UNLIMITED HE grenades |
 | Heavy Boots | Movement speed is much slower, but grants armor+helmet and bonus health |
 | Jetpack | Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe |
