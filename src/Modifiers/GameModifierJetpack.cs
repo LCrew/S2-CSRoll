@@ -39,13 +39,15 @@ namespace CSRoll.Modifiers;
 /// Bug fix: the first version of this rework added the new thrust mechanic below but never actually
 /// closed the original exploit - BoostJumpVelocity had no ground check at all, so spamming jump
 /// instead of holding it still re-triggered the full-height boost every time, completely bypassing
-/// fuel. See BoostJumpVelocity's own remarks for the CCSPlayerPawn.OnGroundLastTick guard that
-/// actually fixes this now - only a genuine ground-leaving jump gets the big boost.
+/// fuel. A follow-up attempt gated it on CCSPlayerPawn.OnGroundLastTick, which live testing showed
+/// made no difference at all (evaluating "grounded" on every re-trigger regardless of real air
+/// state) - see BoostJumpVelocity's own remarks for the elapsed-time cooldown used instead, which
+/// doesn't depend on any movement-hook-internal ground state.
 ///
-/// Now: the initial jump off the ground still gets the same height boost as before, but holding jump
-/// while airborne (checked via IMoveData.InAir, not a ground-adjacency guess) instead applies a
-/// deliberate,
-/// fuel-limited upward thrust via ProcessMovement.Post - the same "last write wins" Post-hook
+/// The initial jump off the ground still gets the same height boost as before (now cooldown-limited
+/// against spam), but holding jump while airborne (checked via IMoveData.InAir, not a
+/// ground-adjacency guess) instead applies a deliberate, fuel-limited upward thrust via
+/// ProcessMovement.Post - the same "last write wins" Post-hook
 /// mechanism the original jump-height fix already proved reliable, just applied every movement tick
 /// instead of once on the jump edge. A capped floor on Velocity.Z (never lowering an already-faster
 /// upward speed, e.g. right after the initial jump) keeps this idempotent regardless of how many
@@ -66,6 +68,7 @@ public sealed class GameModifierJetpack : GameModifierBase
     private readonly Dictionary<int, float> _fuel = [];
     private readonly Dictionary<int, bool> _isThrustingThisTick = [];
     private readonly Dictionary<int, float> _nextGaugeUpdateTime = [];
+    private readonly Dictionary<int, float> _lastBigBoostTime = [];
 
     private float _lastTickTime = -1f;
     private Guid _spawnHookId;
@@ -122,6 +125,7 @@ public sealed class GameModifierJetpack : GameModifierBase
         _fuel.Clear();
         _isThrustingThisTick.Clear();
         _nextGaugeUpdateTime.Clear();
+        _lastBigBoostTime.Clear();
     }
 
     private void OnJumpLegacy(ref OnJumpLegacyMovementPostContext ctx) => BoostJumpVelocity(ctx.Params.Player, ctx.Params.MoveData, "legacy");
@@ -137,20 +141,25 @@ public sealed class GameModifierJetpack : GameModifierBase
 
         // Bug fix: OnJumpLegacy/OnJumpModern can fire again while already airborne - that's exactly
         // the original pre-jetpack "mash space to keep re-launching" exploit described in the
-        // class-level history above, and nothing here was actually guarding against it: the rework
-        // only ever added the NEW fuel-limited thrust on top, without stopping this ORIGINAL big
-        // boost from re-triggering mid-air. Spamming space therefore still bypassed the fuel system
-        // entirely, which in turn meant fuel never drained and the gauge never had anything to show.
-        // CCSPlayerPawn.OnGroundLastTick reflects whether the player was actually grounded going into
-        // this jump input - IMoveData.InAir/Velocity.Z were already ruled out as reliable signals at
-        // other hook points per the history above, so this uses a distinctly different, already
-        // pawn-level-confirmed field instead. Only a genuine ground-leaving jump gets the big boost;
-        // an already-airborne re-trigger is now a no-op here, leaving mid-air lift entirely to the
-        // deliberate hold-to-thrust mechanic in OnProcessMovement.
-        if (player.PlayerPawn is not { OnGroundLastTick: true })
+        // class-level history above, and nothing here was actually guarding against it. Two attempts
+        // at a ground-state check here (IMoveData.InAir, then CCSPlayerPawn.OnGroundLastTick) both
+        // turned out unreliable at this specific Post-hook's timing - live testing of the
+        // OnGroundLastTick version showed literally no behavior change at all, meaning it was
+        // evaluating as "grounded" on every single re-trigger regardless of real air state. Rather
+        // than guess a third pawn/moveData field, this instead rate-limits the big boost with a
+        // plain elapsed-time cooldown (Core.Engine.GlobalVars.CurrentTime, the same debounce
+        // mechanism already proven reliable for MasterZeus/FlankTeleport) - no dependency on any
+        // movement-hook-internal state at all. Spamming space can now only re-trigger the big boost
+        // once per BigBoostCooldownSeconds; holding space for sustained lift is unaffected, since
+        // that's the separate, uncapped-duration thrust mechanic in OnProcessMovement below.
+        var now = Core.Engine.GlobalVars.CurrentTime;
+        if (_lastBigBoostTime.TryGetValue(player.Slot, out var lastBoostTime) &&
+            now - lastBoostTime < Runtime.Config.Jetpack.BigBoostCooldownSeconds)
         {
             return;
         }
+
+        _lastBigBoostTime[player.Slot] = now;
 
         moveData.Velocity = new Vector(moveData.Velocity.X, moveData.Velocity.Y, Runtime.Config.Jetpack.JumpVelocityZ);
 
@@ -288,5 +297,6 @@ public sealed class GameModifierJetpack : GameModifierBase
         _fuel.Remove(@event.PlayerId);
         _isThrustingThisTick.Remove(@event.PlayerId);
         _nextGaugeUpdateTime.Remove(@event.PlayerId);
+        _lastBigBoostTime.Remove(@event.PlayerId);
     }
 }

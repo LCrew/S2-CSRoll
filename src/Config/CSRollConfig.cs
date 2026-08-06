@@ -122,6 +122,9 @@ public class JetpackConfig
     /// <summary>Upward velocity (units/sec) applied on the initial jump off the ground - CS2's own default is ~301, so this is roughly 2.5x that.</summary>
     public float JumpVelocityZ { get; set; } = 750f;
 
+    /// <summary>Minimum seconds between initial-jump boosts, per player - stops spamming jump instead of holding it from re-triggering the big boost repeatedly and bypassing fuel entirely. Sustained lift while holding jump is unaffected; that's the separate, uncapped-duration thrust mechanic (ThrustSpeed).</summary>
+    public float BigBoostCooldownSeconds { get; set; } = 0.75f;
+
     /// <summary>Vertical speed (units/sec) floored while holding jump in the air with fuel remaining - deliberately modest so it reads as a light thrust, not a rocket.</summary>
     public float ThrustSpeed { get; set; } = 280f;
 

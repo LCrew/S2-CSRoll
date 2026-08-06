@@ -8,7 +8,8 @@ using CSRoll.Core;
 namespace CSRoll.Modifiers;
 
 /// <summary>
-/// 1 bullet per magazine - the assigned player's weapon is kept at exactly 1 round in the clip.
+/// 1 bullet per magazine - the assigned player's weapon is kept at exactly 1 round in the clip,
+/// reserve ammo kept topped up so reloading never actually runs dry.
 ///
 /// Bug fix: this used to shrink CBasePlayerWeaponVData.MaxClip1, a field shared by the weapon TYPE
 /// across every player holding one (not a per-instance field) - and did so unconditionally in
@@ -16,20 +17,21 @@ namespace CSRoll.Modifiers;
 /// activating this modifier for one player capped EVERY connected player's matching weapons to 1
 /// bullet, and would have silently ignored !memodifier's "just you" scoping entirely too.
 ///
-/// Bug fix 2: the first per-player rewrite force-set Clip1=1 directly inside the OnWeaponReload
-/// event handler - but that event fires when the reload is TRIGGERED, before the engine has actually
-/// moved any ammo from reserve into the clip, not after. Since reserve ammo is also topped up to max
-/// in that same handler, the native reload completion (which runs some time after this event, once
-/// the reload animation/timing finishes) then had a full reserve to draw from and filled the clip
-/// back up past 1 - "gets a full mag after reloading" was the direct symptom. Fixed by clamping
-/// Clip1 down to 1 every tick instead of reacting to the reload event's timing at all: this is
-/// idempotent, catches the native fill within at most one tick regardless of exactly when it
-/// happens, and needs no assumption about event ordering.
+/// Bug fix 2: the next rewrite force-set Clip1=1 and topped up reserve ammo, both directly inside the
+/// OnWeaponReload event handler - but that turned out to depend on exactly when that event fires
+/// relative to the engine's own native ammo transfer, and got it wrong in two different directions on
+/// two different attempts (first: reload gave back a full magazine, because the transfer ran AFTER
+/// the event and drew from the reserve we'd just topped up; second attempt at fixing that moved
+/// Clip1 to a per-tick clamp but left the reserve top-up event-driven, which could still leave
+/// reserve at 0 - "can't reload anymore" - if the transfer instead ran BEFORE the event, or under
+/// some other ordering this hadn't accounted for). Rather than guess a third time at the exact event
+/// ordering, both Clip1 and reserve are now enforced unconditionally every tick, independent of the
+/// reload event entirely: Clip1 is clamped down to at most 1, and reserve is topped back up to max
+/// whenever it's below max. Neither can drift away from "exactly 1 in the clip, full reserve always"
+/// for more than a tick, regardless of what order the native reload logic does its own ammo math in.
 /// </summary>
 public sealed class GameModifierOnePerMag : GameModifierBase
 {
-    private Guid _reloadHookId;
-
     public GameModifierOnePerMag()
     {
         Name = "OnePerReload";
@@ -41,19 +43,15 @@ public sealed class GameModifierOnePerMag : GameModifierBase
 
     protected override void OnEnabled()
     {
-        Core.Event.OnTick += ClampClipToOne;
-        // 1-bullet clips would mean constantly running dry without this - top reserve ammo
-        // back up to max on every reload so the only limiter is the 1-bullet clip itself.
-        _reloadHookId = Core.GameEvent.HookPost<EventWeaponReload>(OnWeaponReload);
+        Core.Event.OnTick += EnforceOnePerMag;
     }
 
     protected override void OnDisabled()
     {
-        Core.Event.OnTick -= ClampClipToOne;
-        Core.GameEvent.Unhook(_reloadHookId);
+        Core.Event.OnTick -= EnforceOnePerMag;
     }
 
-    private void ClampClipToOne()
+    private void EnforceOnePerMag()
     {
         foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
@@ -67,20 +65,13 @@ public sealed class GameModifierOnePerMag : GameModifierBase
                 weapon.Clip1 = 1;
                 weapon.Clip1Updated();
             }
-        }
-    }
 
-    private HookResult OnWeaponReload(EventWeaponReload @event)
-    {
-        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
-            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon &&
-            weapon.PlayerWeaponVData?.As<CCSWeaponBaseVData>() is { } vData)
-        {
-            weapon.ReserveAmmo[0] = vData.PrimaryReserveAmmoMax;
-            weapon.ReserveAmmoUpdated();
+            if (weapon.PlayerWeaponVData?.As<CCSWeaponBaseVData>() is { } vData && weapon.ReserveAmmo[0] < vData.PrimaryReserveAmmoMax)
+            {
+                weapon.ReserveAmmo[0] = vData.PrimaryReserveAmmoMax;
+                weapon.ReserveAmmoUpdated();
+            }
         }
-
-        return HookResult.Continue;
     }
 }
 
