@@ -20,10 +20,11 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
     protected abstract HashSet<CSWeaponType> TypesToStrip { get; }
 
     /// <summary>
-    /// True only for modifiers that are genuinely global in scope (KnivesOnly, via its server-wide
-    /// mp_buy_allow_* cvar). Per-player-scoped modifiers (GrenadesOnly, RandomLoadout) override this
-    /// to false - broadcasting "weapons restored" to the whole server when only one player's weapons
-    /// were ever touched was misleading everyone else into thinking it affected them too.
+    /// Opt-in for a modifier that's genuinely global in scope (e.g. one driven by a server-wide
+    /// cvar, like the now-removed KnivesOnly). Both current subclasses (GrenadesOnly, RandomLoadout)
+    /// are per-player-scoped and override this to false - broadcasting "weapons restored" to the
+    /// whole server when only one player's weapons were ever touched was misleading everyone else
+    /// into thinking it affected them too.
     /// </summary>
     protected virtual bool AnnounceRemovalGlobally => true;
 
@@ -167,25 +168,6 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
     }
 }
 
-public sealed class GameModifierKnifeOnly : GameModifierRemoveWeapons
-{
-    public GameModifierKnifeOnly()
-    {
-        Name = "KnivesOnly";
-        Description = "Buy menu is disabled, knives only";
-        SupportsRandomRounds = true;
-        // Not per-player randomizable: the bolt-on ModifierConfig/KnivesOnly.cfg disables the buy
-        // menu via a server-wide mp_buy_allow_* cvar (no Client: section), which would affect
-        // every player regardless of who rolled this modifier.
-        IncompatibleModifiers = [
-            "RandomLoadout",
-            "GrenadesOnly",
-        ];
-    }
-
-    protected override HashSet<CSWeaponType> TypesToStrip => AllRangedWeaponTypes;
-}
-
 /// <summary>
 /// Replaces the old RandomWeapon (one fixed weapon) and RandomWeapons (a fresh random weapon every
 /// spawn, no pistol/nades/armor) modifiers with a single richer one: a full random loadout chosen
@@ -206,7 +188,6 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
-            "KnivesOnly",
             "GrenadesOnly",
         ];
     }
@@ -289,7 +270,6 @@ public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
         // applied to the whole server instead of just the one player who rolled it.
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
-            "KnivesOnly",
             "RandomLoadout",
         ];
     }

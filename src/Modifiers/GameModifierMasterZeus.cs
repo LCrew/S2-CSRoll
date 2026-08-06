@@ -17,8 +17,8 @@ namespace CSRoll.Modifiers;
 /// native reach.
 ///
 /// Fast recharge: unlike CS:GO's "one use per life", CS2 actually recharges Zeus automatically via
-/// the mp_taser_recharge_time server cvar (default 30s) - this is the same bolt-on-cvar mechanism
-/// KnivesOnly.cfg uses for mp_buy_allow_guns, just applied to MasterZeus.cfg.
+/// the mp_taser_recharge_time server cvar (default 30s) - the same bolt-on-cvar ModifierConfig/*.cfg
+/// mechanism used elsewhere in this codebase, just applied to MasterZeus.cfg.
 ///
 /// Deliberately global, not per-player, despite SupportsPerPlayerRandomization: an earlier pass
 /// decoupled the custom zap's cooldown into its own per-player config value specifically to stop

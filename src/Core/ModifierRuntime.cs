@@ -208,9 +208,9 @@ public sealed class ModifierRuntime
         // removed entirely per explicit instruction: no automatic global/shared activation happens
         // alongside the per-player roll anymore. ConditionalInvisibility/FullInvisibility now support
         // per-player randomization directly instead (see their own files), so they lose nothing by
-        // this removal - only modifiers that are still genuinely global-only (KnivesOnly,
-        // PlantAnywhere, etc.) are excluded from the automatic rotation now; they're still fully
-        // usable via an explicit admin !addmodifier.
+        // this removal - only modifiers that are still genuinely global-only (PlantAnywhere, etc.)
+        // are excluded from the automatic rotation now; they're still fully usable via an explicit
+        // admin !addmodifier.
         if (Config.RandomizePlayers)
         {
             appliedAnything = AssignRandomModifiersPerPlayer(showBanner);
@@ -561,9 +561,9 @@ public sealed class ModifierRuntime
     /// already covers this slot, there's nothing further to do. If it's active for OTHER slots only,
     /// this slot is added to its existing AssignedSlots instead of reactivating it. Note this only
     /// actually scopes the effect to one player for modifiers whose own implementation checks
-    /// IsAssignedTo - some modifiers (KnivesOnly, PlantAnywhere, etc.) drive genuinely
-    /// server-wide cvars and will still affect everyone regardless of AssignedSlots, since that's an
-    /// engine limitation those modifiers already document, not something this command can work around.
+    /// IsAssignedTo - some modifiers (PlantAnywhere, etc.) drive genuinely server-wide cvars and
+    /// will still affect everyone regardless of AssignedSlots, since that's an engine limitation
+    /// those modifiers already document, not something this command can work around.
     /// </summary>
     public bool AddModifierToPlayer(string modifierName, int slot, out string message)
     {
@@ -766,8 +766,8 @@ public sealed class ModifierRuntime
         }
 
         // Bug fix: this shared/global roll had no !debug visibility at all, unlike the per-player
-        // roll's admin listing - live testing found modifiers activated here (e.g. KnivesOnly,
-        // PlantAnywhere - anything that doesn't support per-player randomization, including the
+        // roll's admin listing - live testing found modifiers activated here (e.g. PlantAnywhere -
+        // anything that doesn't support per-player randomization, including the
         // ConditionalInvisibility/FullInvisibility supplementary roll) reported as "hidden": nobody
         // showed up as having received them in the debug output because there simply wasn't any.
         if (DebugMode)
@@ -867,7 +867,7 @@ public sealed class ModifierRuntime
 
         // Bug fix: any active modifier with an EMPTY AssignedSlots is global in scope (e.g. an admin
         // !addmodifier on something that doesn't support per-player randomization like
-        // KnivesOnly/PlantAnywhere) - live testing confirmed these were taking effect completely
+        // PlantAnywhere) - live testing confirmed these were taking effect completely
         // silently under RandomizePlayers=true: no chat, no spin, not even in the !debug listing,
         // since the per-player branch below only ever iterates each modifier's AssignedSlots, which
         // contributes nothing for a global-scope one. These now always get their own broadcast

@@ -45,7 +45,6 @@ Players (or admins) roll random gameplay-altering modifiers - like Super Jump, S
 | One In The Chamber | 1 bullet per kill |
 | No Spread | Weapons have perfect aim |
 | Wallhack | Free cheats, for free - VAC SAFE |
-| Knives Only | Buy menu is disabled, knives only - unlucky... |
 | Random Loadout | Buy menu is disabled - random main weapon, pistol and grenades (sometimes with armor) |
 | Walking Grenadier | You can't shoot, but you've got UNLIMITED HE grenades |
 | Heavy Boots | Movement speed is much slower, but grants armor+helmet and bonus health |

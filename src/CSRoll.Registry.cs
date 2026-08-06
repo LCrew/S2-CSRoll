@@ -30,7 +30,6 @@ public partial class CSRoll
         () => new GameModifierNoSpread(),
         () => new GameModifierDropOnMiss(),
         () => new GameModifierDontMiss(),
-        () => new GameModifierKnifeOnly(),
         () => new GameModifierRandomLoadout(),
         () => new GameModifierGrenadesOnly(),
         () => new GameModifierLongerFlashes(),
