@@ -86,7 +86,7 @@ public sealed class GameModifierSpeedhack : GameModifierVelocity
         Description = "Max movement speed is much faster";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["LeadBoots", "Speed", "SlowMo"];
+        IncompatibleModifiers = ["LeadBoots"];
     }
 
     protected override float GetSpeedMultiplier() => Runtime.Config.Speedhack.SpeedMultiplier;
@@ -116,7 +116,7 @@ public sealed class GameModifierLeadBoots : GameModifierVelocity
         Description = "Movement speed is much slower - grants armor, a helmet and bonus health to compensate";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["Speedhack", "Speed", "SlowMo"];
+        IncompatibleModifiers = ["Speedhack"];
     }
 
     protected override float GetSpeedMultiplier() => Runtime.Config.LeadBoots.SpeedMultiplier;

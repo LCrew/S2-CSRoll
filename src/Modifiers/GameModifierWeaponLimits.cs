@@ -1,5 +1,6 @@
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
+using SwiftlyS2.Shared.GameHooks;
 using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
@@ -34,6 +35,13 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
     {
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
+        // Bug fix: this used to rely entirely on a bolt-on ModifierConfig/<Name>.cfg setting
+        // mp_buy_allow_guns/mp_buy_allow_grenades server-wide, which blocked the buy menu for
+        // EVERY player - including the enemy team - not just whoever this modifier is assigned to.
+        // Denying acquisition per-player here (buy AND pickup, since AcquireMethod covers both)
+        // replaces that global cvar entirely.
+        Core.GameHooks.Items.CanAcquire.Pre += OnCanAcquireItem;
+
         foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
             if (IsAssignedTo(player.Slot))
@@ -46,6 +54,7 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
     protected override void OnDisabled()
     {
         Core.GameEvent.Unhook(_spawnHookId);
+        Core.GameHooks.Items.CanAcquire.Pre -= OnCanAcquireItem;
 
         foreach (var slot in _cachedItems.Keys.ToList())
         {
@@ -67,6 +76,21 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
         }
 
         return HookResult.Continue;
+    }
+
+    private void OnCanAcquireItem(ref CanAcquireItemPreContext ctx)
+    {
+        var player = ctx.Params.Player;
+        if (player is not { IsValid: true } || !IsAssignedTo(player.Slot))
+        {
+            return;
+        }
+
+        var weaponType = ctx.Params.WeaponVData?.WeaponType;
+        if (weaponType is { } type && TypesToStrip.Contains(type))
+        {
+            ctx.SetReturn(AcquireResult.NotAllowedByProhibition);
+        }
     }
 
     private void StripWeapons(IPlayer player)
@@ -179,6 +203,15 @@ public sealed class GameModifierRandomWeapons : GameModifierRemoveWeapons
 /// HE grenades only - and re-gives an HE every time one is thrown, so players never run out.
 /// Bug fix: this used to also give molotov/smoke/flashbang once at spawn - per explicit request this
 /// is unlimited HE and nothing else, so GiveReplacementWeapons only ever gives weapon_hegrenade now.
+///
+/// Bug fix: this used to be bolted onto ModifierConfig/GrenadesOnly.cfg, which set sv_infinite_ammo
+/// 1 (and sv_cheats 1 to allow it) server-wide - infinite ammo for every weapon, for every player on
+/// the server, not just unlimited HE grenades for whoever rolled this. The unlimited-HE effect never
+/// actually needed that cvar: OnGrenadeThrown below already re-gives a fresh HE directly to the
+/// assigned player on every throw. The same bolt-on file also set mp_buy_allow_guns 0 globally,
+/// blocking the buy menu for everyone rather than just the roller - now handled per-player by the
+/// base class's CanAcquire hook instead. Knife is now stripped too (previously left alone) so this
+/// modifier is genuinely grenades-only.
 /// </summary>
 public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
 {
@@ -186,7 +219,7 @@ public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
     [
         CSWeaponType.WEAPONTYPE_PISTOL, CSWeaponType.WEAPONTYPE_SUBMACHINEGUN, CSWeaponType.WEAPONTYPE_RIFLE,
         CSWeaponType.WEAPONTYPE_SHOTGUN, CSWeaponType.WEAPONTYPE_SNIPER_RIFLE, CSWeaponType.WEAPONTYPE_MACHINEGUN,
-        CSWeaponType.WEAPONTYPE_TASER,
+        CSWeaponType.WEAPONTYPE_TASER, CSWeaponType.WEAPONTYPE_KNIFE,
     ];
 
     private const string HeGrenadeName = "weapon_hegrenade";

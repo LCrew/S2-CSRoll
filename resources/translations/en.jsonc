@@ -139,19 +139,14 @@
   "GrenadesOnly.Description": "You can't shoot, but you've got UNLIMITED grenades",
 
   // Reworked to be per-player this round and last round (used to be server-wide cvars: sv_maxspeed,
-  // sv_gravity, sv_enablebunnyhopping/staminacost, sv_jump_impulse/sv_falldamage_scale,
-  // sv_infinite_ammo, sv_hegrenade_damage_multiplier, weapon_accuracy_forcespread).
+  // sv_enablebunnyhopping/staminacost, sv_jump_impulse/sv_falldamage_scale, sv_infinite_ammo,
+  // sv_hegrenade_damage_multiplier, weapon_accuracy_forcespread). HighGravity/LowGravity removed
+  // entirely per explicit request - their GravityScale writes never actually affected physics live.
   "LeadBoots.DisplayName": "Heavy Boots",
   "LeadBoots.Description": "Movement speed is much slower",
 
-  "HighGravity.DisplayName": "High Gravity",
-  "HighGravity.Description": "Gravity is much stronger",
-
-  "LowGravity.DisplayName": "Low Gravity",
-  "LowGravity.Description": "Gravity is much weaker",
-
-  "SuperJump.DisplayName": "Super Jump",
-  "SuperJump.Description": "Jumping is much higher, no fall damage",
+  "SuperJump.DisplayName": "Jetpack",
+  "SuperJump.Description": "Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe",
 
   "InfiniteAmmo.DisplayName": "Infinite Ammo",
   "InfiniteAmmo.Description": "All weapons go brrrrrr...",
@@ -162,11 +157,10 @@
   "IncreasedSpread.DisplayName": "Increased Spread",
   "IncreasedSpread.Description": "Weapons have bad aim",
 
-  // HeadShotOnly/Respawn/SlowMo/Speed/Surf are still resources/ConVarModifiers/*.cfg-driven
-  // modifiers (server-wide cvars, not per-player C# classes) - renaming/redescribing them here
-  // works exactly the same way.
-  "HeadShotOnly.DisplayName": "HeadShotOnly",
-  "HeadShotOnly.Description": "Head shot damage only",
+  // Surf is still a resources/ConVarModifiers/*.cfg-driven modifier (server-wide cvars, not a
+  // per-player C# class) - renaming/redescribing it here works exactly the same way.
+  // Bug fix: HeadShotOnly removed - it's redundant with HardHead. Respawn/SlowMo/Speed removed per
+  // explicit request.
 
   // PlantAnywhere is a proper C# modifier (delayed anywhere-plant + extended bomb timer, both
   // configurable in config.jsonc's PlantAnywhere section) - the tokens "{delay}"/"{timer}" below get
@@ -174,18 +168,6 @@
   // Reword the surrounding text however you like; just keep both tokens somewhere in the line.
   "PlantAnywhere.DisplayName": "Plant Anywhere",
   "PlantAnywhere.Description": "Bomb can be planted anywhere after {delay}, bomb timer set to {timer}",
-
-  "Respawn.DisplayName": "Respawn",
-  "Respawn.Description": "Respawns are enabled",
-
-  // SlowMo/Speed are host_timescale - a genuine server-wide time dilation with no per-client
-  // equivalent in the Source engine, so unlike everything above these two can't be made to affect
-  // just one player. Left as server-wide on purpose.
-  "SlowMo.DisplayName": "SlowMo",
-  "SlowMo.Description": "Entire game is 2x slower (server-wide - can't be limited to one player)",
-
-  "Speed.DisplayName": "Speed",
-  "Speed.Description": "Entire game is 2x faster (server-wide - can't be limited to one player)",
 
   "Surf.DisplayName": "Surf",
   "Surf.Description": "Will config vars for surfing"

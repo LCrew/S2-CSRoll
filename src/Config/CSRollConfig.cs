@@ -47,9 +47,6 @@ public class CSRollConfig
     /// <summary>Tunables for the LeadBoots modifier (slower movement - now per-player, previously a server-wide sv_maxspeed cvar).</summary>
     public LeadBootsConfig LeadBoots { get; set; } = new();
 
-    /// <summary>Tunables for the HighGravity/LowGravity modifiers (per-player GravityScale, previously a server-wide sv_gravity cvar).</summary>
-    public GravityConfig Gravity { get; set; } = new();
-
     /// <summary>Tunables for the SuperJump modifier (per-player jump velocity boost, previously a server-wide sv_jump_impulse cvar).</summary>
     public SuperJumpConfig SuperJump { get; set; } = new();
 
@@ -117,19 +114,28 @@ public class LeadBootsConfig
     public int BonusHealth { get; set; } = 50;
 }
 
-public class GravityConfig
-{
-    /// <summary>Per-player GravityScale multiplier for HighGravity (above 1.0 = falls faster).</summary>
-    public float HighGravityMultiplier { get; set; } = 4.0f;
-
-    /// <summary>Per-player GravityScale multiplier for LowGravity (below 1.0 = falls slower).</summary>
-    public float LowGravityMultiplier { get; set; } = 0.25f;
-}
-
 public class SuperJumpConfig
 {
-    /// <summary>Upward velocity (units/sec) applied on jump - CS2's own default is ~301, so this is roughly 2.5x that.</summary>
+    /// <summary>Upward velocity (units/sec) applied on the initial jump off the ground - CS2's own default is ~301, so this is roughly 2.5x that.</summary>
     public float JumpVelocityZ { get; set; } = 750f;
+
+    /// <summary>Vertical speed (units/sec) floored while holding jump in the air with fuel remaining - deliberately modest so it reads as a light thrust, not a rocket.</summary>
+    public float ThrustSpeed { get; set; } = 280f;
+
+    /// <summary>Multiplier applied to CS2's normal air-accelerate value while airborne, for stronger in-flight steering during thrust.</summary>
+    public float AirStrafeMultiplier { get; set; } = 2.5f;
+
+    /// <summary>Fuel capacity, in percentage points (0-100).</summary>
+    public float MaxFuel { get; set; } = 100f;
+
+    /// <summary>Fuel drained per second while actively thrusting (holding jump, airborne, fuel remaining).</summary>
+    public float FuelDrainPerSecond { get; set; } = 25f;
+
+    /// <summary>Fuel regenerated per second whenever not thrusting - grounded or just coasting/falling.</summary>
+    public float FuelRegenPerSecond { get; set; } = 15f;
+
+    /// <summary>How often, in seconds, the center-HTML fuel gauge popup refreshes.</summary>
+    public float GaugeUpdateIntervalSeconds { get; set; } = 0.2f;
 }
 
 public class BiggerExplosionsConfig
@@ -140,8 +146,14 @@ public class BiggerExplosionsConfig
 
 public class IncreasedSpreadConfig
 {
-    /// <summary>Flat accuracy penalty added to the assigned player's currently held weapon every tick.</summary>
-    public float AccuracyPenalty { get; set; } = 15f;
+    /// <summary>
+    /// Flat accuracy penalty forced onto the assigned player's currently held weapon every tick.
+    /// Bug fix: this defaulted to 15 - CCSWeaponBase.AccuracyPenalty normally only ranges roughly
+    /// 0-2 even during a full-auto spray, so forcing it to 15 every tick made bullets land
+    /// essentially at random regardless of aim, reported as far too strong. Lowered to a value that
+    /// still clearly and noticeably worsens accuracy without making the weapon unusable.
+    /// </summary>
+    public float AccuracyPenalty { get; set; } = 2f;
 }
 
 public class PoisonSmokeConfig

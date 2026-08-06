@@ -118,11 +118,25 @@ public sealed class GameModifierOnePerMag : GameModifierBase
     }
 }
 
-/// <summary>1 bullet per kill - each weapon effectively holds a single chambered round, hugely amplified damage compensates for the near-empty clip.</summary>
+/// <summary>
+/// 1 bullet per kill - every weapon the assigned player ever holds is limited to a single chambered
+/// round, hugely amplified damage compensates for the near-empty clip.
+///
+/// Bug fix: the 1-bullet restriction used to be applied only once, to whatever weapons the player
+/// already held at the moment this modifier activated - a weapon bought or picked up afterwards kept
+/// its normal full clip/reserve untouched. Ammo was also fully drained to 0 reserve with no way to
+/// top back up except landing a hit (which grants +1 reserve) - miss your one shot and you were
+/// stuck with a permanently empty weapon for the rest of your life, unable to ever fire again. Fixed
+/// per explicit request: an EventItemEquip hook now re-applies the 1-bullet clip to every weapon the
+/// player touches (buy, pickup, or switch), and an EventWeaponReload hook always tops the clip back
+/// up to 1 regardless of reserve ammo - "unlimited magazines" - so reloading after a miss always
+/// works instead of only ever gaining ammo back via a landed hit.
+/// </summary>
 public sealed class GameModifierOneInTheChamber : GameModifierBase
 {
     private const float DamageMultiplier = 10.0f;
-    private Guid _hurtHookId;
+    private Guid _equipHookId;
+    private Guid _reloadHookId;
 
     public GameModifierOneInTheChamber()
     {
@@ -136,7 +150,8 @@ public sealed class GameModifierOneInTheChamber : GameModifierBase
     protected override void OnEnabled()
     {
         Core.GameHooks.Entities.TakeDamage.Pre += OnTakeDamage;
-        _hurtHookId = Core.GameEvent.HookPost<SwiftlyS2.Shared.GameEventDefinitions.EventPlayerHurt>(OnPlayerHurt);
+        _equipHookId = Core.GameEvent.HookPost<EventItemEquip>(OnItemEquip);
+        _reloadHookId = Core.GameEvent.HookPost<EventWeaponReload>(OnWeaponReload);
 
         foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
@@ -155,7 +170,8 @@ public sealed class GameModifierOneInTheChamber : GameModifierBase
     protected override void OnDisabled()
     {
         Core.GameHooks.Entities.TakeDamage.Pre -= OnTakeDamage;
-        Core.GameEvent.Unhook(_hurtHookId);
+        Core.GameEvent.Unhook(_equipHookId);
+        Core.GameEvent.Unhook(_reloadHookId);
     }
 
     private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
@@ -168,13 +184,26 @@ public sealed class GameModifierOneInTheChamber : GameModifierBase
         ctx.Params.Info.Damage *= DamageMultiplier;
     }
 
-    private HookResult OnPlayerHurt(SwiftlyS2.Shared.GameEventDefinitions.EventPlayerHurt @event)
+    private HookResult OnItemEquip(EventItemEquip @event)
     {
-        if (@event.AttackerPlayer is { IsValid: true } attacker && IsAssignedTo(attacker.Slot) &&
-            attacker.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
+            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
         {
-            weapon.ReserveAmmo[0] += 1;
-            weapon.ReserveAmmoUpdated();
+            ApplyWeaponModifier(weapon);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private HookResult OnWeaponReload(EventWeaponReload @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
+            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
+        {
+            // "Unlimited magazines": every reload tops the chamber back up to exactly 1 round
+            // regardless of reserve ammo, rather than draining reserve to 0 and leaving the player
+            // with no way to ever reload again after their one shot.
+            ApplyWeaponModifier(weapon);
         }
 
         return HookResult.Continue;

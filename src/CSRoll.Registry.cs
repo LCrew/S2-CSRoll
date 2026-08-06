@@ -65,17 +65,17 @@ public partial class CSRoll
         () => new GameModifierRevive(),
         () => new GameModifierSaint(),
 
-        // Bug fix: LeadBoots/HighGravity/LowGravity/SuperJump/InfiniteAmmo/BiggerExplosions/
-        // IncreasedSpread used to be resources/ConVarModifiers/*.cfg entries driving server-wide
-        // cvars (sv_maxspeed, sv_gravity, sv_jump_impulse, sv_infinite_ammo,
-        // sv_hegrenade_damage_multiplier, weapon_accuracy_forcespread) - applied to the whole server
-        // instead of just whoever rolled them. Rewritten as proper per-player C# modifiers.
+        // Bug fix: LeadBoots/SuperJump/InfiniteAmmo/BiggerExplosions/IncreasedSpread used to be
+        // resources/ConVarModifiers/*.cfg entries driving server-wide cvars (sv_maxspeed,
+        // sv_jump_impulse, sv_infinite_ammo, sv_hegrenade_damage_multiplier,
+        // weapon_accuracy_forcespread) - applied to the whole server instead of just whoever rolled
+        // them. Rewritten as proper per-player C# modifiers.
         // (Bhop was also converted this way, then removed entirely: the landing-penalty removal
         // half worked, but the auto-jump-without-repressing half wasn't achievable without risking
-        // corrupting CS2's native jump physics - see git history if revisiting this.)
+        // corrupting CS2's native jump physics - see git history if revisiting this. HighGravity/
+        // LowGravity went the same route - GravityScale writes never actually affected physics live,
+        // see git history - and were removed entirely per explicit request rather than left broken.)
         () => new GameModifierLeadBoots(),
-        () => new GameModifierHighGravity(),
-        () => new GameModifierLowGravity(),
         () => new GameModifierSuperJump(),
         () => new GameModifierInfiniteAmmo(),
         () => new GameModifierBiggerExplosions(),

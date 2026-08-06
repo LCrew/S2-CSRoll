@@ -18,11 +18,12 @@ namespace CSRoll.Modifiers;
 /// which meant it couldn't participate in normal per-player random rolls (whoever the roll "gave" it
 /// to and whoever actually turned invisible could be two different people).
 ///
-/// Known remaining caveat: the bolt-on ModifierConfig/FullInvisibility.cfg buy-menu block
-/// (mp_buy_allow_guns/mp_buy_allow_grenades) is a server-wide cvar pair - unlike the invisibility and
-/// weapon-strip/CanUse pieces here, that part still disables buying for EVERYONE while this modifier
-/// is active, not just the assigned player. No per-client buy-permission cvar equivalent is known;
-/// fixing that would need its own dedicated per-player buy-blocking mechanism.
+/// Bug fix: the bolt-on ModifierConfig/FullInvisibility.cfg buy-menu block (mp_buy_allow_guns/
+/// mp_buy_allow_grenades) was a server-wide cvar pair - it disabled buying for EVERYONE while this
+/// modifier was active, not just the assigned player. Replaced with a per-player
+/// Core.GameHooks.Items.CanAcquire.Pre denial (same AllRangedWeaponTypes check the CanUse hook below
+/// already does for using weapons), so only the assigned player is actually blocked from buying or
+/// picking anything up.
 ///
 /// Needs both GameModifierInvisibleBase's hide/unhide plumbing AND GameModifierRemoveWeapons'
 /// strip/restore plumbing at once - single inheritance can only give one directly, so this derives
@@ -67,6 +68,7 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
 
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
         Core.GameHooks.Weapons.CanUse.Pre += OnCanUseWeapon;
+        Core.GameHooks.Items.CanAcquire.Pre += OnCanAcquireItem;
 
         foreach (var slot in AssignedSlots)
         {
@@ -81,6 +83,7 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
     {
         Core.GameEvent.Unhook(_spawnHookId);
         Core.GameHooks.Weapons.CanUse.Pre -= OnCanUseWeapon;
+        Core.GameHooks.Items.CanAcquire.Pre -= OnCanAcquireItem;
 
         foreach (var slot in _cachedItems.Keys.ToList())
         {
@@ -126,6 +129,21 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         if (weaponType is { } type && CSRollUtils.AllRangedWeaponTypes.Contains(type))
         {
             ctx.SetReturn(false);
+        }
+    }
+
+    private void OnCanAcquireItem(ref CanAcquireItemPreContext ctx)
+    {
+        var player = ctx.Params.Player;
+        if (player is not { IsValid: true } || !IsAssignedTo(player.Slot))
+        {
+            return;
+        }
+
+        var weaponType = ctx.Params.WeaponVData?.WeaponType;
+        if (weaponType is { } type && CSRollUtils.AllRangedWeaponTypes.Contains(type))
+        {
+            ctx.SetReturn(AcquireResult.NotAllowedByProhibition);
         }
     }
 

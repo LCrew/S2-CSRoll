@@ -5,7 +5,7 @@
   <p>A chaos-mod style "game modifiers" plugin for CS2, built on <a href="https://swiftlys2.net">SwiftlyS2</a>.</p>
 </div>
 
-Players (or admins) roll random gameplay-altering modifiers - like Low Gravity, Speedhack, One In The Chamber, or Kamikaze - that apply for a round, a set number of rounds, or the whole match, either server-wide or scoped to individual players.
+Players (or admins) roll random gameplay-altering modifiers - like Super Jump, Speedhack, One In The Chamber, or Kamikaze - that apply for a round, a set number of rounds, or the whole match, either server-wide or scoped to individual players.
 
 ## Modifier List
 
@@ -50,17 +50,11 @@ Players (or admins) roll random gameplay-altering modifiers - like Low Gravity, 
 | Random Weapons | Buy menu is disabled, random weapons are given out |
 | Walking Grenadier | You can't shoot, but you've got UNLIMITED HE grenades |
 | Heavy Boots | Movement speed is much slower, but grants armor+helmet and bonus health |
-| High Gravity | Gravity is much stronger |
-| Low Gravity | Gravity is much weaker |
 | Super Jump | Jumping is much higher, no fall damage |
 | Infinite Ammo | All weapons go brrrrrr... |
 | Atomic Explosions | HE Grenades deal much more damage |
 | Increased Spread | Weapons have bad aim |
-| HeadShotOnly | Head shot damage only (server-wide) |
 | Plant Anywhere | Bomb can be planted anywhere after a delay, bomb timer extended (both configurable) |
-| Respawn | Respawns are enabled (server-wide) |
-| SlowMo | Entire game is 2x slower (server-wide) |
-| Speed | Entire game is 2x faster (server-wide) |
 | Surf | Will config vars for surfing (server-wide) |
 
 Display names and descriptions are fully customizable via `resources/translations/en.jsonc`.

@@ -4,6 +4,7 @@ using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.GameHooks;
 using SwiftlyS2.Shared.Misc;
+using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
@@ -112,6 +113,22 @@ public sealed class GameModifierRevive : GameModifierBase
 
         var decayFactor = 0.1f + (float)(Random.Shared.NextDouble() * 0.8f);
         _currentChancePercent[slot] = chance * decayFactor;
+
+        // Bug fix: a revive used to leave the player exactly where they took the lethal hit -
+        // usually right in front of whoever just shot them, an easy follow-up kill. Now teleported
+        // to one of their own team's spawn points instead, same as a normal round respawn. Deferred a
+        // tick via NextWorldUpdate rather than teleporting here directly inside TakeDamage.Pre - the
+        // engine hasn't finished resolving this hit yet at this point, so re-fetch the player fresh
+        // next tick before moving them.
+        var team = victim.Controller is { IsValid: true } controller ? controller.Team : Team.None;
+        Core.Scheduler.NextWorldUpdate(() =>
+        {
+            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true, IsAlive: true } current &&
+                CSRollUtils.GetSpawnLocation(Core, team) is { } spawnPosition)
+            {
+                CSRollUtils.TeleportPlayer(Core, current, spawnPosition);
+            }
+        });
     }
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)

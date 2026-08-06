@@ -35,6 +35,17 @@ public sealed class ModifierRuntime
     private readonly List<GameModifierBase> _activeModifiers = [];
     private List<GameModifierBase> _lastActiveModifiers = [];
 
+    /// <summary>
+    /// Round-start silent roll (showBanner:false) results that have been selected but not yet
+    /// Activate()'d - see the bug-fix note on PlaySpinThenRevealActiveModifiersBanner for why
+    /// activation is deferred until each reveal actually lands instead of happening immediately.
+    /// Exactly one of _pendingGlobalModifiers/_pendingModifiersByPlayerSlot is populated at a time,
+    /// mirroring the RandomizePlayers on/off branches in ApplyRandomRoundsForRound.
+    /// </summary>
+    private List<GameModifierBase>? _pendingGlobalModifiers;
+    private Dictionary<GameModifierBase, List<int>>? _pendingAssignedSlotsByModifier;
+    private Dictionary<int, List<GameModifierBase>>? _pendingModifiersByPlayerSlot;
+
     public IReadOnlyList<GameModifierBase> RegisteredModifiers => _registeredModifiers;
     public IReadOnlyList<GameModifierBase> ActiveModifiers => _activeModifiers;
 
@@ -178,7 +189,15 @@ public sealed class ModifierRuntime
             var count = random.Next(MinRandomRounds, MaxRandomRounds);
             if (AddRandomModifiers(count, out _, showBanner))
             {
-                _lastActiveModifiers = _activeModifiers.ToList();
+                // When showBanner is false, AddRandomModifiers only selects the modifiers and stashes
+                // them as _pendingGlobalModifiers - _activeModifiers isn't updated until
+                // PlaySpinThenRevealActiveModifiersBanner commits them alongside the reveal, so
+                // _lastActiveModifiers must wait until then too (see that method's global commit path).
+                if (showBanner)
+                {
+                    _lastActiveModifiers = _activeModifiers.ToList();
+                }
+
                 appliedAnything = true;
             }
         }
@@ -198,7 +217,10 @@ public sealed class ModifierRuntime
     public bool AssignRandomModifiersPerPlayer(bool showBanner = true)
     {
         var pool = _registeredModifiers.Where(m => m.SupportsPerPlayerRandomization).ToList();
-        var players = _core.PlayerManager.GetAllValidPlayers().ToList();
+        // Bug fix: GetAllValidPlayers() includes spectators, so a spectator could get assigned (and
+        // shown, via their own "Your modifiers:" chat/banner) a gameplay modifier they were never
+        // actually playing to receive. Only T/CT team members are eligible for the roll.
+        var players = _core.PlayerManager.GetT().Concat(_core.PlayerManager.GetCT()).ToList();
 
         if (pool.Count == 0 || players.Count == 0)
         {
@@ -235,22 +257,9 @@ public sealed class ModifierRuntime
             return false;
         }
 
-        foreach (var (modifier, slots) in assignedSlotsByModifier)
-        {
-            if (_activeModifiers.Contains(modifier))
-            {
-                modifier.AddAssignedSlots(slots);
-            }
-            else
-            {
-                modifier.Activate(slots);
-                _activeModifiers.Add(modifier);
-            }
-        }
-
         if (DebugMode)
         {
-            CSRollUtils.PrintTitleToAdminsOnly(_core, "Activating modifiers (randomized per player):");
+            CSRollUtils.PrintTitleToAdminsOnly(_core, "Rolled modifiers (randomized per player):");
             foreach (var (slot, modifiers) in modifiersByPlayerSlot)
             {
                 var player = _core.PlayerManager.GetPlayer(slot);
@@ -264,6 +273,10 @@ public sealed class ModifierRuntime
 
         if (showBanner)
         {
+            // Immediate path (e.g. !reroll): no separate reveal animation follows this call, so
+            // activate right away - there's nothing to defer to.
+            CommitPerPlayerModifiers(assignedSlotsByModifier);
+
             if (Config.ShowCentreMsg)
             {
                 ShowPerPlayerModifiersBanner(modifiersByPlayerSlot);
@@ -274,8 +287,35 @@ public sealed class ModifierRuntime
                 SendOwnModifiersChatMessage(_core.PlayerManager.GetPlayer(slot), modifiers);
             }
         }
+        else
+        {
+            // Bug fix: modifiers used to be Activate()'d right here, immediately at round start -
+            // up to several seconds before ScheduleFreezeTimeBanner's spin-then-reveal ever told the
+            // player what they'd gotten. Weapons vanished, players turned invisible, etc. with no
+            // explanation on screen yet. Stash the roll instead; PlaySpinThenRevealActiveModifiersBanner
+            // commits it exactly when each player's reveal lands.
+            _pendingAssignedSlotsByModifier = assignedSlotsByModifier;
+            _pendingModifiersByPlayerSlot = modifiersByPlayerSlot;
+        }
 
         return true;
+    }
+
+    /// <summary>Activates a full per-player roll in one shot - each modifier's complete slot set at once, so OnEnabled() sees every owning player immediately rather than one at a time.</summary>
+    private void CommitPerPlayerModifiers(Dictionary<GameModifierBase, List<int>> assignedSlotsByModifier)
+    {
+        foreach (var (modifier, slots) in assignedSlotsByModifier)
+        {
+            if (_activeModifiers.Contains(modifier))
+            {
+                modifier.AddAssignedSlots(slots);
+            }
+            else
+            {
+                modifier.Activate(slots);
+                _activeModifiers.Add(modifier);
+            }
+        }
     }
 
     /// <summary>
@@ -463,7 +503,7 @@ public sealed class ModifierRuntime
     /// already covers this slot, there's nothing further to do. If it's active for OTHER slots only,
     /// this slot is added to its existing AssignedSlots instead of reactivating it. Note this only
     /// actually scopes the effect to one player for modifiers whose own implementation checks
-    /// IsAssignedTo - some modifiers (KnivesOnly, PlantAnywhere, HeadShotOnly, etc.) drive genuinely
+    /// IsAssignedTo - some modifiers (KnivesOnly, PlantAnywhere, etc.) drive genuinely
     /// server-wide cvars and will still affect everyone regardless of AssignedSlots, since that's an
     /// engine limitation those modifiers already document, not something this command can work around.
     /// </summary>
@@ -557,6 +597,13 @@ public sealed class ModifierRuntime
 
     public void RemoveAllModifiers()
     {
+        // A roll may have been selected but not yet committed (still waiting on its
+        // spin-then-reveal to land) - cancel it too, or it would still activate later once that
+        // scheduled reveal fires despite everything having just been cleared.
+        _pendingGlobalModifiers = null;
+        _pendingAssignedSlotsByModifier = null;
+        _pendingModifiersByPlayerSlot = null;
+
         if (_activeModifiers.Count == 0)
         {
             return;
@@ -628,32 +675,40 @@ public sealed class ModifierRuntime
             }
         }
 
-        ActivateModifiers(addedModifiers, showBanner);
+        if (showBanner)
+        {
+            // Immediate path (e.g. !addrandommodifier(s), !reroll): no separate reveal animation
+            // follows this call, so activate right away - there's nothing to defer to.
+            ActivateModifiers(addedModifiers);
+        }
+        else
+        {
+            // Bug fix: modifiers used to be Activate()'d right here, immediately at round start -
+            // up to several seconds before ScheduleFreezeTimeBanner's spin-then-reveal ever told
+            // players what was rolled. Stash the roll instead; PlaySpinThenRevealActiveModifiersBanner
+            // commits it exactly when the reveal lands.
+            _pendingGlobalModifiers = addedModifiers;
+        }
+
         return true;
     }
 
-    private void ActivateModifiers(List<GameModifierBase> modifiers, bool showBanner = true)
+    /// <summary>Immediate activation with an immediate banner/chat announcement - used by callers with no separate reveal animation following them (manual !addmodifier/!addrandommodifier(s)/!reroll). The round-start automatic roll defers activation instead - see PlaySpinThenRevealActiveModifiersBanner.</summary>
+    private void ActivateModifiers(List<GameModifierBase> modifiers)
     {
         if (modifiers.Count == 0)
         {
             return;
         }
 
-        // The center banner is skipped here when showBanner is false (round-start random-round
-        // activation) because it would fire during the spawn/freeze-time animation, before the
-        // player has control - the message either isn't rendered yet or expires before it's
-        // readable. CSRoll.GameEvents.cs shows it again on EventRoundFreezeEnd instead.
-        if (showBanner)
+        if (Config.ShowCentreMsg)
         {
-            if (Config.ShowCentreMsg)
-            {
-                CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), 6000);
-            }
+            CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), 6000);
+        }
 
-            foreach (var player in _core.PlayerManager.GetAllValidPlayers())
-            {
-                SendOwnModifiersChatMessage(player, modifiers);
-            }
+        foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+        {
+            SendOwnModifiersChatMessage(player, modifiers);
         }
 
         foreach (var modifier in modifiers)
@@ -672,14 +727,42 @@ public sealed class ModifierRuntime
     /// </summary>
     public void PlaySpinThenRevealActiveModifiersBanner()
     {
+        // Bug fix: modifiers rolled for this round used to be Activate()'d immediately at round
+        // start - weapons stripped, invisibility applied, speed/spread changed, etc. - up to several
+        // seconds before this method's spin-then-reveal animation ever told the affected player what
+        // they'd actually gotten. A pending roll (stashed by AssignRandomModifiersPerPlayer/
+        // AddRandomModifiers when called with showBanner:false) is committed here instead, timed to
+        // land at the exact moment each reveal does, so the mechanical effect and the reveal always
+        // appear together - never before.
+        var pendingGlobal = _pendingGlobalModifiers;
+        var pendingAssignedSlotsByModifier = _pendingAssignedSlotsByModifier;
+        var pendingModifiersByPlayerSlot = _pendingModifiersByPlayerSlot;
+        _pendingGlobalModifiers = null;
+        _pendingAssignedSlotsByModifier = null;
+        _pendingModifiersByPlayerSlot = null;
+
+        if (pendingGlobal is { Count: > 0 })
+        {
+            RevealGlobalModifiers(pendingGlobal, commitOnReveal: true);
+            return;
+        }
+
+        if (pendingModifiersByPlayerSlot is { Count: > 0 })
+        {
+            RevealPerPlayerModifiers(pendingModifiersByPlayerSlot, pendingAssignedSlotsByModifier);
+            return;
+        }
+
+        // No pending roll this round (RandomRoundsEnabled == false: OnRoundStart just re-Activated
+        // whatever was already active, nothing new was rolled) - redisplay the already-active set
+        // exactly as before this fix, with nothing left to commit.
         if (_activeModifiers.Count == 0)
         {
             return;
         }
 
-        // Bug fix: any active modifier with an EMPTY AssignedSlots is global in scope (e.g. the
-        // ConditionalInvisibility/FullInvisibility supplementary roll in ApplyRandomRoundsForRound,
-        // or an admin !addmodifier on something that doesn't support per-player randomization like
+        // Bug fix: any active modifier with an EMPTY AssignedSlots is global in scope (e.g. an admin
+        // !addmodifier on something that doesn't support per-player randomization like
         // KnivesOnly/PlantAnywhere) - live testing confirmed these were taking effect completely
         // silently under RandomizePlayers=true: no chat, no spin, not even in the !debug listing,
         // since the per-player branch below only ever iterates each modifier's AssignedSlots, which
@@ -688,22 +771,7 @@ public sealed class ModifierRuntime
         var globalModifiers = _activeModifiers.Where(m => m.AssignedSlots.Count == 0).ToList();
         if (globalModifiers.Count > 0)
         {
-            void RevealGlobal()
-            {
-                foreach (var player in _core.PlayerManager.GetAllValidPlayers())
-                {
-                    SendOwnModifiersChatMessage(player, globalModifiers);
-                }
-            }
-
-            if (Config.ShowCentreMsg)
-            {
-                PlaySpinThenRevealAll(CSRollUtils.BuildActivatingModifiersHtml(_core, globalModifiers), RevealGlobal);
-            }
-            else
-            {
-                RevealGlobal();
-            }
+            RevealGlobalModifiers(globalModifiers, commitOnReveal: false);
         }
 
         if (Config.RandomizePlayers)
@@ -723,30 +791,88 @@ public sealed class ModifierRuntime
                 }
             }
 
-            foreach (var (slot, modifiers) in modifiersByPlayerSlot)
-            {
-                if (modifiers.Count == 0)
-                {
-                    continue;
-                }
-
-                void Reveal() => SendOwnModifiersChatMessage(_core.PlayerManager.GetPlayer(slot), modifiers);
-
-                if (Config.ShowCentreMsg)
-                {
-                    PlaySpinThenReveal(slot, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), Reveal);
-                }
-                else
-                {
-                    Reveal();
-                }
-            }
-
-            return;
+            RevealPerPlayerModifiers(modifiersByPlayerSlot, assignedSlotsByModifier: null);
         }
 
         // Non-RandomizePlayers mode: everything is already global in scope, so globalModifiers above
         // already covers the whole active set - nothing further to reveal here.
+    }
+
+    /// <summary>Broadcast reveal for a global-scope set of modifiers. When commitOnReveal is true (a deferred round-start roll), activation happens at the exact moment the reveal lands rather than beforehand.</summary>
+    private void RevealGlobalModifiers(List<GameModifierBase> modifiers, bool commitOnReveal)
+    {
+        void Reveal()
+        {
+            if (commitOnReveal)
+            {
+                foreach (var modifier in modifiers)
+                {
+                    modifier.Activate();
+                    _activeModifiers.Add(modifier);
+                }
+
+                _lastActiveModifiers = _activeModifiers.ToList();
+            }
+
+            foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+            {
+                SendOwnModifiersChatMessage(player, modifiers);
+            }
+        }
+
+        if (Config.ShowCentreMsg)
+        {
+            PlaySpinThenRevealAll(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), Reveal);
+        }
+        else
+        {
+            Reveal();
+        }
+    }
+
+    /// <summary>
+    /// Per-player reveal for a slot-to-modifiers assignment. When assignedSlotsByModifier is
+    /// non-null (a deferred round-start roll), each modifier is committed the first time any of its
+    /// owning slots' reveal lands - using the FULL slot set already known from the roll, not just
+    /// that one slot - so OnEnabled() sees every owner at once even though, in practice, every
+    /// slot's reveal runs the identical spin schedule and lands the same tick anyway. Later slots
+    /// sharing that modifier then just find it already active (AddAssignedSlots, no-op for OnEnabled).
+    /// </summary>
+    private void RevealPerPlayerModifiers(Dictionary<int, List<GameModifierBase>> modifiersByPlayerSlot, Dictionary<GameModifierBase, List<int>>? assignedSlotsByModifier)
+    {
+        foreach (var (slot, modifiers) in modifiersByPlayerSlot)
+        {
+            if (modifiers.Count == 0)
+            {
+                continue;
+            }
+
+            void Reveal()
+            {
+                if (assignedSlotsByModifier is not null)
+                {
+                    foreach (var modifier in modifiers)
+                    {
+                        if (!_activeModifiers.Contains(modifier))
+                        {
+                            modifier.Activate(assignedSlotsByModifier[modifier]);
+                            _activeModifiers.Add(modifier);
+                        }
+                    }
+                }
+
+                SendOwnModifiersChatMessage(_core.PlayerManager.GetPlayer(slot), modifiers);
+            }
+
+            if (Config.ShowCentreMsg)
+            {
+                PlaySpinThenReveal(slot, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), Reveal);
+            }
+            else
+            {
+                Reveal();
+            }
+        }
     }
 
     /// <summary>
