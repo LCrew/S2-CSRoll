@@ -19,6 +19,14 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
     /// <summary>Weapon categories this modifier strips. Ranged-weapon-restricting modifiers strip everything but knives; GrenadesOnly leaves grenades alone.</summary>
     protected abstract HashSet<CSWeaponType> TypesToStrip { get; }
 
+    /// <summary>
+    /// True only for modifiers that are genuinely global in scope (KnivesOnly, via its server-wide
+    /// mp_buy_allow_* cvar). Per-player-scoped modifiers (GrenadesOnly, RandomLoadout) override this
+    /// to false - broadcasting "weapons restored" to the whole server when only one player's weapons
+    /// were ever touched was misleading everyone else into thinking it affected them too.
+    /// </summary>
+    protected virtual bool AnnounceRemovalGlobally => true;
+
     /// <summary>Kept as an alias of CSRollUtils.AllRangedWeaponTypes (relocated there so GameModifierFullInvisibility can reuse it without inheriting this class).</summary>
     protected static HashSet<CSWeaponType> AllRangedWeaponTypes => CSRollUtils.AllRangedWeaponTypes;
 
@@ -66,7 +74,11 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
         }
 
         _cachedItems.Clear();
-        CSRollUtils.PrintTitleToChatAll(Core, $"{Name} modifier removed - weapons restored.");
+
+        if (AnnounceRemovalGlobally)
+        {
+            CSRollUtils.PrintTitleToChatAll(Core, $"{Name} modifier removed - weapons restored.");
+        }
     }
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
@@ -201,6 +213,8 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
 
     protected override HashSet<CSWeaponType> TypesToStrip => AllRangedWeaponTypes;
 
+    protected override bool AnnounceRemovalGlobally => false;
+
     protected override void OnEnabled()
     {
         _mainWeaponName = CSRollUtils.GetRandomMainWeaponName();
@@ -281,6 +295,8 @@ public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
     }
 
     protected override HashSet<CSWeaponType> TypesToStrip => StripTypes;
+
+    protected override bool AnnounceRemovalGlobally => false;
 
     protected override void OnEnabled()
     {
