@@ -63,18 +63,22 @@ public partial class CSRoll
         () => new GameModifierRevive(),
         () => new GameModifierSaint(),
 
-        // Bug fix: LeadBoots/Jetpack (formerly SuperJump)/InfiniteAmmo/BiggerExplosions/
-        // IncreasedSpread used to be resources/ConVarModifiers/*.cfg entries driving server-wide
-        // cvars (sv_maxspeed, sv_jump_impulse, sv_infinite_ammo, sv_hegrenade_damage_multiplier,
+        // Bug fix: LeadBoots/SuperJump/InfiniteAmmo/BiggerExplosions/IncreasedSpread used to be
+        // resources/ConVarModifiers/*.cfg entries driving server-wide cvars (sv_maxspeed,
+        // sv_jump_impulse, sv_infinite_ammo, sv_hegrenade_damage_multiplier,
         // weapon_accuracy_forcespread) - applied to the whole server instead of just whoever rolled
         // them. Rewritten as proper per-player C# modifiers.
         // (Bhop was also converted this way, then removed entirely: the landing-penalty removal
         // half worked, but the auto-jump-without-repressing half wasn't achievable without risking
         // corrupting CS2's native jump physics - see git history if revisiting this. HighGravity/
         // LowGravity went the same route - GravityScale writes never actually affected physics live,
-        // see git history - and were removed entirely per explicit request rather than left broken.)
+        // see git history - and were removed entirely per explicit request rather than left broken.
+        // SuperJump was also briefly reworked into a fuel-limited "Jetpack" hold-to-thrust mechanic,
+        // then reverted back to this simple form per explicit request - the sustained-thrust half
+        // never worked reliably across several fix attempts; see git history on
+        // GameModifierJetpack.cs for the full record.)
         () => new GameModifierLeadBoots(),
-        () => new GameModifierJetpack(),
+        () => new GameModifierSuperJump(),
         () => new GameModifierInfiniteAmmo(),
         () => new GameModifierBiggerExplosions(),
         () => new GameModifierIncreasedSpread(),

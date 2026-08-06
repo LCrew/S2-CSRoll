@@ -30,7 +30,7 @@ namespace CSRoll.Modifiers;
 /// with a duration slightly longer than that interval, so it never visibly expires) showing the
 /// player's CURRENT target state instantly (green INVISIBLE / red VISIBLE - based on the logical
 /// silence check, not the cosmetic fade progress, so feedback is immediate) as the same ASCII gauge
-/// format Jetpack/FullInvisibility use (CSRollUtils.BuildGaugeHtml) - the bar fills as elapsed
+/// format FullInvisibility uses (CSRollUtils.BuildGaugeHtml) - the bar fills as elapsed
 /// silence approaches SoundCooldownSeconds and hits 100%/green exactly when the player actually goes
 /// invisible, at the same plain text size as the spin-reveal's "Rolling..." frame rather than the
 /// larger fontSize-l this used before.

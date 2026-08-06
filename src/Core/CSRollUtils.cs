@@ -218,8 +218,8 @@ public static class CSRollUtils
     /// Builds a two-line center-HTML status gauge: a colored label line, then an ASCII progress bar
     /// ("[####----------------] 42%"). Deliberately plain "fontWeight-bold" text with no "fontSize-l"
     /// class - the same size as BuildSpinFrameHtml's "Rolling..." frame - so every gauge popup
-    /// (Jetpack fuel, invisibility status, etc.) reads as one consistent HUD family rather than a
-    /// mismatched larger element.
+    /// (invisibility status, teleport cooldown, etc.) reads as one consistent HUD family rather than
+    /// a mismatched larger element.
     ///
     /// Bug fix: the bar used to mix two different glyphs ('#' for filled, '-' for empty) - Panorama's
     /// UI font is proportional, not monospace, and '#' renders noticeably wider than '-', so the
