@@ -281,12 +281,14 @@ public class SpinRevealConfig
 
     /// <summary>
     /// CS2 soundevent name played on every spin-frame tick (each name flip during the animation) -
-    /// already built into the game, no custom sound asset required. Defaults to the same soft tick
-    /// CS2 itself plays when scrolling through weapons on the buy/select wheel. Empty string disables
-    /// the sound entirely.
+    /// already built into the game, no custom sound asset required. "UI.ContractType" is confirmed
+    /// (via swiftlys2's own source, src/server/configuration/configuration.cpp) to be the exact
+    /// soundevent SwiftlyS2's native menu system itself plays for scroll/navigate between menu items
+    /// - the earlier default, "Player.WeaponSelectionMoveSlot", was an unverified guess that turned
+    /// out not to produce any audible sound. Empty string disables the sound entirely.
     /// </summary>
-    public string TickSoundEventName { get; set; } = "Player.WeaponSelectionMoveSlot";
+    public string TickSoundEventName { get; set; } = "UI.ContractType";
 
-    /// <summary>Volume (0-1) for the per-frame spin tick sound.</summary>
-    public float TickSoundVolume { get; set; } = 0.5f;
+    /// <summary>Volume (0-1) for the per-frame spin tick sound - matches SwiftlyS2's own menu-scroll default.</summary>
+    public float TickSoundVolume { get; set; } = 0.75f;
 }
