@@ -40,6 +40,7 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("addrandommodifiers", Debounce("addrandommodifiers", OnAddRandomModifiers), registerRaw: true, permission: AdminPermission, helpText: "<modifier count> - Add a random number of modifiers to be activated immediately."));
         _commandGuids.Add(Core.Command.RegisterCommand("removemodifier", Debounce("removemodifier", OnRemoveModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Remove an active modifier."));
         _commandGuids.Add(Core.Command.RegisterCommand("removemodifiers", Debounce("removemodifiers", OnRemoveModifiers), registerRaw: true, permission: AdminPermission, helpText: "Clear / Remove all active modifiers."));
+        _commandGuids.Add(Core.Command.RegisterCommand("disablemodifier", Debounce("disablemodifier", OnDisableModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Deactivate a modifier and remove it from the registered pool so it can't be added/rolled again until modifiers are reloaded."));
         _commandGuids.Add(Core.Command.RegisterCommand("randomrounds", Debounce("randomrounds", OnRandomRounds), registerRaw: true, permission: AdminPermission, helpText: "Toggle random rounds on/off."));
         _commandGuids.Add(Core.Command.RegisterCommand("minrandomrounds", Debounce("minrandomrounds", OnMinRandomRounds), registerRaw: true, permission: AdminPermission, helpText: "<min number> - Set the min number of random round modifiers to be active each round."));
         _commandGuids.Add(Core.Command.RegisterCommand("maxrandomrounds", Debounce("maxrandomrounds", OnMaxRandomRounds), registerRaw: true, permission: AdminPermission, helpText: "<max number> - Set the max number of random round modifiers to be active each round."));
@@ -187,6 +188,13 @@ public partial class CSRoll
     {
         Runtime.RemoveAllModifiers();
         CSRollUtils.PrintTitleToChat(Core, context.Sender, "Removed all modifiers.");
+    }
+
+    public void OnDisableModifier(ICommandContext context)
+    {
+        var modifierName = context.Args.Length > 0 ? context.Args[0] : "";
+        Runtime.DisableModifierByName(modifierName, out var message);
+        CSRollUtils.PrintTitleToChat(Core, context.Sender, message);
     }
 
     public void OnReloadConfig(ICommandContext context)

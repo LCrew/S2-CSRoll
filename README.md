@@ -75,6 +75,7 @@ All commands are chat commands (prefix with `!`).
 | `!togglemodifier <name>` | Admin | Enables/Disables a given modifier by name. |
 | `!removemodifier <name>` | Admin | Remove an active modifier. |
 | `!removemodifiers` | Admin | Clear / Remove all active modifiers. |
+| `!disablemodifier <name>` | Admin | Deactivate a modifier and remove it from the registered pool so it can't be added/rolled again until modifiers are reloaded. |
 | `!addrandommodifier` | Admin | Add a random modifier to be activated immediately. |
 | `!addrandommodifiers <count>` | Admin | Add a random number of modifiers to be activated immediately. |
 | `!randomrounds` | Admin | Toggle random rounds on/off. |

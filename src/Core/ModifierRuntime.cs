@@ -567,6 +567,48 @@ public sealed class ModifierRuntime
     private static bool ModifierAppliesToSlot(GameModifierBase modifier, int slot) =>
         modifier.AssignedSlots.Count == 0 || modifier.AssignedSlots.Contains(slot);
 
+    /// <summary>
+    /// Permanently removes a modifier from the registered pool for the rest of this session (the
+    /// !disablemodifier command) - a stronger version of RemoveModifierByName, which only deactivates
+    /// a currently-active modifier but leaves it eligible to be rolled/added again immediately
+    /// afterward. Deactivates it first if active, then Unregister()s it (so its own OnUnregistered
+    /// cleanup runs - e.g. dropping any OnClientConnected/OnClientDisconnected subscriptions) and
+    /// drops it from RegisteredModifiers, so !addmodifier/!memodifier/the random pools can no longer
+    /// select it at all.
+    ///
+    /// Also appends the name to Config.DisabledModifiers in memory, so a later !reloadmodifiers
+    /// (without an intervening !reloadconfig) still respects the disable instead of silently bringing
+    /// the modifier back. This does NOT write back to config.jsonc on disk, though - an explicit
+    /// !reloadconfig re-reads the file fresh and will re-enable this modifier unless it's also been
+    /// added to DisabledModifiers there by hand.
+    /// </summary>
+    public bool DisableModifierByName(string modifierName, out string message)
+    {
+        var modifier = GetRegisteredModifierByName(modifierName);
+        if (modifier is null)
+        {
+            message = $"{modifierName} modifier is not registered.";
+            return false;
+        }
+
+        if (_activeModifiers.Contains(modifier))
+        {
+            modifier.Deactivate();
+            _activeModifiers.Remove(modifier);
+        }
+
+        modifier.Unregister();
+        _registeredModifiers.Remove(modifier);
+
+        if (!Config.DisabledModifiers.Contains(modifier.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            Config.DisabledModifiers = [.. Config.DisabledModifiers, modifier.Name];
+        }
+
+        message = $"Disabled {CSRollUtils.GetModifierDisplayName(_core, modifier)} - it can no longer be added/rolled until config.jsonc's DisabledModifiers is updated and modifiers are reloaded.";
+        return true;
+    }
+
     public void RemoveModifierByName(string modifierName, out string message)
     {
         if (_activeModifiers.Count == 0)
