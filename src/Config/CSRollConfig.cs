@@ -101,6 +101,9 @@ public class CSRollConfig
 
     /// <summary>Tunables for the "slot machine" style spin animation shown in the center-HTML popup before the real assigned modifier(s) are revealed.</summary>
     public SpinRevealConfig SpinReveal { get; set; } = new();
+
+    /// <summary>Tunables for the persistent center-HTML popup shown to spectators, listing whatever modifiers are active on whoever they're currently observing.</summary>
+    public SpectatorHudConfig SpectatorHud { get; set; } = new();
 }
 
 public class ConditionalInvisibilityConfig
@@ -291,4 +294,13 @@ public class SpinRevealConfig
 
     /// <summary>Volume (0-1) for the per-frame spin tick sound - matches SwiftlyS2's own menu-scroll default.</summary>
     public float TickSoundVolume { get; set; } = 0.75f;
+}
+
+public class SpectatorHudConfig
+{
+    /// <summary>Whether spectators watching a player with active modifiers see a persistent HUD listing what's rolled on them.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>How often, in seconds, the popup refreshes - catches the spectator switching targets or the target's modifiers changing.</summary>
+    public float RefreshIntervalSeconds { get; set; } = 0.2f;
 }

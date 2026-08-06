@@ -242,6 +242,27 @@ public static class CSRollUtils
         return string.Join("<br/>", lines);
     }
 
+    /// <summary>
+    /// Builds the persistent spectator HUD: who's being watched, then each of their active
+    /// modifiers - or a plain "No modifiers" line if they have none, so the popup still confirms
+    /// it's tracking the right target rather than just disappearing.
+    /// </summary>
+    public static string BuildSpectatorHudHtml(ISwiftlyCore core, string targetName, IReadOnlyCollection<GameModifierBase> modifiers)
+    {
+        var lines = new List<string> { $"<span color=\"gold\" class=\"fontWeight-bold\">Watching: {targetName}</span>" };
+
+        if (modifiers.Count == 0)
+        {
+            lines.Add("<span class=\"fontWeight-bold\">No modifiers</span>");
+        }
+        else
+        {
+            lines.AddRange(modifiers.Select(m => $"<span class=\"fontWeight-bold\">{GetModifierDisplayName(core, m)}</span>"));
+        }
+
+        return string.Join("<br/>", lines);
+    }
+
     /// <summary>Builds the green/red "Random Rounds Enabled/Disabled" center banner.</summary>
     public static string BuildRandomRoundsToggleHtml(bool enabled)
     {

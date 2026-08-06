@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 
 using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Config;
 using CSRoll.Modifiers;
@@ -70,6 +71,9 @@ public sealed class ModifierRuntime
     /// </summary>
     private int _rollGeneration;
 
+    /// <summary>Backs the spectator HUD's refresh throttle - keyed by the spectating player's own slot.</summary>
+    private readonly Dictionary<int, float> _lastSpectatorHudUpdateTime = [];
+
     public IReadOnlyList<GameModifierBase> RegisteredModifiers => _registeredModifiers;
     public IReadOnlyList<GameModifierBase> ActiveModifiers => _activeModifiers;
 
@@ -112,6 +116,8 @@ public sealed class ModifierRuntime
                 RandomRoundsEnabled = true;
             }
         }
+
+        _core.Event.OnTick += RefreshSpectatorHud;
     }
 
     private void InitialiseModifiers(IEnumerable<Func<GameModifierBase>> factories)
@@ -150,6 +156,8 @@ public sealed class ModifierRuntime
 
     public void Unregister()
     {
+        _core.Event.OnTick -= RefreshSpectatorHud;
+
         RemoveAllModifiers();
 
         foreach (var modifier in _registeredModifiers)
@@ -161,6 +169,55 @@ public sealed class ModifierRuntime
         _registeredModifiers.Clear();
         _lastRoundAssignedPerPlayer.Clear();
         _roundNumber = 0;
+        _lastSpectatorHudUpdateTime.Clear();
+    }
+
+    /// <summary>
+    /// Persistent HUD for spectators: whoever a player is currently observing (CBasePlayerPawn's
+    /// ObserverServices/ObserverTarget - non-null only while actually in observer mode, e.g. dead or
+    /// a true spectator, so this is a no-op for anyone currently alive and playing), listing that
+    /// target's active modifiers. Re-sent on a short throttled interval (same persistent-HUD
+    /// convention as FullInvisibility/Jetpack/FlankTeleport) rather than once, so switching spectate
+    /// targets or the target's modifiers changing are both picked up promptly.
+    /// </summary>
+    private void RefreshSpectatorHud()
+    {
+        if (!Config.SpectatorHud.Enabled || _activeModifiers.Count == 0)
+        {
+            return;
+        }
+
+        var now = _core.Engine.GlobalVars.CurrentTime;
+
+        foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+        {
+            // Bug fix: IPlayer.PlayerPawn is specifically the CCSPlayerPawn (alive game pawn), which
+            // is gone once dead/spectating - ObserverServices only ever shows up on IPlayer.Pawn (the
+            // general CBasePlayerPawn, whichever concrete pawn - game or observer - is currently
+            // active), confirmed via SwiftlyS2's own IPlayer.cs doc comments distinguishing the two.
+            if (player.Pawn?.ObserverServices?.ObserverTarget.Value is not { } targetEntity)
+            {
+                continue;
+            }
+
+            var slot = player.Slot;
+            if (_lastSpectatorHudUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < Config.SpectatorHud.RefreshIntervalSeconds)
+            {
+                continue;
+            }
+
+            var targetPlayer = _core.PlayerManager.GetPlayerFromPawn(targetEntity.As<CBasePlayerPawn>());
+            if (targetPlayer is not { IsValid: true, Controller: { IsValid: true } targetController })
+            {
+                continue;
+            }
+
+            _lastSpectatorHudUpdateTime[slot] = now;
+
+            var modifiers = _activeModifiers.Where(m => ModifierAppliesToSlot(m, targetPlayer.Slot)).ToList();
+            var html = CSRollUtils.BuildSpectatorHudHtml(_core, targetController.PlayerName, modifiers);
+            player.SendCenterHTML(html, (int)((Config.SpectatorHud.RefreshIntervalSeconds * 1000) + 100));
+        }
     }
 
     public GameModifierBase? GetRegisteredModifierByName(string modifierName) =>
