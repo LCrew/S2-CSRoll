@@ -87,5 +87,11 @@ public partial class CSRoll
         () => new GameModifierPlantAnywhere(),
 
         () => new GameModifierKamikaze(),
+
+        // New: FlankTeleport (Inspect-Weapon-triggered teleport behind a random enemy, on a
+        // cooldown - a from-scratch modifier, not a NavMesh-dependent bug fix) and NinjaBoots
+        // (silent footsteps + auto defuse kit for CTs).
+        () => new GameModifierFlankTeleport(),
+        () => new GameModifierNinjaBoots(),
     ];
 }

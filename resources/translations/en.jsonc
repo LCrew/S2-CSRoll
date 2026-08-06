@@ -170,5 +170,11 @@
   "PlantAnywhere.Description": "Bomb can be planted anywhere after {delay}, bomb timer set to {timer}",
 
   "Surf.DisplayName": "Surf",
-  "Surf.Description": "Will config vars for surfing"
+  "Surf.Description": "Will config vars for surfing",
+
+  "FlankTeleport.DisplayName": "Flanker",
+  "FlankTeleport.Description": "After a cooldown, press Inspect Weapon to teleport behind a random enemy",
+
+  "NinjaBoots.DisplayName": "Ninja Boots",
+  "NinjaBoots.Description": "No footstep sounds - move in complete silence (CTs also get a free defuse kit)"
 }

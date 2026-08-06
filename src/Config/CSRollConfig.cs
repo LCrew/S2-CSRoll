@@ -80,6 +80,9 @@ public class CSRollConfig
     /// <summary>Tunables for the PlantAnywhere modifier (delayed anywhere-plant + extended bomb timer, previously a static ConVarModifiers/*.cfg entry with neither).</summary>
     public PlantAnywhereConfig PlantAnywhere { get; set; } = new();
 
+    /// <summary>Tunables for the FlankTeleport modifier (Inspect-Weapon-triggered teleport behind a random enemy, on a cooldown).</summary>
+    public FlankTeleportConfig FlankTeleport { get; set; } = new();
+
     /// <summary>Modifier names excluded from random rolls unless the relevant team has at least this many players - e.g. Saint is pointless in a 1v1 (no teammate to ever revive).</summary>
     public string[] RequiresMultiplePlayersPerTeam { get; set; } = ["Saint"];
 
@@ -238,6 +241,15 @@ public class PlantAnywhereConfig
 
     /// <summary>Bomb fuse duration (mp_c4_timer) in seconds while this modifier is active.</summary>
     public float BombTimerSeconds { get; set; } = 75f;
+}
+
+public class FlankTeleportConfig
+{
+    /// <summary>Seconds before the teleport becomes usable - starts counting on activation and restarts on every spawn and every successful use.</summary>
+    public float CooldownSeconds { get; set; } = 15f;
+
+    /// <summary>Distance behind the target enemy the assigned player is teleported to.</summary>
+    public float TeleportDistance { get; set; } = 100f;
 }
 
 public class SpinRevealConfig
