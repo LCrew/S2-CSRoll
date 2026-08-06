@@ -243,8 +243,13 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
 /// actually needed that cvar: OnGrenadeThrown below already re-gives a fresh HE directly to the
 /// assigned player on every throw. The same bolt-on file also set mp_buy_allow_guns 0 globally,
 /// blocking the buy menu for everyone rather than just the roller - now handled per-player by the
-/// base class's CanAcquire hook instead. Knife is now stripped too (previously left alone) so this
-/// modifier is genuinely grenades-only.
+/// base class's CanAcquire hook instead.
+///
+/// Bug fix: knife was briefly stripped too (for a genuinely grenades-only feel) but reverted per
+/// explicit report - throwing your only grenade left the player weapon-less for the instant between
+/// the throw and OnGrenadeThrown's replacement GiveItem landing, and CS2 doesn't handle a player
+/// holding literally nothing cleanly (confuses weapon-switch/inventory state). Keeping the knife
+/// guarantees there's always at least one weapon in hand, throw or no throw.
 /// </summary>
 public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
 {
@@ -252,7 +257,7 @@ public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
     [
         CSWeaponType.WEAPONTYPE_PISTOL, CSWeaponType.WEAPONTYPE_SUBMACHINEGUN, CSWeaponType.WEAPONTYPE_RIFLE,
         CSWeaponType.WEAPONTYPE_SHOTGUN, CSWeaponType.WEAPONTYPE_SNIPER_RIFLE, CSWeaponType.WEAPONTYPE_MACHINEGUN,
-        CSWeaponType.WEAPONTYPE_TASER, CSWeaponType.WEAPONTYPE_KNIFE,
+        CSWeaponType.WEAPONTYPE_TASER,
     ];
 
     private const string HeGrenadeName = "weapon_hegrenade";
