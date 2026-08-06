@@ -13,6 +13,7 @@ namespace CSRoll.Modifiers;
 public abstract class GameModifierRemoveWeapons : GameModifierBase
 {
     private readonly Dictionary<int, List<string>> _cachedItems = [];
+    private readonly HashSet<int> _grantInProgress = [];
     private Guid _spawnHookId;
 
     /// <summary>Weapon categories this modifier strips. Ranged-weapon-restricting modifiers strip everything but knives; GrenadesOnly leaves grenades alone.</summary>
@@ -86,6 +87,19 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
             return;
         }
 
+        // Bug fix: GiveReplacementWeapons() (e.g. RandomWeapon/RandomWeapons handing the player
+        // their own designated weapon via ItemServices.GiveItem) routes through this same native
+        // CanAcquire check. Once SetHookResult(CancelOriginal) below actually started blocking
+        // things (see next comment), that forced grant started blocking itself too, since the
+        // weapon it hands out always belongs to the same TypesToStrip category it's blocking -
+        // leaving the player with no weapon at all. Skip enforcement while our own grant for this
+        // player is in flight so ground/buy pickups of anything else stay blocked, but the
+        // modifier's own assigned weapon still gets through.
+        if (_grantInProgress.Contains(player.Slot))
+        {
+            return;
+        }
+
         var weaponType = ctx.Params.WeaponVData?.WeaponType;
         if (weaponType is { } type && TypesToStrip.Contains(type))
         {
@@ -108,7 +122,15 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
             _cachedItems[player.Slot] = removed;
         }
 
-        GiveReplacementWeapons(player);
+        _grantInProgress.Add(player.Slot);
+        try
+        {
+            GiveReplacementWeapons(player);
+        }
+        finally
+        {
+            _grantInProgress.Remove(player.Slot);
+        }
     }
 
     protected virtual void GiveReplacementWeapons(IPlayer player)
@@ -129,6 +151,7 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         _cachedItems.Remove(@event.PlayerId);
+        _grantInProgress.Remove(@event.PlayerId);
     }
 }
 

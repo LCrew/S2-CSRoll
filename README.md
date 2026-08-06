@@ -57,7 +57,6 @@ Players (or admins) roll random gameplay-altering modifiers - like Super Jump, S
 | Plant Anywhere | Bomb can be planted anywhere after a delay, bomb timer extended (both configurable) |
 | Surf | Will config vars for surfing (server-wide) |
 | Flanker | After a cooldown, press Inspect Weapon to teleport behind a random enemy |
-| Ninja Boots | No footstep sounds - move in complete silence (CTs also get a free defuse kit) |
 
 Display names and descriptions are fully customizable via `resources/translations/en.jsonc`.
 
