@@ -9,7 +9,7 @@ namespace CSRoll.Modifiers;
 /// Bug fix: this used to be resources/ConVarModifiers/BiggerExplosionsModifier.cfg, driving
 /// sv_hegrenade_damage_multiplier/sv_hegrenade_radius_multiplier - both server-wide, so every
 /// player's HE grenades hit harder and wider instead of just whoever rolled it. Rewritten per-player
-/// via Core.GameHooks.Entities.TakeDamage.Pre (the same hook HardHead/IronBody/Revive/SuperJump use
+/// via Core.GameHooks.Entities.TakeDamage.Pre (the same hook HardHead/IronBody/Revive/Jetpack use
 /// for other per-player damage exceptions): DMG_BLAST damage dealt by an assigned player's HE gets
 /// multiplied.
 ///

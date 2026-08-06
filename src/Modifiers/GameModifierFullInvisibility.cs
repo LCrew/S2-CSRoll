@@ -32,16 +32,18 @@ namespace CSRoll.Modifiers;
 ///
 /// Status HUD: unlike ConditionalInvisibility (whose visibility flips over time), this player is
 /// invisible for the modifier's entire duration with nothing to count down - so rather than a real
-/// percentage gauge, the bar is a fixed "[--- PERMANENT ----] ∞%" and is kept continuously
-/// visible via the same re-send-before-it-expires pattern ConditionalInvisibility uses.
+/// percentage gauge, the bar (gold) shows "FULL" centered (padded evenly with '-' on both sides
+/// rather than a hardcoded string, so it stays centered if the bar width ever changes) and "∞%"
+/// in place of a percentage, kept continuously visible via the same re-send-before-it-expires
+/// pattern ConditionalInvisibility uses.
 /// </summary>
 public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
 {
+    private const int GaugeBarWidth = 20;
     private const float HtmlRefreshIntervalSeconds = 0.1f;
     private const int HtmlDurationMs = 400;
-    private const string PermanentGaugeHtml =
-        "<span color=\"lime\" class=\"fontWeight-bold\">INVISIBLE</span><br/>" +
-        "<span color=\"lime\" class=\"fontWeight-bold\">[--- PERMANENT ----] ∞%</span>";
+
+    private static readonly string PermanentGaugeHtml = BuildPermanentGaugeHtml();
 
     private readonly Dictionary<int, List<string>> _cachedItems = [];
     private readonly Dictionary<int, float> _lastHtmlUpdateTime = [];
@@ -132,6 +134,19 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
             _lastHtmlUpdateTime[slot] = now;
             player.SendCenterHTML(PermanentGaugeHtml, HtmlDurationMs);
         }
+    }
+
+    /// <summary>Centers "FULL" inside a GaugeBarWidth-wide run of '-' - computed once rather than hardcoded, so it stays actually centered if GaugeBarWidth or the label text ever changes.</summary>
+    private static string BuildPermanentGaugeHtml()
+    {
+        const string label = " FULL ";
+        var totalPadding = Math.Max(0, GaugeBarWidth - label.Length);
+        var leftPadding = totalPadding / 2;
+        var rightPadding = totalPadding - leftPadding;
+        var bar = new string('-', leftPadding) + label + new string('-', rightPadding);
+
+        return "<span color=\"lime\" class=\"fontWeight-bold\">INVISIBLE</span><br/>" +
+               $"<span color=\"gold\" class=\"fontWeight-bold\">[{bar}] ∞%</span>";
     }
 
     private void StripWeapons(IPlayer player)

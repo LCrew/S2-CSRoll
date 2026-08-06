@@ -50,7 +50,7 @@ Players (or admins) roll random gameplay-altering modifiers - like Super Jump, S
 | Random Weapons | Buy menu is disabled, random weapons are given out |
 | Walking Grenadier | You can't shoot, but you've got UNLIMITED HE grenades |
 | Heavy Boots | Movement speed is much slower, but grants armor+helmet and bonus health |
-| Super Jump | Jumping is much higher, no fall damage |
+| Jetpack | Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe |
 | Infinite Ammo | All weapons go brrrrrr... |
 | Atomic Explosions | HE Grenades deal much more damage |
 | Increased Spread | Weapons have bad aim |

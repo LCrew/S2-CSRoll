@@ -51,7 +51,7 @@ namespace CSRoll.Modifiers;
 /// consumed/reset by OnTick. A center-HTML ASCII gauge mirrors the current fuel level back to the
 /// player, throttled to GaugeUpdateIntervalSeconds so it doesn't spam a fresh popup every tick.
 /// </summary>
-public sealed class GameModifierSuperJump : GameModifierBase
+public sealed class GameModifierJetpack : GameModifierBase
 {
     private const int GaugeBarWidth = 20;
 
@@ -62,9 +62,9 @@ public sealed class GameModifierSuperJump : GameModifierBase
     private float _lastTickTime = -1f;
     private Guid _spawnHookId;
 
-    public GameModifierSuperJump()
+    public GameModifierJetpack()
     {
-        Name = "SuperJump";
+        Name = "Jetpack";
         Description = "Jumping is much higher, no fall damage, and holding jump in the air fires a fuel-limited jetpack thrust with boosted air-strafe";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
@@ -96,7 +96,7 @@ public sealed class GameModifierSuperJump : GameModifierBase
         {
             if (IsAssignedTo(player.Slot))
             {
-                _fuel[player.Slot] = Runtime.Config.SuperJump.MaxFuel;
+                _fuel[player.Slot] = Runtime.Config.Jetpack.MaxFuel;
             }
         }
     }
@@ -127,11 +127,11 @@ public sealed class GameModifierSuperJump : GameModifierBase
             return;
         }
 
-        moveData.Velocity = new Vector(moveData.Velocity.X, moveData.Velocity.Y, Runtime.Config.SuperJump.JumpVelocityZ);
+        moveData.Velocity = new Vector(moveData.Velocity.X, moveData.Velocity.Y, Runtime.Config.Jetpack.JumpVelocityZ);
 
         if (Runtime.DebugMode)
         {
-            Core.Logger.LogInformation("[CSRoll] SuperJump ({Slot}): {Variant} jump boosted, set VelocityZ={VelZ}", player.Slot, variant, Runtime.Config.SuperJump.JumpVelocityZ);
+            Core.Logger.LogInformation("[CSRoll] Jetpack ({Slot}): {Variant} jump boosted, set VelocityZ={VelZ}", player.Slot, variant, Runtime.Config.Jetpack.JumpVelocityZ);
         }
     }
 
@@ -145,7 +145,7 @@ public sealed class GameModifierSuperJump : GameModifierBase
 
         var moveData = ctx.Params.MoveData;
         var isHoldingJump = player.PressedButtons.HasFlag(GameButtonFlags.Space);
-        var fuel = _fuel.GetValueOrDefault(player.Slot, Runtime.Config.SuperJump.MaxFuel);
+        var fuel = _fuel.GetValueOrDefault(player.Slot, Runtime.Config.Jetpack.MaxFuel);
 
         if (!moveData.InAir || !isHoldingJump || fuel <= 0f)
         {
@@ -157,9 +157,9 @@ public sealed class GameModifierSuperJump : GameModifierBase
         // ProcessMovement several times per tick) without compounding into runaway acceleration, and
         // never undoes a higher upward speed from the initial jump boost above.
         var velocity = moveData.Velocity;
-        if (velocity.Z < Runtime.Config.SuperJump.ThrustSpeed)
+        if (velocity.Z < Runtime.Config.Jetpack.ThrustSpeed)
         {
-            moveData.Velocity = new Vector(velocity.X, velocity.Y, Runtime.Config.SuperJump.ThrustSpeed);
+            moveData.Velocity = new Vector(velocity.X, velocity.Y, Runtime.Config.Jetpack.ThrustSpeed);
         }
 
         _isThrustingThisTick[player.Slot] = true;
@@ -173,7 +173,7 @@ public sealed class GameModifierSuperJump : GameModifierBase
             return;
         }
 
-        ctx.Params.Acceleration *= Runtime.Config.SuperJump.AirStrafeMultiplier;
+        ctx.Params.Acceleration *= Runtime.Config.Jetpack.AirStrafeMultiplier;
     }
 
     private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
@@ -196,7 +196,7 @@ public sealed class GameModifierSuperJump : GameModifierBase
     {
         if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot))
         {
-            _fuel[player.Slot] = Runtime.Config.SuperJump.MaxFuel;
+            _fuel[player.Slot] = Runtime.Config.Jetpack.MaxFuel;
         }
 
         return HookResult.Continue;
@@ -217,14 +217,14 @@ public sealed class GameModifierSuperJump : GameModifierBase
             }
 
             var slot = player.Slot;
-            var maxFuel = Runtime.Config.SuperJump.MaxFuel;
+            var maxFuel = Runtime.Config.Jetpack.MaxFuel;
             var fuel = _fuel.GetValueOrDefault(slot, maxFuel);
             var wasThrusting = _isThrustingThisTick.GetValueOrDefault(slot, false);
             _isThrustingThisTick[slot] = false;
 
             fuel = wasThrusting
-                ? Math.Max(0f, fuel - (Runtime.Config.SuperJump.FuelDrainPerSecond * deltaSeconds))
-                : Math.Min(maxFuel, fuel + (Runtime.Config.SuperJump.FuelRegenPerSecond * deltaSeconds));
+                ? Math.Max(0f, fuel - (Runtime.Config.Jetpack.FuelDrainPerSecond * deltaSeconds))
+                : Math.Min(maxFuel, fuel + (Runtime.Config.Jetpack.FuelRegenPerSecond * deltaSeconds));
 
             _fuel[slot] = fuel;
 
@@ -242,7 +242,7 @@ public sealed class GameModifierSuperJump : GameModifierBase
         }
 
         var now = Core.Engine.GlobalVars.CurrentTime;
-        var interval = Runtime.Config.SuperJump.GaugeUpdateIntervalSeconds;
+        var interval = Runtime.Config.Jetpack.GaugeUpdateIntervalSeconds;
         if (_nextGaugeUpdateTime.TryGetValue(player.Slot, out var nextUpdate) && now < nextUpdate)
         {
             return;
@@ -254,18 +254,8 @@ public sealed class GameModifierSuperJump : GameModifierBase
 
     private static string BuildFuelGaugeHtml(float fuel, float maxFuel)
     {
-        var ratio = maxFuel > 0f ? Math.Clamp(fuel / maxFuel, 0f, 1f) : 0f;
-        var filled = (int)Math.Round(ratio * GaugeBarWidth);
-        var bar = new string('#', filled) + new string('-', GaugeBarWidth - filled);
-        var percent = (int)Math.Round(ratio * 100f);
-        var barColor = ratio switch
-        {
-            > 0.5f => "lime",
-            > 0.2f => "orange",
-            _ => "red",
-        };
-
-        return $"<span color=\"gold\" class=\"fontWeight-bold\">Jetpack Fuel</span><br/><span color=\"{barColor}\" class=\"fontWeight-bold\">[{bar}] {percent}%</span>";
+        var ratio = maxFuel > 0f ? fuel / maxFuel : 0f;
+        return CSRollUtils.BuildGaugeHtml("Jetpack Fuel", "gold", ratio, CSRollUtils.GetGaugeBarColor(ratio), GaugeBarWidth);
     }
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)

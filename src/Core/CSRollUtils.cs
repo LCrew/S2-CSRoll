@@ -194,16 +194,27 @@ public static class CSRollUtils
     /// class - the same size as BuildSpinFrameHtml's "Rolling..." frame - so every gauge popup
     /// (Jetpack fuel, invisibility status, etc.) reads as one consistent HUD family rather than a
     /// mismatched larger element.
+    ///
+    /// Bug fix: the bar used to mix two different glyphs ('#' for filled, '-' for empty) - Panorama's
+    /// UI font is proportional, not monospace, and '#' renders noticeably wider than '-', so the
+    /// popup's total line width visibly grew as the bar filled up, eventually wrapping the trailing
+    /// "NN%" onto a third line. Fixed by using the SAME glyph ('#') for every cell regardless of
+    /// fill state and expressing progress purely through color (barColor vs grey) instead - the
+    /// character count and glyph widths are now identical at 0% and 100%, so the line width never
+    /// shifts. The percent number is also padded to a constant 3-character field for the same reason.
     /// </summary>
     public static string BuildGaugeHtml(string label, string labelColor, float ratio, string barColor, int barWidth = 20)
     {
         var clamped = Math.Clamp(ratio, 0f, 1f);
         var filled = (int)Math.Round(clamped * barWidth);
-        var bar = new string('#', filled) + new string('-', barWidth - filled);
+        var empty = barWidth - filled;
         var percent = (int)Math.Round(clamped * 100f);
 
+        var filledSegment = filled > 0 ? $"<span color=\"{barColor}\">{new string('#', filled)}</span>" : "";
+        var emptySegment = empty > 0 ? $"<span color=\"grey\">{new string('#', empty)}</span>" : "";
+
         return $"<span color=\"{labelColor}\" class=\"fontWeight-bold\">{label}</span><br/>" +
-               $"<span color=\"{barColor}\" class=\"fontWeight-bold\">[{bar}] {percent}%</span>";
+               $"<span class=\"fontWeight-bold\">[{filledSegment}{emptySegment}] {percent,3}%</span>";
     }
 
     /// <summary>Gauge-bar color band shared by every percentage-based gauge popup - green when healthy, orange mid, red low.</summary>

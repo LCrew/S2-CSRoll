@@ -47,8 +47,8 @@ public class CSRollConfig
     /// <summary>Tunables for the LeadBoots modifier (slower movement - now per-player, previously a server-wide sv_maxspeed cvar).</summary>
     public LeadBootsConfig LeadBoots { get; set; } = new();
 
-    /// <summary>Tunables for the SuperJump modifier (per-player jump velocity boost, previously a server-wide sv_jump_impulse cvar).</summary>
-    public SuperJumpConfig SuperJump { get; set; } = new();
+    /// <summary>Tunables for the Jetpack modifier (per-player jump velocity boost plus jetpack thrust/fuel/air-strafe, previously a server-wide sv_jump_impulse cvar).</summary>
+    public JetpackConfig Jetpack { get; set; } = new();
 
     /// <summary>Tunables for the BiggerExplosions modifier (per-player HE damage multiplier, previously a server-wide sv_hegrenade_damage_multiplier cvar).</summary>
     public BiggerExplosionsConfig BiggerExplosions { get; set; } = new();
@@ -114,7 +114,7 @@ public class LeadBootsConfig
     public int BonusHealth { get; set; } = 50;
 }
 
-public class SuperJumpConfig
+public class JetpackConfig
 {
     /// <summary>Upward velocity (units/sec) applied on the initial jump off the ground - CS2's own default is ~301, so this is roughly 2.5x that.</summary>
     public float JumpVelocityZ { get; set; } = 750f;
