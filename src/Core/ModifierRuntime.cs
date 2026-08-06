@@ -213,6 +213,16 @@ public sealed class ModifierRuntime
     /// everyone, each connected player independently rolls their own Min..MaxRandomRounds
     /// modifiers from the SupportsPerPlayerRandomization pool. Two players CAN roll the same
     /// modifier - the single shared instance just accumulates both slots into AssignedSlots.
+    ///
+    /// IncompatibleModifiers is only ever checked WITHIN one player's own picks here (see
+    /// PickCompatibleRandomModifiers, called fresh per player from PickRandomModifiersForPlayer with
+    /// its own local `picked` list) - it does not, and must not, prevent two DIFFERENT players from
+    /// independently holding a mutually-incompatible pair. Player X having Speedhack never stops
+    /// player Y from getting LeadBoots in the same roll; incompatibility is a same-player constraint,
+    /// not a whole-server one. The whole-server check in AddModifier/AddRandomModifiers below is
+    /// correct there for a different reason: those activate with an EMPTY AssignedSlots (global/
+    /// "everyone"), so a new global modifier genuinely does overlap every existing active modifier's
+    /// slots, whoever they belong to.
     /// </summary>
     public bool AssignRandomModifiersPerPlayer(bool showBanner = true)
     {

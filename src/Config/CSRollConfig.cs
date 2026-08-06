@@ -230,8 +230,17 @@ public class SaintConfig
 
 public class MasterZeusConfig
 {
-    /// <summary>Flat damage dealt by a successful extended-range zap. The cooldown between zaps is NOT here - it reads the real mp_taser_recharge_time server cvar live instead, so there's one single source of truth shared with the native close-range zeus recharge.</summary>
+    /// <summary>Flat damage dealt by a successful extended-range zap.</summary>
     public float ZapDamage { get; set; } = 200f;
+
+    /// <summary>
+    /// Cooldown, in seconds, between extended-range zaps for the assigned player. Bug fix: this used
+    /// to read the live mp_taser_recharge_time server cvar so the custom zap and the native
+    /// close-range recharge shared one source of truth - but that cvar is server-wide, so activating
+    /// this modifier for one player also sped up literally every other connected player's own
+    /// separately-bought Zeus. Decoupled into its own per-player-scoped config value instead.
+    /// </summary>
+    public float ZapCooldownSeconds { get; set; } = 2f;
 }
 
 public class PlantAnywhereConfig

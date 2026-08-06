@@ -277,7 +277,7 @@ public sealed class GameModifierXrayAll : GameModifierXrayBase
     public GameModifierXrayAll()
     {
         Name = "Wallhack";
-        Description = "Everyone can see each other through walls";
+        Description = "You can see everyone through walls";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }

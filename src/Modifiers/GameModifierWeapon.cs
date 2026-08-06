@@ -7,10 +7,21 @@ using CSRoll.Core;
 
 namespace CSRoll.Modifiers;
 
-/// <summary>1 bullet per magazine - shrinks the weapon TYPE's clip size (shared VData, affects everyone using that weapon).</summary>
+/// <summary>
+/// 1 bullet per magazine - every weapon the assigned player equips or reloads is forced to exactly
+/// 1 round in the clip.
+///
+/// Bug fix: this used to shrink CBasePlayerWeaponVData.MaxClip1, a field shared by the weapon TYPE
+/// across every player holding one (not a per-instance field) - and did so unconditionally in
+/// OnEnabled/OnDisabled/OnItemEquip/OnWeaponReload with no IsAssignedTo check anywhere at all, so
+/// activating this modifier for one player capped EVERY connected player's matching weapons to 1
+/// bullet, and would have silently ignored !memodifier's "just you" scoping entirely too. Fixed by
+/// never touching the shared VData - Clip1 (a genuine per-instance field, unlike MaxClip1) is
+/// instead force-set back to 1 directly after every equip/reload for the assigned player only,
+/// which achieves the same "always exactly 1 bullet" result without capping anyone else's weapon.
+/// </summary>
 public sealed class GameModifierOnePerMag : GameModifierBase
 {
-    private readonly Dictionary<string, int> _cachedMaxClip1 = [];
     private Guid _equipHookId;
     private Guid _reloadHookId;
 
@@ -19,6 +30,7 @@ public sealed class GameModifierOnePerMag : GameModifierBase
         Name = "OnePerReload";
         Description = "1 bullet per reload";
         SupportsRandomRounds = true;
+        SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = ["OneInTheChamber", "InfiniteAmmo"];
     }
 
@@ -31,7 +43,7 @@ public sealed class GameModifierOnePerMag : GameModifierBase
 
         foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (player.PlayerPawn?.WeaponServices is not { } weaponServices)
+            if (!IsAssignedTo(player.Slot) || player.PlayerPawn?.WeaponServices is not { } weaponServices)
             {
                 continue;
             }
@@ -47,26 +59,12 @@ public sealed class GameModifierOnePerMag : GameModifierBase
     {
         Core.GameEvent.Unhook(_equipHookId);
         Core.GameEvent.Unhook(_reloadHookId);
-
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
-        {
-            if (player.PlayerPawn?.WeaponServices is not { } weaponServices)
-            {
-                continue;
-            }
-
-            foreach (var weapon in weaponServices.MyValidWeapons)
-            {
-                RemoveFromWeapon(weapon);
-            }
-        }
-
-        _cachedMaxClip1.Clear();
     }
 
     private HookResult OnItemEquip(EventItemEquip @event)
     {
-        if (@event.UserIdPlayer?.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
+            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
         {
             ApplyToWeapon(weapon);
         }
@@ -76,45 +74,25 @@ public sealed class GameModifierOnePerMag : GameModifierBase
 
     private HookResult OnWeaponReload(EventWeaponReload @event)
     {
-        if (@event.UserIdPlayer?.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon &&
-            weapon.PlayerWeaponVData?.As<CCSWeaponBaseVData>() is { } vData)
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
+            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
         {
-            weapon.ReserveAmmo[0] = vData.PrimaryReserveAmmoMax;
-            weapon.ReserveAmmoUpdated();
+            ApplyToWeapon(weapon);
         }
 
         return HookResult.Continue;
     }
 
-    private void ApplyToWeapon(CBasePlayerWeapon weapon)
+    private static void ApplyToWeapon(CBasePlayerWeapon weapon)
     {
-        var vData = weapon.PlayerWeaponVData;
-        if (vData is null)
-        {
-            return;
-        }
-
-        _cachedMaxClip1.TryAdd(weapon.DesignerName, vData.MaxClip1);
-        vData.MaxClip1 = 1;
         weapon.Clip1 = 1;
         weapon.Clip1Updated();
-    }
 
-    private void RemoveFromWeapon(CBasePlayerWeapon weapon)
-    {
-        var vData = weapon.PlayerWeaponVData;
-        if (vData is null)
+        if (weapon.PlayerWeaponVData?.As<CCSWeaponBaseVData>() is { } vData)
         {
-            return;
+            weapon.ReserveAmmo[0] = vData.PrimaryReserveAmmoMax;
+            weapon.ReserveAmmoUpdated();
         }
-
-        if (_cachedMaxClip1.TryGetValue(weapon.DesignerName, out var original))
-        {
-            vData.MaxClip1 = original;
-        }
-
-        weapon.Clip1 = Math.Min(weapon.Clip1, vData.MaxClip1);
-        weapon.Clip1Updated();
     }
 }
 
@@ -220,7 +198,15 @@ public sealed class GameModifierOneInTheChamber : GameModifierBase
     }
 }
 
-/// <summary>Cancels aim punch (recoil kick-back) on every shot for perfect aim.</summary>
+/// <summary>
+/// Cancels aim punch (recoil kick-back) on every shot for perfect aim.
+///
+/// Bug fix: this also used to have a bolt-on ModifierConfig/NoSpread.cfg setting the server-wide
+/// weapon_accuracy_nospread cvar to true - completely redundant with (and worse than) the per-player
+/// aim-punch cancellation below, since it silently gave every connected player perfect accuracy the
+/// instant this modifier activated for anyone, not just the assigned player. Deleted; the hook below
+/// was already sufficient on its own.
+/// </summary>
 public sealed class GameModifierNoSpread : GameModifierBase
 {
     private Guid _fireHookId;

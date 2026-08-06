@@ -98,7 +98,7 @@ public sealed class GameModifierSmallPlayers : GameModifierScalePlayer
     public GameModifierSmallPlayers()
     {
         Name = "SmallPlayers";
-        Description = "Everyone is 2X smaller";
+        Description = "You are 2X smaller";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }

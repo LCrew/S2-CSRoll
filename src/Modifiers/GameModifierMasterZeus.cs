@@ -16,9 +16,17 @@ namespace CSRoll.Modifiers;
 /// Zeus (taser) recharges much faster (not instantly) and hits at long range instead of its short
 /// native reach.
 ///
-/// Fast recharge: unlike CS:GO's "one use per life", CS2 actually recharges Zeus automatically via
-/// the mp_taser_recharge_time server cvar (default 30s) - this is the same bolt-on-cvar mechanism
-/// KnivesOnly.cfg uses for mp_buy_allow_guns, just applied to MasterZeus.cfg.
+/// Bug fix: "fast recharge" used to be a bolt-on ModifierConfig/MasterZeus.cfg setting the
+/// mp_taser_recharge_time server cvar (same mechanism KnivesOnly.cfg uses for mp_buy_allow_guns) -
+/// but unlike KnivesOnly (which is deliberately global, SupportsPerPlayerRandomization=false),
+/// MasterZeus IS per-player-randomizable, so activating it for one player was quietly speeding up
+/// literally every connected player's own separately-bought Zeus recharge too. There's no known
+/// per-client equivalent of that cvar, so rather than keep a fast-but-global native recharge, this
+/// custom extended-range zap ability now has its own dedicated, config-driven cooldown
+/// (Config.MasterZeus.ZapCooldownSeconds) completely independent of mp_taser_recharge_time - the
+/// assigned player's native Zeus still recharges at the normal server-wide rate, but their custom
+/// zap (which doesn't consume the weapon's native charge at all - see TryExtendedRangeZap) is
+/// available on its own much shorter schedule, unaffected by and not affecting anyone else.
 ///
 /// Extended range: CS2's zeus attack is a short native trace with no exposed range field, so target
 /// resolution here iterates every living enemy directly - within range, within a generous aim cone
@@ -47,12 +55,10 @@ namespace CSRoll.Modifiers;
 /// Bug fix: the debounce used to be a fixed 0.2s, meant only to stop the SAME click double-firing
 /// across both trigger paths above - not a real cooldown. A player could release and re-press
 /// Mouse1 rapidly (each press is a fresh rising edge) and get a full zap on every single click, far
-/// faster than the weapon's actual recharge. The debounce threshold now reads the live
-/// mp_taser_recharge_time cvar value instead (confirmed via SwiftlyS2.CS2.dll metadata inspection:
-/// Core.ConVar.Find&lt;float&gt;(name) returns IConVar&lt;float&gt; with a live .Value), so the same single
-/// cvar governs both the native close-range recharge and this custom extended-range cooldown - one
-/// source of truth, no separate config value that could drift out of sync. Damage was also bumped
-/// from an arbitrary 15 to a config-tunable flat 200 (effectively a one-shot) per live feedback.
+/// faster than intended. The debounce threshold is now Config.MasterZeus.ZapCooldownSeconds (see the
+/// class-level bug-fix note above for why this moved off the shared mp_taser_recharge_time cvar).
+/// Damage was also bumped from an arbitrary 15 to a config-tunable flat 200 (effectively a one-shot)
+/// per live feedback.
 ///
 /// Also gives the assigned player(s) a Zeus automatically (on activation, and again on every spawn
 /// since weapons reset each life/round) - previously this only enhanced a taser the player already
@@ -64,15 +70,12 @@ public sealed class GameModifierMasterZeus : GameModifierBase
     private const float ExtendedRangeDistance = 4000f;
     private const float AimConeCosine = 0.85f; // ~roughly a 60-degree full cone, generous aim tolerance
     private const float MuzzleOffsetDistance = 24f; // clears the shooter's own head hitbox before the LOS trace starts
-    private const float FallbackCooldownSeconds = 2f; // only used if the cvar somehow isn't found
     private const string TaserDesignerName = "weapon_taser";
-    private const string RechargeCvarName = "mp_taser_recharge_time";
 
     private readonly HashSet<int> _attackButtonWasDown = [];
     private readonly Dictionary<int, float> _lastZapTime = [];
     private Guid _fireHookId;
     private Guid _spawnHookId;
-    private bool _loggedCvarReadFailure;
 
     public GameModifierMasterZeus()
     {
@@ -160,7 +163,7 @@ public sealed class GameModifierMasterZeus : GameModifierBase
     private void TryZapDebounced(IPlayer shooter, CCSPlayerPawn shooterPawn)
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
-        var cooldown = GetRechargeCooldownSeconds();
+        var cooldown = Runtime.Config.MasterZeus.ZapCooldownSeconds;
 
         if (_lastZapTime.TryGetValue(shooter.Slot, out var lastTime) && now - lastTime < cooldown)
         {
@@ -171,36 +174,6 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         _lastZapTime[shooter.Slot] = now;
         LogZapDebug(shooter, $"attempt allowed (cooldown was {cooldown:0.##}s)");
         TryExtendedRangeZap(shooter, shooterPawn);
-    }
-
-    /// <summary>
-    /// Reads mp_taser_recharge_time live via FindAsString/ValueAsString rather than the generic
-    /// Find&lt;float&gt;(...) this used previously - that generic form requires guessing the cvar's exact
-    /// native storage type, and a live test after switching to it showed the modifier still dealt
-    /// zero damage at any range, so the type guess (or the generic path itself) can't be trusted.
-    /// ValueAsString works for any cvar type without a guess, so this parses it as text instead - a
-    /// strictly safer read that can't silently misbehave the same way.
-    /// </summary>
-    private float GetRechargeCooldownSeconds()
-    {
-        try
-        {
-            var raw = Core.ConVar.FindAsString(RechargeCvarName)?.ValueAsString;
-            if (raw is not null && float.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
-            {
-                return parsed;
-            }
-        }
-        catch (Exception ex)
-        {
-            if (!_loggedCvarReadFailure)
-            {
-                _loggedCvarReadFailure = true;
-                Core.Logger.LogWarning(ex, "[CSRoll] MasterZeus failed to read {Cvar} - falling back to a fixed {Fallback}s cooldown.", RechargeCvarName, FallbackCooldownSeconds);
-            }
-        }
-
-        return FallbackCooldownSeconds;
     }
 
     /// <summary>

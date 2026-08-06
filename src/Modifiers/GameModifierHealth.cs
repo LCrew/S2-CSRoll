@@ -107,7 +107,7 @@ public sealed class GameModifierJuggernaut : GameModifierHealth
     public GameModifierJuggernaut()
     {
         Name = "Juggernaut";
-        Description = "Everyone's max health is set to 500";
+        Description = "Max health is set to 500";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = ["RandomHealth"];
@@ -121,7 +121,7 @@ public sealed class GameModifierRandomHealth : GameModifierHealth
     public GameModifierRandomHealth()
     {
         Name = "RandomHealth";
-        Description = "Everyone's health is set to a random number";
+        Description = "Health is set to a random number";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = ["Juggernaut"];
