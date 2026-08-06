@@ -293,14 +293,14 @@ public class SpinRevealConfig
     /// <summary>If false, the real modifier assignment is shown immediately with no spin-up animation.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Seconds between name changes at the very start of the spin - fast.</summary>
-    public float StartIntervalSeconds { get; set; } = 0.06f;
+    /// <summary>Seconds between name changes at the very start of the spin - fast enough to actually blur rather than be readable.</summary>
+    public float StartIntervalSeconds { get; set; } = 0.025f;
 
     /// <summary>Seconds between name changes right before landing on the real result - slow (the "ease out").</summary>
-    public float EndIntervalSeconds { get; set; } = 0.55f;
+    public float EndIntervalSeconds { get; set; } = 0.45f;
 
     /// <summary>How many random names to cycle through before landing on the real result.</summary>
-    public int SpinCount { get; set; } = 18;
+    public int SpinCount { get; set; } = 30;
 
     /// <summary>How long the real result stays on screen once the spin lands on it.</summary>
     public float RevealDurationSeconds { get; set; } = 15f;
