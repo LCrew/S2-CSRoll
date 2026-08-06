@@ -42,9 +42,15 @@ BUGFIXES:
 
 ## Releases
 
-A GitHub Release (tag `v{version}`, title `v{version}`) with `build/CSRoll.zip` attached is the
-standard way a built artifact gets published — `build/` is gitignored, so the zip never goes into
-the repo itself. Only cut a release when asked; not every version bump needs one.
+Every version commit gets a matching GitHub Release, published right after that commit is pushed:
+
+1. `git tag -a v{version} -m "v{version}" <commit-sha>` and `git push origin v{version}`.
+2. `gh release create v{version} build/CSRoll.zip --repo LCrew/S2-CSRoll --title "v{version}" --notes "..."`,
+   with notes mirroring that commit's `FEAT:`/`BUGFIXES:` bullets (Markdown `## FEAT` / `## BUGFIXES`
+   headings instead of plain-text labels).
+
+`build/CSRoll.zip` (from the publish step above) is the artifact — `build/` is gitignored, so the
+zip never goes into the repo itself, only into the release.
 
 ## Repo/remote
 
