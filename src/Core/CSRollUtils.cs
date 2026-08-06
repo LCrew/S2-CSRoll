@@ -188,6 +188,32 @@ public static class CSRollUtils
         return $"<span color=\"red\" class=\"fontWeight-bold\">Rolling...</span><br/><span color=\"gold\" class=\"fontWeight-bold\">{name}</span>";
     }
 
+    /// <summary>
+    /// Builds a two-line center-HTML status gauge: a colored label line, then an ASCII progress bar
+    /// ("[####----------------] 42%"). Deliberately plain "fontWeight-bold" text with no "fontSize-l"
+    /// class - the same size as BuildSpinFrameHtml's "Rolling..." frame - so every gauge popup
+    /// (Jetpack fuel, invisibility status, etc.) reads as one consistent HUD family rather than a
+    /// mismatched larger element.
+    /// </summary>
+    public static string BuildGaugeHtml(string label, string labelColor, float ratio, string barColor, int barWidth = 20)
+    {
+        var clamped = Math.Clamp(ratio, 0f, 1f);
+        var filled = (int)Math.Round(clamped * barWidth);
+        var bar = new string('#', filled) + new string('-', barWidth - filled);
+        var percent = (int)Math.Round(clamped * 100f);
+
+        return $"<span color=\"{labelColor}\" class=\"fontWeight-bold\">{label}</span><br/>" +
+               $"<span color=\"{barColor}\" class=\"fontWeight-bold\">[{bar}] {percent}%</span>";
+    }
+
+    /// <summary>Gauge-bar color band shared by every percentage-based gauge popup - green when healthy, orange mid, red low.</summary>
+    public static string GetGaugeBarColor(float ratio) => ratio switch
+    {
+        > 0.5f => "lime",
+        > 0.2f => "orange",
+        _ => "red",
+    };
+
     public static void PrintModifiersToChat(ISwiftlyCore core, SwiftlyS2.Shared.Players.IPlayer? player, IReadOnlyCollection<GameModifierBase> modifiers, string title, bool withDescriptions = true)
     {
         PrintTitleToChat(core, player, title);

@@ -4,6 +4,8 @@ using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
+using CSRoll.Core;
+
 namespace CSRoll.Modifiers;
 
 /// <summary>
@@ -27,8 +29,11 @@ namespace CSRoll.Modifiers;
 /// Status HUD: a center-HTML box is kept continuously visible (re-sent on a short refresh interval
 /// with a duration slightly longer than that interval, so it never visibly expires) showing the
 /// player's CURRENT target state instantly (green INVISIBLE / red VISIBLE - based on the logical
-/// silence check, not the cosmetic fade progress, so feedback is immediate) plus a live countdown
-/// to the next invisibility while visible.
+/// silence check, not the cosmetic fade progress, so feedback is immediate) as the same ASCII gauge
+/// format Jetpack/FullInvisibility use (CSRollUtils.BuildGaugeHtml) - the bar fills as elapsed
+/// silence approaches SoundCooldownSeconds and hits 100%/green exactly when the player actually goes
+/// invisible, at the same plain text size as the spin-reveal's "Rolling..." frame rather than the
+/// larger fontSize-l this used before.
 /// </summary>
 public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleBase
 {
@@ -202,21 +207,15 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
 
         _lastHtmlUpdateTime[slot] = now;
 
-        string html;
-        if (invisible)
-        {
-            html = "<span color=\"lime\" class=\"fontWeight-bold fontSize-l\">INVISIBLE</span>";
-        }
-        else
-        {
-            var cooldown = Runtime.Config.ConditionalInvisibility.SoundCooldownSeconds;
-            var lastSound = _lastSoundTime.TryGetValue(slot, out var last) ? last : now;
-            var remaining = MathF.Max(0f, cooldown - (now - lastSound));
-            html = "<span color=\"red\" class=\"fontWeight-bold fontSize-l\">VISIBLE</span><br/>" +
-                   $"<span color=\"yellow\">Invisible in {remaining:0.0}s</span>";
-        }
+        var cooldown = MathF.Max(0.05f, Runtime.Config.ConditionalInvisibility.SoundCooldownSeconds);
+        var lastSound = _lastSoundTime.TryGetValue(slot, out var last) ? last : now - cooldown;
+        var ratio = Math.Clamp((now - lastSound) / cooldown, 0f, 1f);
 
-        player.SendCenterHTML(html, HtmlDurationMs);
+        var label = invisible ? "INVISIBLE" : "VISIBLE";
+        var labelColor = invisible ? "lime" : "red";
+        var barColor = CSRollUtils.GetGaugeBarColor(ratio);
+
+        player.SendCenterHTML(CSRollUtils.BuildGaugeHtml(label, labelColor, ratio, barColor), HtmlDurationMs);
     }
 
     private void MarkSoundMade(int slot) => _lastSoundTime[slot] = Core.Engine.GlobalVars.CurrentTime;

@@ -29,10 +29,22 @@ namespace CSRoll.Modifiers;
 /// strip/restore plumbing at once - single inheritance can only give one directly, so this derives
 /// the (more fragile) invisibility base and calls the (simpler, already-extracted) weapon-strip
 /// helpers on CSRollUtils directly instead of also inheriting GameModifierRemoveWeapons.
+///
+/// Status HUD: unlike ConditionalInvisibility (whose visibility flips over time), this player is
+/// invisible for the modifier's entire duration with nothing to count down - so rather than a real
+/// percentage gauge, the bar is a fixed "[--- PERMANENT ----] ∞%" and is kept continuously
+/// visible via the same re-send-before-it-expires pattern ConditionalInvisibility uses.
 /// </summary>
 public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
 {
+    private const float HtmlRefreshIntervalSeconds = 0.1f;
+    private const int HtmlDurationMs = 400;
+    private const string PermanentGaugeHtml =
+        "<span color=\"lime\" class=\"fontWeight-bold\">INVISIBLE</span><br/>" +
+        "<span color=\"lime\" class=\"fontWeight-bold\">[--- PERMANENT ----] ∞%</span>";
+
     private readonly Dictionary<int, List<string>> _cachedItems = [];
+    private readonly Dictionary<int, float> _lastHtmlUpdateTime = [];
 
     private Guid _spawnHookId;
 
@@ -69,6 +81,7 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
         Core.GameHooks.Weapons.CanUse.Pre += OnCanUseWeapon;
         Core.GameHooks.Items.CanAcquire.Pre += OnCanAcquireItem;
+        Core.Event.OnTick += OnTick;
 
         foreach (var slot in AssignedSlots)
         {
@@ -84,6 +97,7 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         Core.GameEvent.Unhook(_spawnHookId);
         Core.GameHooks.Weapons.CanUse.Pre -= OnCanUseWeapon;
         Core.GameHooks.Items.CanAcquire.Pre -= OnCanAcquireItem;
+        Core.Event.OnTick -= OnTick;
 
         foreach (var slot in _cachedItems.Keys.ToList())
         {
@@ -94,8 +108,30 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         }
 
         _cachedItems.Clear();
+        _lastHtmlUpdateTime.Clear();
 
         base.OnDisabled();
+    }
+
+    private void OnTick()
+    {
+        var now = Core.Engine.GlobalVars.CurrentTime;
+
+        foreach (var slot in AssignedSlots)
+        {
+            if (_lastHtmlUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
+            {
+                continue;
+            }
+
+            if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true, IsAlive: true } player)
+            {
+                continue;
+            }
+
+            _lastHtmlUpdateTime[slot] = now;
+            player.SendCenterHTML(PermanentGaugeHtml, HtmlDurationMs);
+        }
     }
 
     private void StripWeapons(IPlayer player)
@@ -150,5 +186,6 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         _cachedItems.Remove(@event.PlayerId);
+        _lastHtmlUpdateTime.Remove(@event.PlayerId);
     }
 }
