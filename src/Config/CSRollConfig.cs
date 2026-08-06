@@ -248,11 +248,17 @@ public class PlantAnywhereConfig
 
 public class FlankTeleportConfig
 {
-    /// <summary>Seconds before the teleport becomes usable - starts counting on activation and restarts on every spawn and every successful use.</summary>
+    /// <summary>Seconds before the teleport becomes usable at the start of each round/life - deliberately separate from (and longer than) CooldownSeconds, so it can't be used the instant a round begins.</summary>
+    public float RoundStartCooldownSeconds { get; set; } = 20f;
+
+    /// <summary>Seconds before the teleport becomes usable again after a successful use.</summary>
     public float CooldownSeconds { get; set; } = 15f;
 
     /// <summary>Distance behind the target enemy the assigned player is teleported to.</summary>
     public float TeleportDistance { get; set; } = 100f;
+
+    /// <summary>Height above the landing spot the player is dropped from - a short, harmless fall so landing makes an audible thud, rather than a completely silent zero-warning appearance right behind the target.</summary>
+    public float DropHeight { get; set; } = 48f;
 }
 
 public class SpinRevealConfig

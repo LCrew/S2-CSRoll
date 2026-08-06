@@ -1,6 +1,7 @@
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
+using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
@@ -9,7 +10,7 @@ namespace CSRoll.Modifiers;
 
 /// <summary>
 /// Player-triggered ability, separate from TeleportOnReload/TeleportOnHit: starting on a cooldown
-/// (CooldownSeconds, reset on activation and again after every spawn and every use), pressing the
+/// (RoundStartCooldownSeconds at round start/spawn, CooldownSeconds after every use), pressing the
 /// "Inspect Weapon" button teleports the assigned player directly behind a random living enemy,
 /// facing the same direction that enemy is.
 ///
@@ -24,10 +25,23 @@ namespace CSRoll.Modifiers;
 /// fires, NextAvailableTime is pushed CooldownSeconds into the future, so the very next tick (even
 /// with the button still held) fails the readiness check. It can only fire again once the cooldown
 /// has genuinely elapsed AND the button is down at that instant (or any tick after).
+///
+/// Landing: the destination is offset upward by DropHeight before teleporting, so the player falls a
+/// short, harmless distance and lands with an audible thud - a silent, zero-warning teleport directly
+/// into melee range felt like a completely free backstab; a landing sound gives the target (and
+/// anyone else nearby) at least a chance to react to something having just appeared behind them.
+///
+/// Status HUD: a center-HTML popup is kept continuously visible (same re-send-before-it-expires
+/// pattern ConditionalInvisibility/FullInvisibility use) showing the trigger key and the current
+/// state - gold "Ready" or red "Cooldown: N,Ns" (comma decimal separator) counting down live.
 /// </summary>
 public sealed class GameModifierFlankTeleport : GameModifierBase
 {
+    private const float HtmlRefreshIntervalSeconds = 0.1f;
+    private const int HtmlDurationMs = 400;
+
     private readonly Dictionary<int, float> _nextAvailableTime = [];
+    private readonly Dictionary<int, float> _lastHtmlUpdateTime = [];
 
     private Guid _spawnHookId;
 
@@ -54,7 +68,7 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
         Core.Event.OnTick += OnTick;
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
-        var readyAt = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.FlankTeleport.CooldownSeconds;
+        var readyAt = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.FlankTeleport.RoundStartCooldownSeconds;
         foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
             if (IsAssignedTo(player.Slot))
@@ -69,13 +83,14 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
         Core.Event.OnTick -= OnTick;
         Core.GameEvent.Unhook(_spawnHookId);
         _nextAvailableTime.Clear();
+        _lastHtmlUpdateTime.Clear();
     }
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
     {
         if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot))
         {
-            _nextAvailableTime[player.Slot] = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.FlankTeleport.CooldownSeconds;
+            _nextAvailableTime[player.Slot] = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.FlankTeleport.RoundStartCooldownSeconds;
         }
 
         return HookResult.Continue;
@@ -91,6 +106,8 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
             {
                 continue;
             }
+
+            RefreshStatusHtml(player, now);
 
             if (!player.PressedButtons.HasFlag(GameButtonFlags.F))
             {
@@ -128,9 +145,10 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
             }
 
             targetPawn.EyeAngles.ToDirectionVectors(out var forward, out _, out _);
-            var behindPosition = targetOrigin - (forward * Runtime.Config.FlankTeleport.TeleportDistance);
+            var behind = targetOrigin - (forward * Runtime.Config.FlankTeleport.TeleportDistance);
+            var dropPosition = new Vector(behind.X, behind.Y, behind.Z + Runtime.Config.FlankTeleport.DropHeight);
 
-            CSRollUtils.TeleportPlayer(Core, player, behindPosition, targetPawn.EyeAngles);
+            CSRollUtils.TeleportPlayer(Core, player, dropPosition, targetPawn.EyeAngles);
             _nextAvailableTime[player.Slot] = now + Runtime.Config.FlankTeleport.CooldownSeconds;
 
             var targetName = target.Controller is { IsValid: true } targetController ? targetController.PlayerName : "an enemy";
@@ -138,8 +156,30 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
         }
     }
 
+    private void RefreshStatusHtml(IPlayer player, float now)
+    {
+        if (_lastHtmlUpdateTime.TryGetValue(player.Slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
+        {
+            return;
+        }
+
+        _lastHtmlUpdateTime[player.Slot] = now;
+
+        var remaining = _nextAvailableTime.GetValueOrDefault(player.Slot, now) - now;
+        var statusLine = remaining > 0f
+            ? $"<span color=\"red\" class=\"fontWeight-bold\">Cooldown: {remaining:0.0}s</span>".Replace('.', ',')
+            : "<span color=\"gold\" class=\"fontWeight-bold\">Ready</span>";
+
+        var html = "<span color=\"gold\" class=\"fontWeight-bold\">Teleporter</span><br/>" +
+                   "<span class=\"fontWeight-bold\">Press \"F\" to Teleport</span><br/>" +
+                   statusLine;
+
+        player.SendCenterHTML(html, HtmlDurationMs);
+    }
+
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         _nextAvailableTime.Remove(@event.PlayerId);
+        _lastHtmlUpdateTime.Remove(@event.PlayerId);
     }
 }
