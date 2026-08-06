@@ -395,6 +395,17 @@ public static class CSRollUtils
     /// <summary>
     /// Teleports a player, then temporarily disables their collision for one tick to avoid
     /// a mid-teleport stuck-in-geometry glitch - same safety hack the original CSS plugin used.
+    ///
+    /// Bug fix: this used to set CollisionGroup.Dissolving for that one-tick window - per the SDK's
+    /// own enum doc comment, that group means "things that are dissolving" (a prop fade-out state),
+    /// not "player temporarily passing through geometry". Reported symptom (Revive specifically:
+    /// clipping through walls persisting well after the revive, not just for one frame) points at
+    /// this group's collision behavior not being a clean, reliably-restorable "nonsolid" state for a
+    /// live player pawn. Switched to CollisionGroup.Pushaway, whose own doc comment is literally
+    /// "Nonsolid on client and server, pushaway in player code" - the group actually intended for
+    /// this. Also loosened the restore below from requiring IsAlive to just IsValid, so a revived
+    /// player who's technically mid-respawn-transition at the exact restore tick still gets their
+    /// collision group put back rather than being silently left stuck non-solid.
     /// </summary>
     public static void TeleportPlayer(ISwiftlyCore core, IPlayer player, Vector position, QAngle? angle = null, Vector? velocity = null)
     {
@@ -405,13 +416,13 @@ public static class CSRollUtils
 
         player.Teleport(position, angle ?? pawn.EyeAngles, velocity ?? new Vector(0, 0, 0));
 
-        pawn.Collision.CollisionGroup = (byte)CollisionGroup.Dissolving;
+        pawn.Collision.CollisionGroup = (byte)CollisionGroup.Pushaway;
         pawn.Collision.CollisionGroupUpdated();
 
         var slot = player.Slot;
         core.Scheduler.NextWorldUpdate(() =>
         {
-            if (core.PlayerManager.GetPlayer(slot) is { IsValid: true, IsAlive: true } current &&
+            if (core.PlayerManager.GetPlayer(slot) is { IsValid: true } current &&
                 current.PlayerPawn is { } currentPawn)
             {
                 currentPawn.Collision.CollisionGroup = (byte)CollisionGroup.Player;
