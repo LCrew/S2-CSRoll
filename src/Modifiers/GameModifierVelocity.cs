@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Players;
@@ -10,6 +11,16 @@ namespace CSRoll.Modifiers;
 /// Scales every player's movement speed. The engine recalculates/resets the velocity modifier
 /// far more often than a 0.2s timer can keep up with - most visibly during air-strafing, where
 /// movement code re-derives speed every tick - so this re-applies on every server tick instead.
+///
+/// Bug fix: holding walk (+speed, bound to Shift by default - GameButtonFlags.Shift, cross-checked
+/// against CounterStrikeSharp's InputBitMask_t.IN_SPEED = 65536, the same value) used to still get
+/// the full VelocityModifier scaling applied on top, same as running. CS2's silent-walk mechanic
+/// works by dropping actual movement speed low enough that the engine treats it as walking rather
+/// than running; Speedhack's multiplier pushed that scaled-up "walk" speed back above the
+/// running-speed threshold, so the engine (and its footstep sounds) treated it as running again -
+/// shift-walking was no longer actually silent. Skipping the multiplier entirely while the walk
+/// button is held keeps walk speed (and its silence) exactly as vanilla, regardless of any
+/// otherwise-active speed modifier - only running speed is ever scaled.
 /// </summary>
 public abstract class GameModifierVelocity : GameModifierBase
 {
@@ -37,11 +48,14 @@ public abstract class GameModifierVelocity : GameModifierBase
 
     private void ApplyToAllPlayers()
     {
-        var multiplier = GetSpeedMultiplier();
+        var runMultiplier = GetSpeedMultiplier();
         foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
             if (IsAssignedTo(player.Slot) && player.PlayerPawn is { } pawn)
             {
+                // Walking (IN_SPEED held) is left at 1.0 - see the bug-fix note above.
+                var multiplier = player.PressedButtons.HasFlag(GameButtonFlags.Shift) ? 1.0f : runMultiplier;
+
                 // Diagnostic: read the value BEFORE we overwrite it, so if something else (native
                 // engine code, another modifier, a jump/landing transition) is resetting
                 // VelocityModifier back to 1.0 between our own ticks, this catches it directly -
