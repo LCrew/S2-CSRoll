@@ -56,6 +56,20 @@ public sealed class ModifierRuntime
     private readonly Dictionary<(ulong SessionId, string ModifierName), int> _lastRoundAssignedPerPlayer = [];
     private int _roundNumber;
 
+    /// <summary>
+    /// Bumped every time RemoveAllModifiers() runs. CS2 fires EventRoundStart twice in a row during
+    /// a warmup-to-live-match transition (a well-known engine quirk around mp_restartgame-style
+    /// transitions) - each firing calls RemoveAllModifiers() then rolls and defers a fresh
+    /// spin-then-reveal. That reveal can take several seconds (SpinReveal animation), so the FIRST
+    /// firing's reveal can still be mid-flight when the SECOND firing's RemoveAllModifiers() runs and
+    /// starts its own roll. Without this guard, the first roll's Reveal() closure would still fire
+    /// later and Activate() its own modifier - even though it was already superseded - leaving two
+    /// independently-rolled modifiers active for the same player at once. Each reveal closure captures
+    /// the generation it was dispatched under and refuses to activate/announce if the generation has
+    /// since moved on.
+    /// </summary>
+    private int _rollGeneration;
+
     public IReadOnlyList<GameModifierBase> RegisteredModifiers => _registeredModifiers;
     public IReadOnlyList<GameModifierBase> ActiveModifiers => _activeModifiers;
 
@@ -683,6 +697,10 @@ public sealed class ModifierRuntime
 
     public void RemoveAllModifiers()
     {
+        // Invalidates any in-flight reveal closures from a prior roll - see _rollGeneration's doc
+        // comment for why this is needed on top of nulling the pending fields below.
+        _rollGeneration++;
+
         // A roll may have been selected but not yet committed (still waiting on its
         // spin-then-reveal to land) - cancel it too, or it would still activate later once that
         // scheduled reveal fires despite everything having just been cleared.
@@ -887,8 +905,18 @@ public sealed class ModifierRuntime
     /// <summary>Broadcast reveal for a global-scope set of modifiers. When commitOnReveal is true (a deferred round-start roll), activation happens at the exact moment the reveal lands rather than beforehand.</summary>
     private void RevealGlobalModifiers(List<GameModifierBase> modifiers, bool commitOnReveal)
     {
+        var generation = _rollGeneration;
+
         void Reveal()
         {
+            // Bug fix: a newer roll superseded this one while its spin animation was still
+            // in flight (see _rollGeneration's doc comment) - drop it instead of activating a
+            // modifier from a roll that's no longer current.
+            if (_rollGeneration != generation)
+            {
+                return;
+            }
+
             if (commitOnReveal)
             {
                 foreach (var modifier in modifiers)
@@ -926,6 +954,8 @@ public sealed class ModifierRuntime
     /// </summary>
     private void RevealPerPlayerModifiers(Dictionary<int, List<GameModifierBase>> modifiersByPlayerSlot, Dictionary<GameModifierBase, List<int>>? assignedSlotsByModifier)
     {
+        var generation = _rollGeneration;
+
         foreach (var (slot, modifiers) in modifiersByPlayerSlot)
         {
             if (modifiers.Count == 0)
@@ -935,6 +965,16 @@ public sealed class ModifierRuntime
 
             void Reveal()
             {
+                // Bug fix: same generation guard as RevealGlobalModifiers - without it, a stale
+                // reveal from a roll superseded mid-animation could still Activate() its modifier
+                // after a newer roll already committed its own, leaving two modifiers active for
+                // the same player at once (the "first round after warmup ends" bug: CS2 fires
+                // EventRoundStart twice for that transition).
+                if (_rollGeneration != generation)
+                {
+                    return;
+                }
+
                 if (assignedSlotsByModifier is not null)
                 {
                     foreach (var modifier in modifiers)
