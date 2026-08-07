@@ -5,7 +5,7 @@
   <p>A chaos-mod style "game modifiers" plugin for CS2, built on <a href="https://swiftlys2.net">SwiftlyS2</a>.</p>
 </div>
 
-Players (or admins) roll random gameplay-altering modifiers - like Super Jump, Speedhack, One In The Chamber, or Kamikaze - that apply for a round, a set number of rounds, or the whole match, either server-wide or scoped to individual players.
+Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Speedhack, One In The Chamber, or Kamikaze - that apply for a round, a set number of rounds, or the whole match, either server-wide or scoped to individual players.
 
 ## Modifier List
 
@@ -48,7 +48,7 @@ Players (or admins) roll random gameplay-altering modifiers - like Super Jump, S
 | Random Loadout | Buy menu is disabled - random main weapon, pistol and grenades (sometimes with armor) |
 | Walking Grenadier | You can't shoot, but you've got UNLIMITED HE grenades |
 | Heavy Boots | Movement speed is much slower, but grants armor+helmet and bonus health |
-| Super Jump | Jumping is much higher, no fall damage |
+| Jetpack | Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe |
 | Infinite Ammo | All weapons go brrrrrr... |
 | Atomic Explosions | HE Grenades deal much more damage |
 | Increased Spread | Weapons have bad aim |

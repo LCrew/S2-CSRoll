@@ -139,8 +139,8 @@
   "LeadBoots.DisplayName": "Heavy Boots",
   "LeadBoots.Description": "Movement speed is much slower",
 
-  "SuperJump.DisplayName": "Super Jump",
-  "SuperJump.Description": "Jumping is much higher, no fall damage",
+  "Jetpack.DisplayName": "Jetpack",
+  "Jetpack.Description": "Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe",
 
   "InfiniteAmmo.DisplayName": "Infinite Ammo",
   "InfiniteAmmo.Description": "All weapons go brrrrrr...",

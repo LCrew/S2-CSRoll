@@ -60,8 +60,8 @@ public class CSRollConfig
     /// <summary>Tunables for the LeadBoots modifier (slower movement - now per-player, previously a server-wide sv_maxspeed cvar).</summary>
     public LeadBootsConfig LeadBoots { get; set; } = new();
 
-    /// <summary>Tunables for the SuperJump modifier (per-player jump velocity boost, previously a server-wide sv_jump_impulse cvar).</summary>
-    public SuperJumpConfig SuperJump { get; set; } = new();
+    /// <summary>Tunables for the Jetpack modifier (per-player jump velocity boost plus jetpack thrust/fuel/air-strafe, previously a server-wide sv_jump_impulse cvar).</summary>
+    public JetpackConfig Jetpack { get; set; } = new();
 
     /// <summary>Tunables for the BiggerExplosions modifier (per-player HE damage multiplier, previously a server-wide sv_hegrenade_damage_multiplier cvar).</summary>
     public BiggerExplosionsConfig BiggerExplosions { get; set; } = new();
@@ -142,10 +142,37 @@ public class LeadBootsConfig
     public int BonusHealth { get; set; } = 50;
 }
 
-public class SuperJumpConfig
+public class JetpackConfig
 {
-    /// <summary>Upward velocity (units/sec) applied on jump - CS2's own default is ~301, so this is roughly 2.5x that.</summary>
+    /// <summary>Upward velocity (units/sec) applied on the initial jump off the ground - CS2's own default is ~301, so this is roughly 2.5x that.</summary>
     public float JumpVelocityZ { get; set; } = 750f;
+
+    /// <summary>Minimum seconds between initial-jump boosts, per player - stops spamming jump instead of holding it from re-triggering the big boost repeatedly and bypassing fuel entirely. Sustained lift while holding jump is unaffected; that's the separate, uncapped-duration thrust mechanic (ThrustSpeed).</summary>
+    public float BigBoostCooldownSeconds { get; set; } = 0.75f;
+
+    /// <summary>Vertical speed (units/sec) floored while holding jump in the air with fuel remaining - a gentle lift, not a sustained full jump.</summary>
+    public float ThrustSpeed { get; set; } = 140f;
+
+    /// <summary>Hard cap on upward velocity the thrust will ever floor to - keeps repeated thrust from stacking indefinitely on top of the initial jump boost.</summary>
+    public float MaxVerticalSpeed { get; set; } = 400f;
+
+    /// <summary>Multiplier applied to CS2's normal air-accelerate value while airborne, for stronger in-flight steering during thrust.</summary>
+    public float AirStrafeMultiplier { get; set; } = 2.5f;
+
+    /// <summary>Fuel capacity, in percentage points (0-100).</summary>
+    public float MaxFuel { get; set; } = 100f;
+
+    /// <summary>Fuel drained per second while actively thrusting (holding jump, airborne, fuel remaining).</summary>
+    public float FuelDrainPerSecond { get; set; } = 25f;
+
+    /// <summary>Fuel regenerated per second once RefillDelaySeconds has elapsed since last thrusting.</summary>
+    public float FuelRegenPerSecond { get; set; } = 15f;
+
+    /// <summary>Seconds after releasing jump (or running dry) before fuel starts regenerating - stops fuel refilling instantly the moment jump is released mid-flight.</summary>
+    public float RefillDelaySeconds { get; set; } = 1f;
+
+    /// <summary>How often, in seconds, the center-HTML fuel gauge popup refreshes.</summary>
+    public float GaugeUpdateIntervalSeconds { get; set; } = 0.2f;
 }
 
 public class BiggerExplosionsConfig
