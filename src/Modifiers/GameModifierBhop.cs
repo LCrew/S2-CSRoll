@@ -1,6 +1,4 @@
 using SwiftlyS2.Shared.Events;
-using SwiftlyS2.Shared.GameHooks;
-using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 
@@ -13,27 +11,34 @@ namespace CSRoll.Modifiers;
 /// <summary>
 /// EXPERIMENTAL: a previous Bhop attempt was removed entirely per explicit request - the
 /// landing-penalty-removal half worked, but the auto-jump-without-repressing half was attempted via
-/// ProcessMovement.Pre velocity injection (the same fragile "doesn't survive the native code that
-/// runs right after it" mechanism SuperJump's own jump-height fix also failed with on its first try)
-/// and never worked reliably. This retries the auto-jump half via a completely different, more direct
-/// hook point: CCSPlayer_MovementServices::CheckJumpButtonLegacy/Modern (Core.GameHooks.Movement.
-/// CheckJumpButtonLegacy/Modern) - the actual native functions that decide whether the jump button,
-/// combined with sv_autobunnyhopping's server-wide debounce logic, should result in a jump this tick.
-/// Hooking Pre and unconditionally applying our own jump velocity (then CancelOriginal to skip the
-/// native's own decision entirely) for the assigned player replicates what that cvar does internally,
-/// but scoped to one player instead of the whole server. Hold-detection uses
-/// Core.Event.OnClientKeyStateChanged (confirmed working for Jetpack's own hold-to-thrust) rather than
-/// polling IPlayer.PressedButtons.
+/// ProcessMovement.Pre velocity injection and never worked reliably.
 ///
-/// Known caveat, not yet resolved by live testing: CancelOriginal skips the ENTIRE native function
-/// body for that call, not just its debounce check - so whatever else it normally does (jump sound,
-/// player_jump game event, animation state) does not fire for our own auto-triggered jumps. Only the
-/// very first, real jump (which a normal, non-debounced CheckJumpButton call already lets through
-/// before our override matters) gets the native's full treatment.
+/// Second attempt: hooking CheckJumpButtonLegacy/Modern.Pre and writing moveData.Velocity.Z there,
+/// then SetHookResult(CancelOriginal) to skip the native's own debounce logic. Live testing (debug
+/// log confirmed the override fired every tick while grounded and holding jump) showed no actual
+/// jump ever happened. Root cause: CancelOriginal only skips that one check-and-decide function, not
+/// the rest of that tick's movement pipeline (friction/ground-move) that still runs immediately
+/// afterward - if the native function normally also flips the player to "airborne" internally before
+/// that later code runs, skipping it entirely means the rest of the tick still treats the player as
+/// grounded and silently re-absorbs the velocity we just wrote before it ever becomes visible. The
+/// exact same failure class as Jetpack's original ProcessMovement.Post floor, just one hook earlier
+/// in the pipeline.
+///
+/// Third attempt (current): don't touch the movement-hook pipeline at all. Detect "grounded and
+/// holding jump" from Core.Event.OnTick (outside any movement hook, so nothing downstream can
+/// re-process and clobber the write within the same tick) and directly re-assert velocity via
+/// IPlayer.Teleport(velocity: ...) - the exact technique that fixed Jetpack's own hold-to-thrust for
+/// the identical underlying problem. A single real jump (first press) is left completely untouched -
+/// the native CheckJumpButton functions run normally for that, unaffected, since nothing hooks them
+/// anymore; this modifier only re-launches the player on ticks it detects them already grounded
+/// again while still holding jump.
+///
+/// Hold-detection uses Core.Event.OnClientKeyStateChanged (confirmed working for both this and
+/// Jetpack) rather than polling IPlayer.PressedButtons.
 ///
 /// Landing-penalty removal: CS2's own anti-bhop mechanic reduces max speed based on
 /// CCSPlayer_MovementServices.Stamina (a "fatigue" value that rises on each jump and decays over
-/// time) - zeroed every tick for the assigned player via OnGameTick so it never accumulates.
+/// time) - zeroed every tick for the assigned player so it never accumulates.
 /// </summary>
 public sealed class GameModifierBhop : GameModifierBase
 {
@@ -60,16 +65,12 @@ public sealed class GameModifierBhop : GameModifierBase
     protected override void OnEnabled()
     {
         Core.Event.OnClientKeyStateChanged += OnClientKeyStateChanged;
-        Core.GameHooks.Movement.CheckJumpButtonLegacy.Pre += OnCheckJumpButtonLegacy;
-        Core.GameHooks.Movement.CheckJumpButtonModern.Pre += OnCheckJumpButtonModern;
         Core.Event.OnTick += OnGameTick;
     }
 
     protected override void OnDisabled()
     {
         Core.Event.OnClientKeyStateChanged -= OnClientKeyStateChanged;
-        Core.GameHooks.Movement.CheckJumpButtonLegacy.Pre -= OnCheckJumpButtonLegacy;
-        Core.GameHooks.Movement.CheckJumpButtonModern.Pre -= OnCheckJumpButtonModern;
         Core.Event.OnTick -= OnGameTick;
         _isHoldingSpace.Clear();
     }
@@ -82,52 +83,6 @@ public sealed class GameModifierBhop : GameModifierBase
         }
 
         _isHoldingSpace[@event.PlayerId] = @event.Pressed;
-    }
-
-    private void OnCheckJumpButtonLegacy(ref CheckJumpButtonLegacyMovementPreContext ctx)
-    {
-        if (TryAutoJump(ctx.Params.Player, ctx.Params.MoveData))
-        {
-            ctx.SetHookResult(HookResult.CancelOriginal);
-        }
-    }
-
-    private void OnCheckJumpButtonModern(ref CheckJumpButtonModernMovementPreContext ctx)
-    {
-        if (TryAutoJump(ctx.Params.Player, ctx.Params.MoveData))
-        {
-            ctx.SetHookResult(HookResult.CancelOriginal);
-        }
-    }
-
-    private bool TryAutoJump(IPlayer? player, IMoveData moveData)
-    {
-        if (player is not { IsValid: true } || !IsAssignedTo(player.Slot))
-        {
-            return false;
-        }
-
-        if (!_isHoldingSpace.GetValueOrDefault(player.Slot, false))
-        {
-            return false;
-        }
-
-        // Only override while grounded - airborne, there's nothing to debounce, and the native
-        // function should just run normally (in particular, it must not be cancelled mid-air, or a
-        // real single jump would never actually resolve while a later re-check is pending).
-        if (player.PlayerPawn?.GroundEntity.Value is null)
-        {
-            return false;
-        }
-
-        moveData.Velocity = new Vector(moveData.Velocity.X, moveData.Velocity.Y, Runtime.Config.Bhop.JumpVelocityZ);
-
-        if (Runtime.DebugMode)
-        {
-            Core.Logger.LogInformation("[CSRoll] Bhop ({Slot}): auto-jumped, set VelocityZ={VelZ}", player.Slot, Runtime.Config.Bhop.JumpVelocityZ);
-        }
-
-        return true;
     }
 
     private void OnGameTick()
@@ -144,6 +99,30 @@ public sealed class GameModifierBhop : GameModifierBase
                 movementServices.Stamina = 0f;
                 movementServices.StaminaUpdated();
             }
+
+            TryAutoJump(player);
+        }
+    }
+
+    private void TryAutoJump(IPlayer player)
+    {
+        if (!_isHoldingSpace.GetValueOrDefault(player.Slot, false))
+        {
+            return;
+        }
+
+        if (player.PlayerPawn is not { } pawn || pawn.GroundEntity.Value is null)
+        {
+            // Airborne (or no pawn) - nothing to relaunch; a real jump or existing arc runs untouched.
+            return;
+        }
+
+        var velocity = pawn.AbsVelocity;
+        player.Teleport(velocity: new Vector(velocity.X, velocity.Y, Runtime.Config.Bhop.JumpVelocityZ));
+
+        if (Runtime.DebugMode)
+        {
+            Core.Logger.LogInformation("[CSRoll] Bhop ({Slot}): auto-jumped, set VelocityZ={VelZ}", player.Slot, Runtime.Config.Bhop.JumpVelocityZ);
         }
     }
 
