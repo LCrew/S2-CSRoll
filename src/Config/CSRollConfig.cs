@@ -63,6 +63,9 @@ public class CSRollConfig
     /// <summary>Tunables for the Jetpack modifier (per-player jump velocity boost plus jetpack thrust/fuel/air-strafe, previously a server-wide sv_jump_impulse cvar).</summary>
     public JetpackConfig Jetpack { get; set; } = new();
 
+    /// <summary>Tunables for the Bhop modifier (per-player auto-bhop while holding jump, no landing speed penalty).</summary>
+    public BhopConfig Bhop { get; set; } = new();
+
     /// <summary>Tunables for the BiggerExplosions modifier (per-player HE damage multiplier, previously a server-wide sv_hegrenade_damage_multiplier cvar).</summary>
     public BiggerExplosionsConfig BiggerExplosions { get; set; } = new();
 
@@ -173,6 +176,12 @@ public class JetpackConfig
 
     /// <summary>How often, in seconds, the center-HTML fuel gauge popup refreshes.</summary>
     public float GaugeUpdateIntervalSeconds { get; set; } = 0.2f;
+}
+
+public class BhopConfig
+{
+    /// <summary>Upward velocity (units/sec) applied on each auto-triggered jump while holding jump and grounded - CS2's own normal jump impulse is ~301, matched here since this is meant to feel like normal bhop, not a boosted jump.</summary>
+    public float JumpVelocityZ { get; set; } = 301f;
 }
 
 public class BiggerExplosionsConfig

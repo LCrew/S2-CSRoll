@@ -63,21 +63,23 @@ public partial class CSRoll
         () => new GameModifierRevive(),
         () => new GameModifierSaint(),
 
-        // Bug fix: LeadBoots/Jetpack/InfiniteAmmo/BiggerExplosions/IncreasedSpread used to be
+        // Bug fix: LeadBoots/Jetpack/Bhop/InfiniteAmmo/BiggerExplosions/IncreasedSpread used to be
         // resources/ConVarModifiers/*.cfg entries driving server-wide cvars (sv_maxspeed,
         // sv_jump_impulse, sv_infinite_ammo, sv_hegrenade_damage_multiplier,
         // weapon_accuracy_forcespread) - applied to the whole server instead of just whoever rolled
         // them. Rewritten as proper per-player C# modifiers.
-        // (Bhop was also converted this way, then removed entirely: the landing-penalty removal
-        // half worked, but the auto-jump-without-repressing half wasn't achievable without risking
-        // corrupting CS2's native jump physics - see git history if revisiting this. HighGravity/
-        // LowGravity went the same route - GravityScale writes never actually affected physics live,
-        // see git history - and were removed entirely per explicit request rather than left broken.
-        // Jetpack's hold-to-thrust mechanic was previously abandoned back to plain SuperJump after
+        // (Bhop was originally removed entirely after its auto-jump-without-repressing half proved
+        // unachievable via ProcessMovement.Pre velocity injection without risking corrupting CS2's
+        // native jump physics - then reinstated via a different hook point once one was found (see
+        // GameModifierBhop.cs's own class doc comment). HighGravity/LowGravity went a similar route -
+        // GravityScale writes never actually affected physics live, see git history - but were removed
+        // entirely per explicit request rather than left broken, with no working alternative found.
+        // Jetpack's hold-to-thrust mechanic was likewise abandoned back to plain SuperJump after
         // failing several times, then reinstated once a working technique was found (see
         // GameModifierJetpack.cs's own class doc comment for the full history).)
         () => new GameModifierLeadBoots(),
         () => new GameModifierJetpack(),
+        () => new GameModifierBhop(),
         () => new GameModifierInfiniteAmmo(),
         () => new GameModifierBiggerExplosions(),
         () => new GameModifierIncreasedSpread(),

@@ -49,6 +49,7 @@ Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Spee
 | Walking Grenadier | You can't shoot, but you've got UNLIMITED HE grenades |
 | Heavy Boots | Movement speed is much slower, but grants armor+helmet and bonus health |
 | Jetpack | Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe |
+| Bunny Hop | Hold jump to bunny-hop automatically, with no landing speed penalty |
 | Infinite Ammo | All weapons go brrrrrr... |
 | Atomic Explosions | HE Grenades deal much more damage |
 | Increased Spread | Weapons have bad aim |
