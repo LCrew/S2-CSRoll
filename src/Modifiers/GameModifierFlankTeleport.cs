@@ -45,8 +45,14 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
     private const float HtmlRefreshIntervalSeconds = 0.1f;
     private const int HtmlDurationMs = 400;
 
+    // Failure feedback (no valid target / blocked landing spot) deliberately doesn't consume the
+    // cooldown, so a held F key re-hits that branch every tick - this throttle stops that from
+    // spamming chat dozens of times per second.
+    private const float FailureMessageThrottleSeconds = 1.5f;
+
     private readonly Dictionary<int, float> _nextAvailableTime = [];
     private readonly Dictionary<int, float> _lastHtmlUpdateTime = [];
+    private readonly Dictionary<int, float> _lastFailureMessageTime = [];
 
     private Guid _spawnHookId;
 
@@ -89,6 +95,7 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
         Core.GameEvent.Unhook(_spawnHookId);
         _nextAvailableTime.Clear();
         _lastHtmlUpdateTime.Clear();
+        _lastFailureMessageTime.Clear();
     }
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
@@ -138,6 +145,7 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
             // wasted use, so the player can just try again the moment one becomes available.
             if (enemies.Count == 0)
             {
+                NotifyFlankFailed(player, now, "No living enemy to flank - try again!");
                 continue;
             }
 
@@ -160,6 +168,7 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
             // F again immediately, which may well pick a different (clear) target.
             if (!IsPositionClear(dropPosition))
             {
+                NotifyFlankFailed(player, now, "Flank position is blocked - try again!");
                 continue;
             }
 
@@ -183,6 +192,18 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
     {
         var result = Core.Trace.TracePlayerBBox(position, position, PlayerBounds);
         return !result.StartInSolid;
+    }
+
+    /// <summary>Throttled failure feedback - without this, holding F with no valid/clear target would spam this message every tick, since failures deliberately don't consume the cooldown.</summary>
+    private void NotifyFlankFailed(IPlayer player, float now, string message)
+    {
+        if (_lastFailureMessageTime.TryGetValue(player.Slot, out var lastMessage) && now - lastMessage < FailureMessageThrottleSeconds)
+        {
+            return;
+        }
+
+        _lastFailureMessageTime[player.Slot] = now;
+        CSRollUtils.PrintTitleToChat(Core, player, message);
     }
 
     private void RefreshStatusHtml(IPlayer player, float now)
@@ -210,5 +231,6 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
     {
         _nextAvailableTime.Remove(@event.PlayerId);
         _lastHtmlUpdateTime.Remove(@event.PlayerId);
+        _lastFailureMessageTime.Remove(@event.PlayerId);
     }
 }
