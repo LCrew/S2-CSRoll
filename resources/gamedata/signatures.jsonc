@@ -1,1 +1,10 @@
-{}
+{
+    // Used by GameModifierBhop - locates the native anti-bunnyhop landing-speed-cap check inside
+    // the server binary's movement code, so the patch below can NOP it out while Bhop is active.
+    // Ported from Fallen-Networks/CS2-MovementUnlocker (github.com/Fallen-Networks/CS2-MovementUnlocker).
+    "MovementUnlocker": {
+        "lib": "server",
+        "windows": "0F 86 AF ? ? ? 0F 57 C0 0F 2E C2",
+        "linux":   "0F 87 ? ? ? ? F3 0F 10 3D ? ? ? ? F3 0F 11 BD ? ? ? ? 48 89 DE"
+    }
+}

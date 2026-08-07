@@ -51,9 +51,23 @@ namespace CSRoll.Modifiers;
 /// raising IMoveData.MaxSpeed/ClientMaxSpeed from inside AirAccelerate.Pre instead - that hook only
 /// ever fires during actual air-strafing (never for ground movement), so it structurally cannot
 /// affect normal running speed, only the ceiling on speed gained while airborne.
+///
+/// Movement Unlocker patch: on top of all of the above, OnEnabled/OnDisabled additionally
+/// apply/revert a binary patch (see resources/gamedata/signatures.jsonc + patches.jsonc, key
+/// "MovementUnlocker", ported from Fallen-Networks/CS2-MovementUnlocker) that NOPs out CS2's own
+/// native anti-bunnyhop landing-speed-cap check. This is the "real" server-side fix for the same
+/// problem the AirAccelerate.Pre multiplier above is patched around from userland - it doesn't
+/// touch jump timing at all, so genuine bhop skill (jump + air-strafe timing) is still required to
+/// build up any speed from it; it only stops the game clamping that speed back down. The patch has
+/// zero per-player scoping (it's a single process-wide binary edit), so for as long as Bhop is
+/// active it's in effect for every player on the server that round, not just whoever rolled it -
+/// wrapped in try/catch since a CS2 update shifting the underlying bytes would otherwise crash
+/// modifier activation instead of just failing to find the signature.
 /// </summary>
 public sealed class GameModifierBhop : GameModifierBase
 {
+    private const string MovementUnlockerPatch = "MovementUnlocker";
+
     private readonly Dictionary<int, bool> _isHoldingSpace = [];
 
     public GameModifierBhop()
@@ -79,6 +93,15 @@ public sealed class GameModifierBhop : GameModifierBase
         Core.Event.OnClientKeyStateChanged += OnClientKeyStateChanged;
         Core.GameHooks.Movement.AirAccelerate.Pre += OnAirAccelerate;
         Core.Event.OnTick += OnGameTick;
+
+        try
+        {
+            Core.GameData.ApplyPatch(MovementUnlockerPatch);
+        }
+        catch (Exception ex)
+        {
+            Core.Logger.LogError(ex, "[CSRoll] Bhop: failed to apply MovementUnlocker patch - signature may be out of date for this CS2 build.");
+        }
     }
 
     protected override void OnDisabled()
@@ -87,6 +110,15 @@ public sealed class GameModifierBhop : GameModifierBase
         Core.GameHooks.Movement.AirAccelerate.Pre -= OnAirAccelerate;
         Core.Event.OnTick -= OnGameTick;
         _isHoldingSpace.Clear();
+
+        try
+        {
+            Core.GameData.RevertPatch(MovementUnlockerPatch);
+        }
+        catch (Exception ex)
+        {
+            Core.Logger.LogError(ex, "[CSRoll] Bhop: failed to revert MovementUnlocker patch.");
+        }
     }
 
     private void OnClientKeyStateChanged(IOnClientKeyStateChangedEvent @event)
