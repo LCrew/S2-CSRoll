@@ -29,7 +29,7 @@ Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Spee
 | Small Players | You are 2x smaller |
 | Poisonous Smoke | Your thrown smokes deal damage to enemies standing in them, and grants a smoke grenade |
 | Longer Flashes | Flash bang effect lasts 3 times longer |
-| Chinese Grenades | Timers on flashes and HE's are randomized |
+| Chinese Grenades | Timers on flashes, HE's and smokes are randomized |
 | Gay Smokes | Smoke colors are randomized |
 | Swap On Death | You will swap places on kill |
 | Swap On Hit | You will swap places on hit |

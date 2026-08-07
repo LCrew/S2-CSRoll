@@ -56,8 +56,15 @@ public sealed class GameModifierLongerFlashes : GameModifierBase
 }
 
 /// <summary>
-/// Randomizes HE and flashbang fuse timers. Smoke grenades have no known equivalent detonate-time
-/// field to randomize (same limitation the original CSS plugin had).
+/// Randomizes HE, flashbang, and smoke fuse timers within Config.DodgyGrenades.Min/MaxFuseSeconds
+/// (0.1-10s by default).
+///
+/// Bug fix: smoke grenades used to be skipped entirely on the assumption they had "no known
+/// equivalent detonate-time field to randomize" (a limitation carried over from the original CSS
+/// plugin) - CSmokeGrenadeProjectile actually inherits CBaseCSGrenadeProjectile.DetonateTime from
+/// the exact same base class HE/flashbang already use, confirmed via SDK schema inheritance
+/// (CSmokeGrenadeProjectile : CBaseCSGrenadeProjectile), so the existing write mechanism below
+/// applies to smoke unchanged - it was simply never tried.
 ///
 /// Flashbangs additionally have their own CFlashbangProjectile.TimeToDetonate field (a relative
 /// fuse length in seconds), separate from the inherited CBaseGrenade.DetonateTime (an absolute
@@ -72,7 +79,7 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
     public GameModifierRandomGrenadeTime()
     {
         Name = "DodgyGrenades";
-        Description = "Timers on flashes and HE's are randomized";
+        Description = "Timers on grenades are randomized";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }
@@ -89,14 +96,16 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
 
     private void OnEntitySpawned(IOnEntitySpawnedEvent @event)
     {
-        if (@event.Entity.DesignerName is not ("hegrenade_projectile" or "flashbang_projectile"))
+        if (@event.Entity.DesignerName is not ("hegrenade_projectile" or "flashbang_projectile" or "smokegrenade_projectile"))
         {
             return;
         }
 
         var grenade = @event.Entity.As<CBaseCSGrenadeProjectile>();
         var isFlashbang = @event.Entity.DesignerName == "flashbang_projectile";
-        var fuseSeconds = isFlashbang ? 1f + Random.Shared.NextSingle() * 4f : Random.Shared.Next(1, 12);
+        var min = Runtime.Config.DodgyGrenades.MinFuseSeconds;
+        var max = Runtime.Config.DodgyGrenades.MaxFuseSeconds;
+        var fuseSeconds = min + (Random.Shared.NextSingle() * (max - min));
 
         // Bug fix: writing only once, deferred a tick via NextWorldUpdate, apparently lost a race
         // against whatever internal think-schedule the grenade sets up for itself right at spawn -

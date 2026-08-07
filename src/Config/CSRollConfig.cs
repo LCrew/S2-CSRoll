@@ -107,6 +107,9 @@ public class CSRollConfig
 
     /// <summary>Tunables for the persistent center-HTML popup shown to spectators, listing whatever modifiers are active on whoever they're currently observing.</summary>
     public SpectatorHudConfig SpectatorHud { get; set; } = new();
+
+    /// <summary>Tunables for the DodgyGrenades ("Chinese Grenades") modifier (randomized fuse timer range applied to HE/flashbang/smoke).</summary>
+    public DodgyGrenadesConfig DodgyGrenades { get; set; } = new();
 }
 
 public class ConditionalInvisibilityConfig
@@ -348,4 +351,13 @@ public class SpectatorHudConfig
 
     /// <summary>How often, in seconds, the popup refreshes - catches the spectator switching targets or the target's modifiers changing.</summary>
     public float RefreshIntervalSeconds { get; set; } = 0.2f;
+}
+
+public class DodgyGrenadesConfig
+{
+    /// <summary>Minimum possible fuse length, in seconds, rolled fresh for each HE/flashbang/smoke thrown.</summary>
+    public float MinFuseSeconds { get; set; } = 0.1f;
+
+    /// <summary>Maximum possible fuse length, in seconds.</summary>
+    public float MaxFuseSeconds { get; set; } = 10f;
 }
