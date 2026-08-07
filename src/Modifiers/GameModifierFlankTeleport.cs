@@ -34,6 +34,11 @@ namespace CSRoll.Modifiers;
 /// Status HUD: a center-HTML popup is kept continuously visible (same re-send-before-it-expires
 /// pattern ConditionalInvisibility/FullInvisibility use) showing the trigger key and the current
 /// state - gold "Ready" or red "Cooldown: N,Ns" (comma decimal separator) counting down live.
+///
+/// Wall check: the computed landing spot is validated with a zero-length TracePlayerBBox (see
+/// IsPositionClear) before actually teleporting - without this, a target standing close to a wall or
+/// corner could put the assigned player stuck inside solid geometry. A blocked spot is treated the
+/// same as "no valid target": the attempt is skipped without consuming the cooldown.
 /// </summary>
 public sealed class GameModifierFlankTeleport : GameModifierBase
 {
@@ -148,12 +153,36 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
             var behind = targetOrigin - (forward * Runtime.Config.FlankTeleport.TeleportDistance);
             var dropPosition = new Vector(behind.X, behind.Y, behind.Z + Runtime.Config.FlankTeleport.DropHeight);
 
+            // Bug fix: the destination used to be teleported to unconditionally - a wall or other
+            // solid geometry directly behind the target (or a target standing right against a corner)
+            // could land the assigned player stuck inside it. Same "no valid target, don't consume
+            // the cooldown" treatment as the enemies.Count==0 case above - the player can just press
+            // F again immediately, which may well pick a different (clear) target.
+            if (!IsPositionClear(dropPosition))
+            {
+                continue;
+            }
+
             CSRollUtils.TeleportPlayer(Core, player, dropPosition, targetPawn.EyeAngles);
             _nextAvailableTime[player.Slot] = now + Runtime.Config.FlankTeleport.CooldownSeconds;
 
             var targetName = target.Controller is { IsValid: true } targetController ? targetController.PlayerName : "an enemy";
             CSRollUtils.PrintTitleToChat(Core, player, $"Teleported behind {targetName}!");
         }
+    }
+
+    /// <summary>Standard CS2 standing player hull (VEC_HULL_MIN/MAX) - confirmed via SwiftlyS2's own TracePlayerBBox test-plugin usage.</summary>
+    private static readonly BBox_t PlayerBounds = new()
+    {
+        Mins = new Vector(-16f, -16f, 0f),
+        Maxs = new Vector(16f, 16f, 72f),
+    };
+
+    /// <summary>Zero-length player-bbox trace at the given point - StartInSolid reports whether a standing player-sized hull would fit there without actually moving anyone first.</summary>
+    private bool IsPositionClear(Vector position)
+    {
+        var result = Core.Trace.TracePlayerBBox(position, position, PlayerBounds);
+        return !result.StartInSolid;
     }
 
     private void RefreshStatusHtml(IPlayer player, float now)
