@@ -182,6 +182,15 @@ public class BhopConfig
 {
     /// <summary>Upward velocity (units/sec) applied on each auto-triggered jump while holding jump and grounded - CS2's own normal jump impulse is ~301, matched here since this is meant to feel like normal bhop, not a boosted jump.</summary>
     public float JumpVelocityZ { get; set; } = 301f;
+
+    /// <summary>
+    /// Movement speed multiplier (same CCSPlayerPawn.VelocityModifier mechanism Speedhack/LeadBoots
+    /// use) - without this, CS2's normal speed cap silently clamps away most of the speed bhop is
+    /// supposed to build up through air-strafing, since auto-relaunching removes the timing skill but
+    /// not the underlying cap. Deliberately more modest than Speedhack's own default (2.0) - the
+    /// point is to stop capping bhop-gained speed, not hand out a flat speed boost on top of it.
+    /// </summary>
+    public float SpeedMultiplier { get; set; } = 1.5f;
 }
 
 public class BiggerExplosionsConfig

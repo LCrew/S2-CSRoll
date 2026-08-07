@@ -39,6 +39,13 @@ namespace CSRoll.Modifiers;
 /// Landing-penalty removal: CS2's own anti-bhop mechanic reduces max speed based on
 /// CCSPlayer_MovementServices.Stamina (a "fatigue" value that rises on each jump and decays over
 /// time) - zeroed every tick for the assigned player so it never accumulates.
+///
+/// Speed cap: removing the timing skill (auto-relaunch) and the stamina penalty still isn't enough
+/// to let bhop-gained speed actually show up - CS2's normal speed cap silently clamps it away. Uses
+/// the same CCSPlayerPawn.VelocityModifier mechanism Speedhack/LeadBoots already rely on (a
+/// confirmed-working, per-player speed multiplier) rather than a new mechanism, with the same
+/// walk-key exception Speedhack uses so holding Shift still walks silently instead of also being
+/// scaled up.
 /// </summary>
 public sealed class GameModifierBhop : GameModifierBase
 {
@@ -50,6 +57,9 @@ public sealed class GameModifierBhop : GameModifierBase
         Description = "Hold jump to bunny-hop automatically, with no landing speed penalty";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
+        // Both write CCSPlayerPawn.VelocityModifier every tick - active together, they'd fight over
+        // the same field and produce flickering, inconsistent speed.
+        IncompatibleModifiers = ["Speedhack", "LeadBoots"];
     }
 
     protected override void OnRegistered()
@@ -73,6 +83,15 @@ public sealed class GameModifierBhop : GameModifierBase
         Core.Event.OnClientKeyStateChanged -= OnClientKeyStateChanged;
         Core.Event.OnTick -= OnGameTick;
         _isHoldingSpace.Clear();
+
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        {
+            if (IsAssignedTo(player.Slot) && player.PlayerPawn is { } pawn)
+            {
+                pawn.VelocityModifier = 1.0f;
+                pawn.VelocityModifierUpdated();
+            }
+        }
     }
 
     private void OnClientKeyStateChanged(IOnClientKeyStateChangedEvent @event)
@@ -94,10 +113,19 @@ public sealed class GameModifierBhop : GameModifierBase
                 continue;
             }
 
-            if (player.PlayerPawn?.MovementServices is { } movementServices)
+            if (player.PlayerPawn is { } pawn)
             {
-                movementServices.Stamina = 0f;
-                movementServices.StaminaUpdated();
+                if (pawn.MovementServices is { } movementServices)
+                {
+                    movementServices.Stamina = 0f;
+                    movementServices.StaminaUpdated();
+                }
+
+                // Walking (IN_SPEED held) is left at 1.0 - same exception Speedhack uses, so
+                // shift-walking stays actually silent instead of also being scaled up.
+                var multiplier = player.PressedButtons.HasFlag(GameButtonFlags.Shift) ? 1.0f : Runtime.Config.Bhop.SpeedMultiplier;
+                pawn.VelocityModifier = multiplier;
+                pawn.VelocityModifierUpdated();
             }
 
             TryAutoJump(player);
