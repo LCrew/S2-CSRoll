@@ -2,8 +2,8 @@ namespace CSRoll.Config;
 
 public class CSRollConfig
 {
-    public bool RandomRoundsEnabledByDefault { get; set; } = false;
-    public bool DisableRandomRoundsInWarmup { get; set; } = false;
+    public bool RandomRoundsEnabledByDefault { get; set; } = true;
+    public bool DisableRandomRoundsInWarmup { get; set; } = true;
     public bool ShowCentreMsg { get; set; } = true;
 
     /// <summary>Whole-server "don't repeat" for the non-RandomizePlayers shared/global roll only - the same set from last round can't be picked again as a whole. Unrelated to PerPlayerRepeatCooldownRounds below, which is per-player and applies to the per-player roll.</summary>
@@ -46,7 +46,7 @@ public class CSRollConfig
     /// binary. Set to false to skip that scan entirely (e.g. if it crashes the plugin or the
     /// server on a given CS2 build) without affecting any other modifier.
     /// </summary>
-    public bool EnableNavMeshTeleports { get; set; } = true;
+    public bool EnableNavMeshTeleports { get; set; } = false;
 
     /// <summary>Tunables for the RandomHealth modifier (health set to a random number in this range each activation).</summary>
     public RandomHealthConfig RandomHealth { get; set; } = new();
@@ -147,8 +147,8 @@ public class LeadBootsConfig
 
 public class JetpackConfig
 {
-    /// <summary>Upward velocity (units/sec) applied on the initial jump off the ground - CS2's own default is ~301, so this is roughly 2.5x that.</summary>
-    public float JumpVelocityZ { get; set; } = 750f;
+    /// <summary>Upward velocity (units/sec) applied on the initial jump off the ground - CS2's own default is ~301.</summary>
+    public float JumpVelocityZ { get; set; } = 350f;
 
     /// <summary>Minimum seconds between initial-jump boosts, per player - stops spamming jump instead of holding it from re-triggering the big boost repeatedly and bypassing fuel entirely. Sustained lift while holding jump is unaffected; that's the separate, uncapped-duration thrust mechanic (ThrustSpeed).</summary>
     public float BigBoostCooldownSeconds { get; set; } = 0.75f;
