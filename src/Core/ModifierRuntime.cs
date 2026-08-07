@@ -167,9 +167,19 @@ public sealed class ModifierRuntime
 
         _lastActiveModifiers.Clear();
         _registeredModifiers.Clear();
-        _lastRoundAssignedPerPlayer.Clear();
-        _roundNumber = 0;
         _lastSpectatorHudUpdateTime.Clear();
+
+        // Bug fix: this used to also clear _lastRoundAssignedPerPlayer and reset _roundNumber to 0 -
+        // meaning !reloadmodifiers (which calls Unregister() then re-Initialise() to rebuild the
+        // registered-modifier list, e.g. after a config change) silently wiped every player's
+        // PerPlayerRepeatCooldownRounds history too, letting a modifier they'd just rolled repeat
+        // immediately regardless of how many real rounds had actually passed. Reported as "got Jetpack
+        // again with only a single round in between" - a reload between those rounds is the most
+        // likely explanation. Round-cooldown history is player-facing fairness state tied to the
+        // ongoing match's round sequence, not modifier-registry bookkeeping, so it has no business
+        // being reset by a registry reload - only a genuine plugin unload (full session end, e.g. map
+        // change) should clear it, which already happens naturally since ModifierRuntime itself is
+        // recreated from scratch then.
     }
 
     /// <summary>
