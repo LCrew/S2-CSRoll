@@ -187,11 +187,13 @@ public class BhopConfig
     public float JumpVelocityZ { get; set; } = 301f;
 
     /// <summary>
-    /// Movement speed multiplier (same CCSPlayerPawn.VelocityModifier mechanism Speedhack/LeadBoots
-    /// use) - without this, CS2's normal speed cap silently clamps away most of the speed bhop is
+    /// Multiplier applied to IMoveData.MaxSpeed/ClientMaxSpeed while air-strafing (AirAccelerate.Pre
+    /// only ever fires airborne, never for ground movement, so this cannot affect normal running
+    /// speed) - without this, CS2's normal speed cap silently clamps away most of the speed bhop is
     /// supposed to build up through air-strafing, since auto-relaunching removes the timing skill but
-    /// not the underlying cap. Deliberately more modest than Speedhack's own default (2.0) - the
-    /// point is to stop capping bhop-gained speed, not hand out a flat speed boost on top of it.
+    /// not the underlying cap. Bug fix: this used to be a flat CCSPlayerPawn.VelocityModifier
+    /// multiplier (the same mechanism Speedhack/LeadBoots use) - reported wrong, since that scales ALL
+    /// movement including ordinary ground running, not just bhop-gained air speed.
     /// </summary>
     public float SpeedMultiplier { get; set; } = 1.5f;
 }

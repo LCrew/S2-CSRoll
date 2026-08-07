@@ -1,4 +1,5 @@
 using SwiftlyS2.Shared.Events;
+using SwiftlyS2.Shared.GameHooks;
 using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 
@@ -41,11 +42,15 @@ namespace CSRoll.Modifiers;
 /// time) - zeroed every tick for the assigned player so it never accumulates.
 ///
 /// Speed cap: removing the timing skill (auto-relaunch) and the stamina penalty still isn't enough
-/// to let bhop-gained speed actually show up - CS2's normal speed cap silently clamps it away. Uses
-/// the same CCSPlayerPawn.VelocityModifier mechanism Speedhack/LeadBoots already rely on (a
-/// confirmed-working, per-player speed multiplier) rather than a new mechanism, with the same
-/// walk-key exception Speedhack uses so holding Shift still walks silently instead of also being
-/// scaled up.
+/// to let bhop-gained speed actually show up - CS2's normal speed cap silently clamps it away.
+///
+/// Bug fix: first attempt used CCSPlayerPawn.VelocityModifier (the same mechanism Speedhack/LeadBoots
+/// use) - but that's a flat multiplier applied to ALL movement, including normal ground running, so
+/// it also sped up ordinary walking/running, not just bhop-gained air speed - reported as wrong,
+/// since the point was to stop capping bhop speed, not hand out a general speed boost. Switched to
+/// raising IMoveData.MaxSpeed/ClientMaxSpeed from inside AirAccelerate.Pre instead - that hook only
+/// ever fires during actual air-strafing (never for ground movement), so it structurally cannot
+/// affect normal running speed, only the ceiling on speed gained while airborne.
 /// </summary>
 public sealed class GameModifierBhop : GameModifierBase
 {
@@ -57,9 +62,6 @@ public sealed class GameModifierBhop : GameModifierBase
         Description = "Hold jump to bunny-hop automatically, with no landing speed penalty";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        // Both write CCSPlayerPawn.VelocityModifier every tick - active together, they'd fight over
-        // the same field and produce flickering, inconsistent speed.
-        IncompatibleModifiers = ["Speedhack", "LeadBoots"];
     }
 
     protected override void OnRegistered()
@@ -75,23 +77,16 @@ public sealed class GameModifierBhop : GameModifierBase
     protected override void OnEnabled()
     {
         Core.Event.OnClientKeyStateChanged += OnClientKeyStateChanged;
+        Core.GameHooks.Movement.AirAccelerate.Pre += OnAirAccelerate;
         Core.Event.OnTick += OnGameTick;
     }
 
     protected override void OnDisabled()
     {
         Core.Event.OnClientKeyStateChanged -= OnClientKeyStateChanged;
+        Core.GameHooks.Movement.AirAccelerate.Pre -= OnAirAccelerate;
         Core.Event.OnTick -= OnGameTick;
         _isHoldingSpace.Clear();
-
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
-        {
-            if (IsAssignedTo(player.Slot) && player.PlayerPawn is { } pawn)
-            {
-                pawn.VelocityModifier = 1.0f;
-                pawn.VelocityModifierUpdated();
-            }
-        }
     }
 
     private void OnClientKeyStateChanged(IOnClientKeyStateChangedEvent @event)
@@ -104,6 +99,19 @@ public sealed class GameModifierBhop : GameModifierBase
         _isHoldingSpace[@event.PlayerId] = @event.Pressed;
     }
 
+    private void OnAirAccelerate(ref AirAccelerateMovementPreContext ctx)
+    {
+        var player = ctx.Params.Player;
+        if (player is not { IsValid: true } || !IsAssignedTo(player.Slot))
+        {
+            return;
+        }
+
+        var moveData = ctx.Params.MoveData;
+        moveData.MaxSpeed *= Runtime.Config.Bhop.SpeedMultiplier;
+        moveData.ClientMaxSpeed *= Runtime.Config.Bhop.SpeedMultiplier;
+    }
+
     private void OnGameTick()
     {
         foreach (var player in Core.PlayerManager.GetAllValidPlayers())
@@ -113,19 +121,10 @@ public sealed class GameModifierBhop : GameModifierBase
                 continue;
             }
 
-            if (player.PlayerPawn is { } pawn)
+            if (player.PlayerPawn?.MovementServices is { } movementServices)
             {
-                if (pawn.MovementServices is { } movementServices)
-                {
-                    movementServices.Stamina = 0f;
-                    movementServices.StaminaUpdated();
-                }
-
-                // Walking (IN_SPEED held) is left at 1.0 - same exception Speedhack uses, so
-                // shift-walking stays actually silent instead of also being scaled up.
-                var multiplier = player.PressedButtons.HasFlag(GameButtonFlags.Shift) ? 1.0f : Runtime.Config.Bhop.SpeedMultiplier;
-                pawn.VelocityModifier = multiplier;
-                pawn.VelocityModifierUpdated();
+                movementServices.Stamina = 0f;
+                movementServices.StaminaUpdated();
             }
 
             TryAutoJump(player);
