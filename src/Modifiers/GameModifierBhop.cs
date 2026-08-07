@@ -54,13 +54,15 @@ namespace CSRoll.Modifiers;
 ///
 /// Movement Unlocker patch: on top of all of the above, OnEnabled/OnDisabled additionally
 /// apply/revert a binary patch (see resources/gamedata/signatures.jsonc + patches.jsonc, key
-/// "MovementUnlocker", ported from Fallen-Networks/CS2-MovementUnlocker) that NOPs out CS2's own
-/// native anti-bunnyhop landing-speed-cap check. This is the "real" server-side fix for the same
-/// problem the AirAccelerate.Pre multiplier above is patched around from userland - it doesn't
-/// touch jump timing at all, so genuine bhop skill (jump + air-strafe timing) is still required to
-/// build up any speed from it; it only stops the game clamping that speed back down. The patch has
-/// zero per-player scoping (it's a single process-wide binary edit), so for as long as Bhop is
-/// active it's in effect for every player on the server that round, not just whoever rolled it -
+/// "MovementUnlocker") that NOPs out CS2's own native anti-bunnyhop landing-speed-cap check. This
+/// is the "real" server-side fix for the same problem the AirAccelerate.Pre multiplier above is
+/// patched around from userland - it doesn't touch jump timing at all, so genuine bhop skill
+/// (jump + air-strafe timing) is still required to build up any speed from it; it only stops the
+/// game clamping that speed back down. Bug fix: the bytes originally ported from
+/// Fallen-Networks/CS2-MovementUnlocker failed to resolve at all after a CS2 update - replaced
+/// with Source2ZE/CS2Fixes's actively-maintained equivalent (see signatures.jsonc's comment). The
+/// patch has zero per-player scoping (it's a single process-wide binary edit), so for as long as
+/// Bhop is active it's in effect for every player on the server that round, not just whoever rolled it -
 /// wrapped in try/catch since a CS2 update shifting the underlying bytes would otherwise crash
 /// modifier activation instead of just failing to find the signature.
 /// </summary>

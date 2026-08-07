@@ -2,7 +2,9 @@
     // NOPs the conditional jump found by the "MovementUnlocker" signature above, removing CS2's
     // native landing-speed-cap check entirely (server-wide) for as long as GameModifierBhop is
     // active. Reversible via Core.GameData.RevertPatch, unlike the upstream reference plugin which
-    // only ever applies it once at Load() and never reverts.
+    // only ever applies it once at Load() and never reverts. Bytes match Source2ZE/CS2Fixes's
+    // current "ServerMovementUnlock" patch - see signatures.jsonc's comment for why that's the
+    // source of truth to re-check if this ever goes stale.
     "MovementUnlocker": {
         "signature": "MovementUnlocker",
         "windows": "E9 B0 00 00 00 90",
