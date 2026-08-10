@@ -140,12 +140,33 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 
     private void RollNewWeapon(IPlayer player)
     {
-        _rollingSlots.Add(player.Slot);
+        // Bug fix: without this guard, a second near-simultaneous trigger for the same player (e.g.
+        // an EventPlayerSpawn firing right around !addmodifier/!memodifier applying) started an
+        // independent second spin chain that stomped the first one's SendCenterHTML calls every
+        // tick - the player only ever saw whichever chain's frame landed last, never a clean
+        // animation. HashSet.Add returns false if the slot's already present.
+        if (!_rollingSlots.Add(player.Slot))
+        {
+            return;
+        }
+
         PlaySpin(player.Slot, CSRollUtils.GetRandomMainWeaponName(), 0);
     }
 
     private void PlaySpin(int slot, string finalWeaponName, int frameIndex)
     {
+        // Bug fix: Core.Scheduler.DelayBySeconds callbacks aren't tied to this modifier's lifecycle
+        // at all - without this check, a spin still in flight when the modifier gets disabled
+        // (!removemodifier(s), a random-round rotation ending, etc.) kept running to completion,
+        // stripped+gave a weapon to a player this modifier no longer applied to, and - since
+        // GiveReplacementWeapons re-rolls whenever it finds no cached weapon - could keep re-arming
+        // itself indefinitely. Reported as "stuck rolling forever, even after !removemodifiers".
+        if (!IsActive || !IsAssignedTo(slot))
+        {
+            _rollingSlots.Remove(slot);
+            return;
+        }
+
         if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true } player)
         {
             _rollingSlots.Remove(slot);
