@@ -1,16 +1,1 @@
-{
-    // Used by GameModifierBhop - locates the native anti-bunnyhop landing-speed-cap check inside
-    // the server binary's movement code, so the patch below can NOP it out while Bhop is active.
-    // Bug fix: the original bytes (ported from Fallen-Networks/CS2-MovementUnlocker, captured
-    // 2026-01-28) failed to resolve at all on a live server ("Failed to load signature
-    // MovementUnlocker!") - a CS2 update since then shifted the underlying code. Replaced with the
-    // current values from Source2ZE/CS2Fixes's own gamedata ("ServerMovementUnlock" entry,
-    // github.com/Source2ZE/CS2Fixes/blob/main/gamedata/cs2fixes.jsonc), which is actively kept in
-    // sync with each CS2 update (most recently for the 2026-07-08 update) - a more reliable
-    // long-term source than a single-commit fork. Re-check that file if this ever goes stale again.
-    "MovementUnlocker": {
-        "lib": "server",
-        "windows": "0F 86 AF ? ? ? 0F 57 C0 0F 2E C2",
-        "linux":   "0F 87 ? ? ? ? F3 0F 10 25 ? ? ? ? F3 0F 11 A5 ? ? ? ? 48 89 DE"
-    }
-}
+{}

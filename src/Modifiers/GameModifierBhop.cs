@@ -1,5 +1,7 @@
+using SwiftlyS2.Shared.Convars;
 using SwiftlyS2.Shared.Events;
-using SwiftlyS2.Shared.GameHooks;
+using SwiftlyS2.Shared.GameEventDefinitions;
+using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 
@@ -25,14 +27,15 @@ namespace CSRoll.Modifiers;
 /// exact same failure class as Jetpack's original ProcessMovement.Post floor, just one hook earlier
 /// in the pipeline.
 ///
-/// Third attempt (current): don't touch the movement-hook pipeline at all. Detect "grounded and
-/// holding jump" from Core.Event.OnTick (outside any movement hook, so nothing downstream can
-/// re-process and clobber the write within the same tick) and directly re-assert velocity via
+/// Third attempt: don't touch the movement-hook pipeline at all. Detect "grounded and holding jump"
+/// from Core.Event.OnTick (outside any movement hook, so nothing downstream can re-process and
+/// clobber the write within the same tick) and directly re-assert velocity via
 /// IPlayer.Teleport(velocity: ...) - the exact technique that fixed Jetpack's own hold-to-thrust for
 /// the identical underlying problem. A single real jump (first press) is left completely untouched -
 /// the native CheckJumpButton functions run normally for that, unaffected, since nothing hooks them
 /// anymore; this modifier only re-launches the player on ticks it detects them already grounded
-/// again while still holding jump.
+/// again while still holding jump. Still current - this is the auto-jump half, unrelated to the
+/// speed-cap-removal history below.
 ///
 /// Hold-detection uses Core.Event.OnClientKeyStateChanged (confirmed working for both this and
 /// Jetpack) rather than polling IPlayer.PressedButtons.
@@ -41,36 +44,36 @@ namespace CSRoll.Modifiers;
 /// CCSPlayer_MovementServices.Stamina (a "fatigue" value that rises on each jump and decays over
 /// time) - zeroed every tick for the assigned player so it never accumulates.
 ///
-/// Speed cap: removing the timing skill (auto-relaunch) and the stamina penalty still isn't enough
-/// to let bhop-gained speed actually show up - CS2's normal speed cap silently clamps it away.
+/// Speed cap history: removing the timing skill (auto-relaunch) and the stamina penalty still wasn't
+/// enough to let bhop-gained speed actually show up - CS2's normal speed cap silently clamped it
+/// away. First attempt used CCSPlayerPawn.VelocityModifier (the same mechanism Speedhack/LeadBoots
+/// use) - reported wrong, since that's a flat multiplier on ALL movement, including normal ground
+/// running, not just bhop-gained air speed. Second attempt raised IMoveData.MaxSpeed/ClientMaxSpeed
+/// from inside AirAccelerate.Pre instead (that hook only ever fires while air-strafing, so it
+/// structurally couldn't affect ground speed) - functional, but still just a userland workaround.
+/// Third attempt layered a binary patch on top (ported from Fallen-Networks/CS2-MovementUnlocker,
+/// later re-pointed at Source2ZE/CS2Fixes's actively-maintained equivalent after the original bytes
+/// went stale) that NOPed out the actual native anti-bunnyhop check - the "real" fix, but a single
+/// process-wide edit with zero per-player scoping (in effect for the whole server for the round,
+/// not just whoever rolled it) and permanently exposed to future CS2 updates shifting the bytes again.
 ///
-/// Bug fix: first attempt used CCSPlayerPawn.VelocityModifier (the same mechanism Speedhack/LeadBoots
-/// use) - but that's a flat multiplier applied to ALL movement, including normal ground running, so
-/// it also sped up ordinary walking/running, not just bhop-gained air speed - reported as wrong,
-/// since the point was to stop capping bhop speed, not hand out a general speed boost. Switched to
-/// raising IMoveData.MaxSpeed/ClientMaxSpeed from inside AirAccelerate.Pre instead - that hook only
-/// ever fires during actual air-strafing (never for ground movement), so it structurally cannot
-/// affect normal running speed, only the ceiling on speed gained while airborne.
-///
-/// Movement Unlocker patch: on top of all of the above, OnEnabled/OnDisabled additionally
-/// apply/revert a binary patch (see resources/gamedata/signatures.jsonc + patches.jsonc, key
-/// "MovementUnlocker") that NOPs out CS2's own native anti-bunnyhop landing-speed-cap check. This
-/// is the "real" server-side fix for the same problem the AirAccelerate.Pre multiplier above is
-/// patched around from userland - it doesn't touch jump timing at all, so genuine bhop skill
-/// (jump + air-strafe timing) is still required to build up any speed from it; it only stops the
-/// game clamping that speed back down. Bug fix: the bytes originally ported from
-/// Fallen-Networks/CS2-MovementUnlocker failed to resolve at all after a CS2 update - replaced
-/// with Source2ZE/CS2Fixes's actively-maintained equivalent (see signatures.jsonc's comment). The
-/// patch has zero per-player scoping (it's a single process-wide binary edit), so for as long as
-/// Bhop is active it's in effect for every player on the server that round, not just whoever rolled it -
-/// wrapped in try/catch since a CS2 update shifting the underlying bytes would otherwise crash
-/// modifier activation instead of just failing to find the signature.
+/// Fourth attempt (current): SwiftlyS2's own developers pointed at the actual first-party mechanism -
+/// sv_bunnyhopping is a replicated convar, so IConVar.ReplicateToClientAsString(slot, "1") tells just
+/// the assigned player's client its value is 1 while the real server-wide convar (and every other
+/// player's replicated view of it) is untouched. This is genuinely per-player scoped (unlike the
+/// binary patch) and needs no gamedata/signature maintenance at all - replacing both the
+/// AirAccelerate.Pre multiplier and the MovementUnlocker patch entirely. Reverted the same way
+/// (replicate "0") in OnDisabled, and reapplied on every spawn as a safety net in case a fresh life
+/// resets whatever the client thinks a replicated convar's value currently is.
 /// </summary>
 public sealed class GameModifierBhop : GameModifierBase
 {
-    private const string MovementUnlockerPatch = "MovementUnlocker";
+    private const string BunnyhoppingConVarName = "sv_bunnyhopping";
 
     private readonly Dictionary<int, bool> _isHoldingSpace = [];
+
+    private IConVar? _bunnyhoppingConVar;
+    private Guid _spawnHookId;
 
     public GameModifierBhop()
     {
@@ -93,34 +96,49 @@ public sealed class GameModifierBhop : GameModifierBase
     protected override void OnEnabled()
     {
         Core.Event.OnClientKeyStateChanged += OnClientKeyStateChanged;
-        Core.GameHooks.Movement.AirAccelerate.Pre += OnAirAccelerate;
         Core.Event.OnTick += OnGameTick;
+        _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
-        try
-        {
-            Core.GameData.ApplyPatch(MovementUnlockerPatch);
-        }
-        catch (Exception ex)
-        {
-            Core.Logger.LogError(ex, "[CSRoll] Bhop: failed to apply MovementUnlocker patch - signature may be out of date for this CS2 build.");
-        }
+        _bunnyhoppingConVar ??= Core.ConVar.FindAsString(BunnyhoppingConVarName);
+        SetBunnyhoppingForAssignedPlayers(enabled: true);
     }
 
     protected override void OnDisabled()
     {
         Core.Event.OnClientKeyStateChanged -= OnClientKeyStateChanged;
-        Core.GameHooks.Movement.AirAccelerate.Pre -= OnAirAccelerate;
         Core.Event.OnTick -= OnGameTick;
+        Core.GameEvent.Unhook(_spawnHookId);
         _isHoldingSpace.Clear();
 
-        try
+        SetBunnyhoppingForAssignedPlayers(enabled: false);
+    }
+
+    private void SetBunnyhoppingForAssignedPlayers(bool enabled)
+    {
+        if (_bunnyhoppingConVar is not { } convar)
         {
-            Core.GameData.RevertPatch(MovementUnlockerPatch);
+            Core.Logger.LogError("[CSRoll] Bhop: {ConVar} convar not found - cannot {Action} per-player bunnyhop.", BunnyhoppingConVarName, enabled ? "enable" : "disable");
+            return;
         }
-        catch (Exception ex)
+
+        var value = enabled ? "1" : "0";
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
-            Core.Logger.LogError(ex, "[CSRoll] Bhop: failed to revert MovementUnlocker patch.");
+            if (IsAssignedTo(player.Slot))
+            {
+                convar.ReplicateToClientAsString(player.Slot, value);
+            }
         }
+    }
+
+    private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) && _bunnyhoppingConVar is { } convar)
+        {
+            convar.ReplicateToClientAsString(player.Slot, "1");
+        }
+
+        return HookResult.Continue;
     }
 
     private void OnClientKeyStateChanged(IOnClientKeyStateChangedEvent @event)
@@ -131,19 +149,6 @@ public sealed class GameModifierBhop : GameModifierBase
         }
 
         _isHoldingSpace[@event.PlayerId] = @event.Pressed;
-    }
-
-    private void OnAirAccelerate(ref AirAccelerateMovementPreContext ctx)
-    {
-        var player = ctx.Params.Player;
-        if (player is not { IsValid: true } || !IsAssignedTo(player.Slot))
-        {
-            return;
-        }
-
-        var moveData = ctx.Params.MoveData;
-        moveData.MaxSpeed *= Runtime.Config.Bhop.SpeedMultiplier;
-        moveData.ClientMaxSpeed *= Runtime.Config.Bhop.SpeedMultiplier;
     }
 
     private void OnGameTick()
