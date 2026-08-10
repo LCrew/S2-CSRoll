@@ -8,8 +8,10 @@ namespace CSRoll;
 /// ConVarModifiers/*.cfg-driven modifiers are NOT listed here - they're discovered from disk
 /// by ModifierRuntime.InitialiseCvarModifiers().
 ///
-/// Instance method (not static) because the Phase 1g NavMesh-dependent factories need to
-/// capture _navMeshService, which only exists once the plugin has loaded.
+/// Kept as an instance method (not static) for consistency with the rest of this plugin's
+/// lifecycle-scoped setup, even though no current factory below actually needs to capture instance
+/// state - TeleportOnReload/TeleportOnHit (Phase 1g) used to need _navMeshService, but no longer
+/// depend on NavMesh at all (see GameModifierTeleportNavMesh.cs).
 /// </summary>
 public partial class CSRoll
 {
@@ -24,10 +26,10 @@ public partial class CSRoll
         () => new GameModifierDrunk(),
 
         // Phase 1c
+        // OneInTheChamber removed per explicit request (too close to OnePerReload / broke game feel).
         () => new GameModifierMoreDamage(),
         () => new GameModifierOnePerMag(),
-        () => new GameModifierOneInTheChamber(),
-        () => new GameModifierNoSpread(),
+        () => new GameModifierNoRecoil(),
         () => new GameModifierDropOnMiss(),
         () => new GameModifierDontMiss(),
         () => new GameModifierRandomLoadout(),
@@ -45,8 +47,10 @@ public partial class CSRoll
         () => new GameModifierResetOnReload(),
 
         // Phase 1g
-        () => new GameModifierTeleportOnReload(_navMeshService),
-        () => new GameModifierTeleportOnHit(_navMeshService),
+        // Bug fix: no longer NavMesh-dependent - always teleports to the player's own team spawn now
+        // (a random NavMesh/any-team position could break Wingman maps by landing in the enemy spawn).
+        () => new GameModifierTeleportOnReload(),
+        () => new GameModifierTeleportOnHit(),
 
         // New modifiers: cluster grenades, master zeus, hardhead/ironbody, poison smoke/smoke immunity
         () => new GameModifierClusterGrenades(),

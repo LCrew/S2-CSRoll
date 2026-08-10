@@ -5,30 +5,30 @@
   <p>A chaos-mod style "game modifiers" plugin for CS2, built on <a href="https://swiftlys2.net">SwiftlyS2</a>.</p>
 </div>
 
-Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Speedhack, One In The Chamber, or Kamikaze - that apply for a round, a set number of rounds, or the whole match, either server-wide or scoped to individual players.
+Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Speedhack, MasterZeus, or Kamikaze - that apply for a round, a set number of rounds, or the whole match, either server-wide or scoped to individual players.
 
 ## Modifier List
 
 | Modifier | Description |
 | --- | --- |
-| Cluster Grenades | Grenades spawn a mini cluster of grenades when they detonate |
+| Cluster Grenades | Grenades spawn 1-4 mini grenades when they detonate (configurable) |
 | Kamikaze | On death, drops 3 (configurable) grenades near your body that explode for 1.25x (configurable) HE damage |
 | Conditional Invisibility | You are invisible while silent - any sound briefly reveals you |
 | Full Invisibility | You are always invisible, knife only, can't buy or pick up weapons |
 | Drunk | Left and right movement (A/D) is mirrored |
-| Juggernaut | Max health is set to 500 |
+| Juggernaut | Max health is set to 300 |
 | Random Health | Health is set to a random number |
 | Flashing Bullets | Random chance for a bullet hit to blind the enemy |
 | Disarming Bullets | Random chance to disarm an enemy hit by your bullets |
 | Hard Head | Cannot be damaged by headshots - body damage only |
 | Butterfingers | Weapons are dropped on missed shots |
-| Boomerang Bullets | You take the damage from your missed shots |
+| Boomerang Bullets | You take the damage from your missed shots - extra health to compensate |
 | Steel Body | Can only be damaged by headshots or utility (HE/molotov) |
-| More Damage | Damage dealt is doubled |
+| More Damage | Damage dealt is increased by 33% |
 | Revive | Random chance to survive lethal damage, shrinking with each revive |
 | Small Players | You are 2x smaller |
 | Poisonous Smoke | Your thrown smokes deal damage to enemies standing in them, and grants a smoke grenade |
-| Longer Flashes | Flash bang effect lasts 3 times longer |
+| Longer Flashes | Flash bang effect lasts 3x longer (configurable) |
 | Chinese Grenades | Timers on flashes, HE's and smokes are randomized |
 | Gay Smokes | Smoke colors are randomized |
 | Swap On Death | You will swap places on kill |
@@ -39,11 +39,10 @@ Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Spee
 | Vampire | You steal the damage you deal |
 | Saint | Random chance for a kill to revive a dead teammate |
 | Speedhack | You are really fast |
-| Teleport On Reload | You are teleported to a random spot on reload |
-| Teleport On Hit | You are teleported to a random spot on hit |
+| Teleport On Reload | You are teleported to your spawn on reload |
+| Teleport On Hit | You are teleported to your spawn on hit |
 | One Per Reload | 1 bullet per reload |
-| One In The Chamber | 1 bullet per kill |
-| No Spread | Weapons have perfect aim |
+| No Recoil | Weapons have no recoil |
 | Wallhack | Free cheats, for free - VAC SAFE |
 | Random Loadout | Buy menu is disabled - random main weapon, pistol and grenades (sometimes with armor) |
 | Walking Grenadier | You can't shoot, but you've got UNLIMITED HE grenades |

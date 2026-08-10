@@ -110,6 +110,15 @@ public class CSRollConfig
 
     /// <summary>Tunables for the DodgyGrenades ("Chinese Grenades") modifier (randomized fuse timer range applied to HE/flashbang/smoke).</summary>
     public DodgyGrenadesConfig DodgyGrenades { get; set; } = new();
+
+    /// <summary>Tunables for the DontMiss ("Boomerang Bullets") modifier (bonus max health so a heavy weapon's self-damage on a miss doesn't one-shot the player).</summary>
+    public DontMissConfig DontMiss { get; set; } = new();
+
+    /// <summary>Tunables for the LongerFlashes modifier (blind-duration multiplier applied to the assigned player's own flashbang throws).</summary>
+    public LongerFlashesConfig LongerFlashes { get; set; } = new();
+
+    /// <summary>Tunables for the ClusterGrenades modifier (min/max mini-grenade count rolled per detonation).</summary>
+    public ClusterGrenadesConfig ClusterGrenades { get; set; } = new();
 }
 
 public class ConditionalInvisibilityConfig
@@ -145,6 +154,16 @@ public class RandomHealthConfig
 
     /// <summary>Highest possible health value that can be rolled (inclusive).</summary>
     public int MaxHealth { get; set; } = 250;
+}
+
+public class DontMissConfig
+{
+    /// <summary>
+    /// Max health granted to the assigned player while active, restored to normal on disable -
+    /// self-inflicted damage from a full-damage weapon (AWP, etc.) on a miss could otherwise
+    /// one-shot the player at the base 100 HP, reported as dying far too quickly to actually play.
+    /// </summary>
+    public int BonusHealth { get; set; } = 250;
 }
 
 public class LeadBootsConfig
@@ -213,7 +232,7 @@ public class IncreasedSpreadConfig
     /// essentially at random regardless of aim, reported as far too strong. Lowered to a value that
     /// still clearly and noticeably worsens accuracy without making the weapon unusable.
     /// </summary>
-    public float AccuracyPenalty { get; set; } = 2f;
+    public float AccuracyPenalty { get; set; } = 1.15f;
 }
 
 public class PoisonSmokeConfig
@@ -247,6 +266,26 @@ public class DisarmingBulletsConfig
     /// </summary>
     public float MinChancePercent { get; set; } = 1f;
     public float MaxChancePercent { get; set; } = 20f;
+}
+
+public class LongerFlashesConfig
+{
+    /// <summary>
+    /// Multiplier applied to a flashbang's own naturally-computed blind duration for the assigned
+    /// player's throws. Bug fix: this used to ignore the natural duration entirely and set a flat
+    /// random 2-10s regardless of the flash's real strength/distance - not actually a multiplier at
+    /// all, despite the modifier's own description claiming "3 times longer".
+    /// </summary>
+    public float DurationMultiplier { get; set; } = 3.0f;
+}
+
+public class ClusterGrenadesConfig
+{
+    /// <summary>Fewest mini grenades a detonation can split into (inclusive).</summary>
+    public int MinClusterCount { get; set; } = 1;
+
+    /// <summary>Most mini grenades a detonation can split into (inclusive) - rolled fresh per detonation, so one HE could split into 2 while a smoke thrown moments later splits into 4.</summary>
+    public int MaxClusterCount { get; set; } = 4;
 }
 
 public class KamikazeConfig

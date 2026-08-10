@@ -1,6 +1,3 @@
-using SwiftlyS2.Shared.GameEventDefinitions;
-using SwiftlyS2.Shared.GameHooks;
-using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
@@ -38,7 +35,7 @@ public sealed class GameModifierOnePerMag : GameModifierBase
         Description = "1 bullet per reload";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["OneInTheChamber", "InfiniteAmmo"];
+        IncompatibleModifiers = ["InfiniteAmmo"];
     }
 
     protected override void OnEnabled()
@@ -76,153 +73,59 @@ public sealed class GameModifierOnePerMag : GameModifierBase
 }
 
 /// <summary>
-/// 1 bullet per kill - every weapon the assigned player ever holds is limited to a single chambered
-/// round, hugely amplified damage compensates for the near-empty clip.
-///
-/// Bug fix: the 1-bullet restriction used to be applied only once, to whatever weapons the player
-/// already held at the moment this modifier activated - a weapon bought or picked up afterwards kept
-/// its normal full clip/reserve untouched. Ammo was also fully drained to 0 reserve with no way to
-/// top back up except landing a hit (which grants +1 reserve) - miss your one shot and you were
-/// stuck with a permanently empty weapon for the rest of your life, unable to ever fire again. Fixed
-/// per explicit request: an EventItemEquip hook now re-applies the 1-bullet clip to every weapon the
-/// player touches (buy, pickup, or switch), and an EventWeaponReload hook always tops the clip back
-/// up to 1 regardless of reserve ammo - "unlimited magazines" - so reloading after a miss always
-/// works instead of only ever gaining ammo back via a landed hit.
-/// </summary>
-public sealed class GameModifierOneInTheChamber : GameModifierBase
-{
-    private const float DamageMultiplier = 10.0f;
-    private Guid _equipHookId;
-    private Guid _reloadHookId;
-
-    public GameModifierOneInTheChamber()
-    {
-        Name = "OneInTheChamber";
-        Description = "1 bullet per kill";
-        SupportsRandomRounds = true;
-        SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["OnePerReload", "InfiniteAmmo"];
-    }
-
-    protected override void OnEnabled()
-    {
-        Core.GameHooks.Entities.TakeDamage.Pre += OnTakeDamage;
-        _equipHookId = Core.GameEvent.HookPost<EventItemEquip>(OnItemEquip);
-        _reloadHookId = Core.GameEvent.HookPost<EventWeaponReload>(OnWeaponReload);
-
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
-        {
-            if (!IsAssignedTo(player.Slot) || player.PlayerPawn?.WeaponServices is not { } weaponServices)
-            {
-                continue;
-            }
-
-            foreach (var weapon in weaponServices.MyValidWeapons)
-            {
-                ApplyWeaponModifier(weapon);
-            }
-        }
-    }
-
-    protected override void OnDisabled()
-    {
-        Core.GameHooks.Entities.TakeDamage.Pre -= OnTakeDamage;
-        Core.GameEvent.Unhook(_equipHookId);
-        Core.GameEvent.Unhook(_reloadHookId);
-    }
-
-    private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
-    {
-        if (!IsAssignedTo(CSRollUtils.GetPlayerFromEntityHandle(Core, ctx.Params.Info.Attacker)?.Slot ?? -1))
-        {
-            return;
-        }
-
-        ctx.Params.Info.Damage *= DamageMultiplier;
-    }
-
-    private HookResult OnItemEquip(EventItemEquip @event)
-    {
-        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
-            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
-        {
-            ApplyWeaponModifier(weapon);
-        }
-
-        return HookResult.Continue;
-    }
-
-    private HookResult OnWeaponReload(EventWeaponReload @event)
-    {
-        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) &&
-            player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
-        {
-            // "Unlimited magazines": every reload tops the chamber back up to exactly 1 round
-            // regardless of reserve ammo, rather than draining reserve to 0 and leaving the player
-            // with no way to ever reload again after their one shot.
-            ApplyWeaponModifier(weapon);
-        }
-
-        return HookResult.Continue;
-    }
-
-    private static void ApplyWeaponModifier(CBasePlayerWeapon weapon)
-    {
-        weapon.Clip1 = 1;
-        weapon.Clip1Updated();
-        weapon.Clip2 = 0;
-        weapon.Clip2Updated();
-        weapon.ReserveAmmo[0] = 0;
-        weapon.ReserveAmmoUpdated();
-    }
-}
-
-/// <summary>
-/// Cancels aim punch (recoil kick-back) on every shot for perfect aim.
+/// Cancels aim punch (recoil kick-back) every tick for perfect aim, for whatever weapon is
+/// currently held - not tied to any single weapon type.
 ///
 /// Bug fix: this also used to have a bolt-on ModifierConfig/NoSpread.cfg setting the server-wide
 /// weapon_accuracy_nospread cvar to true - completely redundant with (and worse than) the per-player
 /// aim-punch cancellation below, since it silently gave every connected player perfect accuracy the
-/// instant this modifier activated for anyone, not just the assigned player. Deleted; the hook below
-/// was already sufficient on its own.
+/// instant this modifier activated for anyone, not just the assigned player. Deleted.
+///
+/// Renamed from NoSpread to NoRecoil (more accurate name - this cancels the recoil kick-back, not
+/// bullet spread) and switched from an EventWeaponFire hook (reset once, right after each shot) to
+/// a Core.Event.OnTick loop that continuously zeroes aim punch for every assigned+alive player every
+/// tick, regardless of which weapon they're holding - more thorough than resetting only at the
+/// instant of firing, and doesn't need any per-weapon-type branching since AimPunchServices lives on
+/// the player pawn, not the weapon. Also now clears UnpredictableBaseAngle alongside the three
+/// Predictable* fields the old version reset - the full set CCSPlayer_AimPunchServices exposes.
 /// </summary>
-public sealed class GameModifierNoSpread : GameModifierBase
+public sealed class GameModifierNoRecoil : GameModifierBase
 {
-    private Guid _fireHookId;
-
-    public GameModifierNoSpread()
+    public GameModifierNoRecoil()
     {
-        Name = "NoSpread";
-        Description = "Weapons have perfect aim";
+        Name = "NoRecoil";
+        Description = "Weapons have no recoil";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }
 
     protected override void OnEnabled()
     {
-        _fireHookId = Core.GameEvent.HookPost<EventWeaponFire>(OnWeaponFire);
+        Core.Event.OnTick += CancelAimPunch;
     }
 
     protected override void OnDisabled()
     {
-        Core.GameEvent.Unhook(_fireHookId);
+        Core.Event.OnTick -= CancelAimPunch;
     }
 
-    private HookResult OnWeaponFire(EventWeaponFire @event)
+    private void CancelAimPunch()
     {
-        if (@event.UserIdPlayer is not { IsValid: true } player || !IsAssignedTo(player.Slot) ||
-            @event.UserIdPawn?.AimPunchServices is not { } aimPunch)
+        foreach (var player in Core.PlayerManager.GetAlive())
         {
-            return HookResult.Continue;
+            if (!IsAssignedTo(player.Slot) || player.PlayerPawn?.AimPunchServices is not { } aimPunch)
+            {
+                continue;
+            }
+
+            aimPunch.PredictableBaseAngle = default;
+            aimPunch.PredictableBaseAngleUpdated();
+            aimPunch.PredictableBaseAngleVel = default;
+            aimPunch.PredictableBaseAngleVelUpdated();
+            aimPunch.PredictableBaseTickInterpAmount = 0f;
+            aimPunch.PredictableBaseTickInterpAmountUpdated();
+            aimPunch.UnpredictableBaseAngle = default;
+            aimPunch.UnpredictableBaseAngleUpdated();
         }
-
-        aimPunch.PredictableBaseAngle = default;
-        aimPunch.PredictableBaseAngleVelUpdated();
-        aimPunch.PredictableBaseAngleVel = default;
-        aimPunch.PredictableBaseAngleUpdated();
-        aimPunch.PredictableBaseTickInterpAmount = 0f;
-        aimPunch.PredictableBaseTickInterpAmountUpdated();
-
-        return HookResult.Continue;
     }
 }

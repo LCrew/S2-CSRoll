@@ -40,10 +40,10 @@ public sealed class GameModifierMoreDamage : GameModifierDamageMultiplier
     public GameModifierMoreDamage()
     {
         Name = "MoreDamage";
-        Description = "Damage dealt is doubled";
+        Description = "Damage dealt is increased by 33%";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }
 
-    protected override float GetDamageMultiplier() => 2.0f;
+    protected override float GetDamageMultiplier() => 1.33f;
 }

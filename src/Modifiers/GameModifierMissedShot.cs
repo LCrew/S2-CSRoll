@@ -124,15 +124,97 @@ public sealed class GameModifierDropOnMiss : GameModifierMissedShot
     }
 }
 
+/// <summary>
+/// Bug fix: a missed shot deals the weapon's full listed damage to the shooter themselves - fine for
+/// something like a pistol, but a single missed AWP/auto-sniper shot could one-shot the player
+/// outright at the base 100 HP, reported as dying far too quickly to meaningfully play the modifier.
+/// Config.DontMiss.BonusHealth (default 250) is granted on activation and every spawn, restored to
+/// normal on disable, giving enough of a buffer to survive a miss or two with a heavy weapon.
+/// </summary>
 public sealed class GameModifierDontMiss : GameModifierMissedShot
 {
+    private readonly Dictionary<int, int> _cachedOriginalMaxHealth = [];
+    private Guid _spawnHookId;
+
     public GameModifierDontMiss()
     {
         Name = "DontMiss";
-        Description = "You take the damage from your missed shots";
+        Description = "You take the damage from your missed shots - extra health to compensate";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = ["DropOnMiss"];
+    }
+
+    protected override void OnEnabled()
+    {
+        base.OnEnabled();
+
+        _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
+
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        {
+            if (IsAssignedTo(player.Slot))
+            {
+                ApplyBonusHealth(player);
+            }
+        }
+    }
+
+    protected override void OnDisabled()
+    {
+        Core.GameEvent.Unhook(_spawnHookId);
+
+        foreach (var slot in _cachedOriginalMaxHealth.Keys.ToList())
+        {
+            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } player)
+            {
+                RestoreHealth(player);
+            }
+        }
+
+        _cachedOriginalMaxHealth.Clear();
+
+        base.OnDisabled();
+    }
+
+    private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot))
+        {
+            ApplyBonusHealth(player);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private void ApplyBonusHealth(IPlayer player)
+    {
+        if (player.PlayerPawn is not { } pawn)
+        {
+            return;
+        }
+
+        _cachedOriginalMaxHealth[player.Slot] = pawn.MaxHealth;
+
+        var health = Runtime.Config.DontMiss.BonusHealth;
+        pawn.MaxHealth = health;
+        pawn.MaxHealthUpdated();
+        pawn.Health = health;
+        pawn.HealthUpdated();
+    }
+
+    private void RestoreHealth(IPlayer player)
+    {
+        if (player.PlayerPawn is not { } pawn)
+        {
+            return;
+        }
+
+        var originalMaxHealth = _cachedOriginalMaxHealth.TryGetValue(player.Slot, out var cached) ? cached : 100;
+        pawn.MaxHealth = originalMaxHealth;
+        pawn.MaxHealthUpdated();
+        pawn.Health = Math.Min(pawn.Health, originalMaxHealth);
+        pawn.HealthUpdated();
     }
 
     protected override void OnMissedShot(IPlayer player)

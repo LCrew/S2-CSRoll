@@ -2,28 +2,24 @@ using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
 
 using CSRoll.Core;
-using CSRoll.Services.Interfaces;
 
 namespace CSRoll.Modifiers;
 
 /// <summary>
-/// These two modifiers prefer INavMeshService's true random-nav-area positions, but no longer
-/// depend on the signature scan succeeding: if IsAvailable is false (scan failed, or
-/// EnableNavMeshTeleports is off), GetRandomPosition() returns null and each hook falls back to
-/// CSRollUtils.GetRandomSpawnLocation() - a plain random T/CT spawn point, always
-/// available. That keeps these registered and testable even on a CS2 build whose binary
-/// doesn't match the NavMesh signatures, at the cost of less varied teleport destinations.
+/// Bug fix: these two used to teleport to a random NavMesh position (or, failing that, a random T
+/// OR CT spawn, whichever team) - reported live as breaking Wingman maps, where a teleport into the
+/// wrong team's small spawn room is a serious, round-ending problem, not just a curiosity. Always
+/// teleporting to a random spawn point belonging to the player's OWN team (CSRollUtils.GetSpawnLocation
+/// with their actual Team) removes both the NavMesh dependency and the wrong-team-spawn risk entirely.
 /// </summary>
 public sealed class GameModifierTeleportOnReload : GameModifierBase
 {
-    private readonly INavMeshService _navMesh;
     private Guid _reloadHookId;
 
-    public GameModifierTeleportOnReload(INavMeshService navMesh)
+    public GameModifierTeleportOnReload()
     {
-        _navMesh = navMesh;
         Name = "TeleportOnReload";
-        Description = "Players are teleported to a random spot on reload";
+        Description = "Players are teleported to their spawn on reload";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
@@ -44,15 +40,15 @@ public sealed class GameModifierTeleportOnReload : GameModifierBase
 
     private HookResult OnPlayerReload(EventWeaponReload @event)
     {
-        if (@event.UserIdPlayer is not { IsValid: true, IsAlive: true } player || !IsAssignedTo(player.Slot))
+        if (@event.UserIdPlayer is not { IsValid: true, IsAlive: true } player || !IsAssignedTo(player.Slot) ||
+            player.Controller is not { IsValid: true } controller)
         {
             return HookResult.Continue;
         }
 
-        var position = _navMesh.GetRandomPosition() ?? CSRollUtils.GetRandomSpawnLocation(Core);
-        if (position is { } pos)
+        if (CSRollUtils.GetSpawnLocation(Core, controller.Team) is { } position)
         {
-            CSRollUtils.TeleportPlayer(Core, player, pos);
+            CSRollUtils.TeleportPlayer(Core, player, position);
         }
 
         return HookResult.Continue;
@@ -61,14 +57,12 @@ public sealed class GameModifierTeleportOnReload : GameModifierBase
 
 public sealed class GameModifierTeleportOnHit : GameModifierBase
 {
-    private readonly INavMeshService _navMesh;
     private Guid _hurtHookId;
 
-    public GameModifierTeleportOnHit(INavMeshService navMesh)
+    public GameModifierTeleportOnHit()
     {
-        _navMesh = navMesh;
         Name = "TeleportOnHit";
-        Description = "Players are teleported to a random spot on hit";
+        Description = "Players are teleported to their spawn on hit";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
@@ -89,15 +83,15 @@ public sealed class GameModifierTeleportOnHit : GameModifierBase
 
     private HookResult OnPlayerHurt(EventPlayerHurt @event)
     {
-        if (@event.UserIdPlayer is not { IsValid: true, IsAlive: true } player || !IsAssignedTo(player.Slot))
+        if (@event.UserIdPlayer is not { IsValid: true, IsAlive: true } player || !IsAssignedTo(player.Slot) ||
+            player.Controller is not { IsValid: true } controller)
         {
             return HookResult.Continue;
         }
 
-        var position = _navMesh.GetRandomPosition() ?? CSRollUtils.GetRandomSpawnLocation(Core);
-        if (position is { } pos)
+        if (CSRollUtils.GetSpawnLocation(Core, controller.Team) is { } position)
         {
-            CSRollUtils.TeleportPlayer(Core, player, pos);
+            CSRollUtils.TeleportPlayer(Core, player, position);
         }
 
         return HookResult.Continue;

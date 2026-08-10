@@ -14,7 +14,7 @@
   // safe to leave any of these as-is or delete a line entirely.
 
   "ClusterGrenades.DisplayName": "Cluster Grenades",
-  "ClusterGrenades.Description": "Grenades spawn a mini cluster of grenades when they detonate",
+  "ClusterGrenades.Description": "Grenades spawn [green]{count}[default] mini grenades when they detonate",
 
   // Kamikaze's grenade count and damage multiplier are config-driven (Kamikaze.GrenadeCount/
   // DamageMultiplier in config.jsonc) - tokens "{count}"/"{mult}" get substituted with the live
@@ -32,7 +32,7 @@
   "Drunk.Description": "Left and right movement (A/D) is mirrored",
 
   "Juggernaut.DisplayName": "Juggernaut",
-  "Juggernaut.Description": "Max health is set to 500",
+  "Juggernaut.Description": "Max health is set to 300",
 
   "RandomHealth.DisplayName": "Random Health",
   "RandomHealth.Description": "Health is set to a random number",
@@ -58,13 +58,13 @@
   "DropOnMiss.Description": "Weapons are dropped on missed shots",
 
   "DontMiss.DisplayName": "Boomerang Bullets",
-  "DontMiss.Description": "You take the damage from your missed shots",
+  "DontMiss.Description": "You take the damage from your missed shots - extra health to compensate",
 
   "IronBody.DisplayName": "Steel Body",
   "IronBody.Description": "Can only be damaged by headshots or utility (HE/molotov)",
 
   "MoreDamage.DisplayName": "More Damage",
-  "MoreDamage.Description": "Damage dealt is doubled",
+  "MoreDamage.Description": "Damage dealt is increased by 33%",
 
   "Revive.DisplayName": "Revive",
   "Revive.Description": "[green]{rand%}[default] chance to survive lethal damage, shrinking with each revive",
@@ -76,7 +76,7 @@
   "PoisonSmoke.Description": "Your thrown smokes deal damage to enemies standing in them",
 
   "LongerFlashes.DisplayName": "Longer Flashes",
-  "LongerFlashes.Description": "Flash bang effect lasts 3 times longer",
+  "LongerFlashes.Description": "Flash bang effect lasts [green]{mult}[default] longer",
 
   "DodgyGrenades.DisplayName": "Chinese Grenades",
   "DodgyGrenades.Description": "Timers on flashes, HE's and smokes are randomized",
@@ -109,19 +109,16 @@
   "Speedhack.Description": "You are really fast",
 
   "TeleportOnReload.DisplayName": "Teleport On Reload",
-  "TeleportOnReload.Description": "You are teleported to a random spot on reload",
+  "TeleportOnReload.Description": "You are teleported to your spawn on reload",
 
   "TeleportOnHit.DisplayName": "Teleport On Hit",
-  "TeleportOnHit.Description": "You are teleported to a random spot on hit",
+  "TeleportOnHit.Description": "You are teleported to your spawn on hit",
 
   "OnePerReload.DisplayName": "One Per Reload",
   "OnePerReload.Description": "1 bullet per reload",
 
-  "OneInTheChamber.DisplayName": "One In The Chamber",
-  "OneInTheChamber.Description": "1 bullet per kill",
-
-  "NoSpread.DisplayName": "No Spread",
-  "NoSpread.Description": "Weapons have perfect aim",
+  "NoRecoil.DisplayName": "No Recoil",
+  "NoRecoil.Description": "Weapons have no recoil",
 
   "Wallhack.DisplayName": "Wallhack",
   "Wallhack.Description": "Free cheats, for free - [red]VAC SAFE[default]",

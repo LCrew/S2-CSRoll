@@ -34,11 +34,13 @@ namespace CSRoll.Modifiers;
 ///   triggered a cluster from is treated as one of the minis and ignored. Minis are flung a short
 ///   distance and detonate on impact almost immediately, so this window comfortably covers a
 ///   mini's lifetime without meaningfully blocking a genuine second real throw.
+///
+/// Cluster count is config-tunable (Config.ClusterGrenades.Min/MaxClusterCount, 1-4 by default) and
+/// rolled fresh per detonation, not once per activation - one HE could split into 2 minis while a
+/// smoke thrown moments later by the same player splits into 4.
 /// </summary>
 public sealed class GameModifierClusterGrenades : GameModifierBase
 {
-    private const int MinClusterCount = 2;
-    private const int MaxClusterCount = 3;
     private const float ClusterSpeed = 250f;
     private const float MolotovRecursionGuardSeconds = 1.5f;
 
@@ -48,10 +50,17 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
     private Guid _molotovHookId;
     private Guid _smokeHookId;
 
+    public override IReadOnlyDictionary<string, string>? DynamicTextTokens => new Dictionary<string, string>
+    {
+        ["count"] = $"{Runtime.Config.ClusterGrenades.MinClusterCount}-{Runtime.Config.ClusterGrenades.MaxClusterCount}",
+    };
+
+    public override string Description =>
+        $"Grenades spawn {Runtime.Config.ClusterGrenades.MinClusterCount}-{Runtime.Config.ClusterGrenades.MaxClusterCount} mini grenades when they detonate";
+
     public GameModifierClusterGrenades()
     {
         Name = "ClusterGrenades";
-        Description = "Grenades spawn a mini cluster of grenades when they detonate";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }
@@ -123,7 +132,7 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
         }
 
         var team = thrower.Controller?.Team ?? Team.None;
-        var count = Random.Shared.Next(MinClusterCount, MaxClusterCount + 1);
+        var count = Random.Shared.Next(Runtime.Config.ClusterGrenades.MinClusterCount, Runtime.Config.ClusterGrenades.MaxClusterCount + 1);
         for (var i = 0; i < count; i++)
         {
             SpawnMiniGrenade(designerName, position, throwerPawn, team);

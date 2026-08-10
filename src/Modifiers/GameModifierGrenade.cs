@@ -10,15 +10,29 @@ using CSRoll.Core;
 
 namespace CSRoll.Modifiers;
 
-/// <summary>Flashbangs blind for a randomized, longer duration.</summary>
+/// <summary>
+/// Flashbangs the assigned player throws blind for longer.
+///
+/// Bug fix: this used to ignore the flash's own naturally-computed blind duration entirely and set a
+/// flat random 2-10s regardless of throw distance/angle - not actually a multiplier at all, despite
+/// the description's "3 times longer" claim. Now reads @event.BlindDuration (the engine's own
+/// already-computed value at the moment this Pre hook fires, before it's overwritten below) and
+/// multiplies it by the config-tunable DurationMultiplier - a real multiplier of the natural duration.
+/// </summary>
 public sealed class GameModifierLongerFlashes : GameModifierBase
 {
     private Guid _blindHookId;
 
+    public override IReadOnlyDictionary<string, string>? DynamicTextTokens => new Dictionary<string, string>
+    {
+        ["mult"] = $"{Runtime.Config.LongerFlashes.DurationMultiplier:0.##}x",
+    };
+
+    public override string Description => $"Flash bang effect lasts {Runtime.Config.LongerFlashes.DurationMultiplier:0.##}x longer";
+
     public GameModifierLongerFlashes()
     {
         Name = "LongerFlashes";
-        Description = "Flash bang effect lasts 3 times longer";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }
@@ -40,7 +54,7 @@ public sealed class GameModifierLongerFlashes : GameModifierBase
             return HookResult.Continue;
         }
 
-        var duration = 1.0f + Random.Shared.Next(1, 10);
+        var duration = @event.BlindDuration * Runtime.Config.LongerFlashes.DurationMultiplier;
         @event.BlindDuration = duration;
 
         pawn.FlashDuration = duration;
@@ -154,7 +168,19 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
     }
 }
 
-/// <summary>Smoke grenades pop in a random color.</summary>
+/// <summary>
+/// Smoke grenades pop in a random color.
+///
+/// Bug fix: with RandomizePlayers on (the default), the automatic per-round rotation only ever pulls
+/// from the SupportsPerPlayerRandomization pool - a prior "supplementary global roll" that used to
+/// also consider global-only modifiers like this one every round was removed entirely (see
+/// ModifierRuntime.ApplyRandomRoundsForRound's own comment), so with SupportsPerPlayerRandomization
+/// false this could only ever appear via an explicit admin !addmodifier/!addrandommodifier - reported
+/// live as "I've never rolled this, is this rollable even?" Flipped to true: the modifier's own
+/// IsAssignedTo(thrower) check already scopes the color-swap to just the assigned player's throws
+/// regardless, so per-player assignment isn't the redundant no-op the old comment assumed - it's
+/// exactly what makes this reachable through the normal rotation at all.
+/// </summary>
 public sealed class GameModifierRainbowSmokes : GameModifierBase
 {
     private static readonly Vector[] Colors =
@@ -169,11 +195,7 @@ public sealed class GameModifierRainbowSmokes : GameModifierBase
         Name = "RainbowSmokes";
         Description = "Smokes colors are randomized";
         SupportsRandomRounds = true;
-        // Not per-player randomizable: the visible effect (a smoke pops in a random color) reads as
-        // a global cosmetic quirk to every observer regardless of which specific player's roll
-        // triggered it - rolling it per-player just duplicates the same experience for no
-        // distinguishable per-player difference.
-        SupportsPerPlayerRandomization = false;
+        SupportsPerPlayerRandomization = true;
     }
 
     protected override void OnEnabled()

@@ -19,7 +19,7 @@ public sealed class GameModifierIncreasedSpread : GameModifierBase
         Description = "Your bullets go where they want now";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["NoSpread"];
+        IncompatibleModifiers = ["NoRecoil"];
     }
 
     protected override void OnEnabled()

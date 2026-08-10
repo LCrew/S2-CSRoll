@@ -146,6 +146,22 @@ public static class CSRollUtils
         "weapon_m249", "weapon_negev",
     ];
 
+    /// <summary>
+    /// Bug fix: GetRandomMainWeaponName used to pick uniformly across all 24 entries above - reported
+    /// live as feeling like it favored auto-snipers/AUG/SSG (all 1-in-24 like everything else, but
+    /// the less exciting picks are simply the majority of the list). These four "meta" rifles get 3x
+    /// the weight of everything else (AK47/M4A4/M4A1-S/AWP: 3 each = 12 of a 32 total, vs 1 each for
+    /// the other 20) - noticeably more likely to come up, without making them guaranteed or removing
+    /// any weapon from the pool entirely.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, int> MainWeaponWeights = new Dictionary<string, int>
+    {
+        ["weapon_ak47"] = 3,
+        ["weapon_m4a1"] = 3,
+        ["weapon_m4a1_silencer"] = 3,
+        ["weapon_awp"] = 3,
+    };
+
     /// <summary>"weapon_incendiary" is a marker, not a real item name - molotov/incendiary is the same grenade under two team-restricted classnames, resolved via ResolveGrenadeName right before it's actually given.</summary>
     public static readonly IReadOnlyList<string> GrenadeNames =
     [
@@ -154,7 +170,23 @@ public static class CSRollUtils
 
     public static string GetRandomPistolName() => PistolNames[Random.Shared.Next(PistolNames.Count)];
 
-    public static string GetRandomMainWeaponName() => MainWeaponNames[Random.Shared.Next(MainWeaponNames.Count)];
+    public static string GetRandomMainWeaponName()
+    {
+        var totalWeight = MainWeaponNames.Sum(name => MainWeaponWeights.GetValueOrDefault(name, 1));
+        var roll = Random.Shared.Next(totalWeight);
+
+        var cumulative = 0;
+        foreach (var name in MainWeaponNames)
+        {
+            cumulative += MainWeaponWeights.GetValueOrDefault(name, 1);
+            if (roll < cumulative)
+            {
+                return name;
+            }
+        }
+
+        return MainWeaponNames[^1];
+    }
 
     public static List<string> GetRandomGrenadeNames(int count)
     {
