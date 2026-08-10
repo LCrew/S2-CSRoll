@@ -33,7 +33,7 @@ public sealed class GameModifierPoisonSmoke : GameModifierBase
     public GameModifierPoisonSmoke()
     {
         Name = "PoisonSmoke";
-        Description = "Your thrown smokes deal damage to enemies standing in them";
+        Description = "Your thrown smokes deal damage to enemies standing in them, and grants a smoke grenade";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }

@@ -85,6 +85,15 @@ public abstract class GameModifierBase
         _assignedSlots.UnionWith(slots);
     }
 
+    /// <summary>
+    /// Bug fix: player slots are small, reused indices - if an assigned player disconnects while
+    /// this modifier is still active and a new player connects into that freed slot before the
+    /// modifier deactivates, IsAssignedTo(slot) had no way to know the slot changed hands, so the
+    /// newcomer silently inherited the effect. ModifierRuntime calls this for every active modifier
+    /// on every disconnect so a freed slot is never still "owned" by anyone.
+    /// </summary>
+    internal void RemoveAssignedSlot(int slot) => _assignedSlots.Remove(slot);
+
     internal void Deactivate()
     {
         OnDisabled();

@@ -33,7 +33,6 @@ Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Spee
 | Gay Smokes | Smoke colors are randomized |
 | Swap On Death | You will swap places on kill |
 | Swap On Hit | You will swap places on hit |
-| Reset On Reload | Players are teleported to spawn on reload |
 | Master Zeus | Zeus recharges much faster and hits at very long range, granted automatically on spawn |
 | Smoke Immunity | Smokes are invisible |
 | Vampire | You steal the damage you deal |

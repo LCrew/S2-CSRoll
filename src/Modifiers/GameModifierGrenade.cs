@@ -193,7 +193,7 @@ public sealed class GameModifierRainbowSmokes : GameModifierBase
     public GameModifierRainbowSmokes()
     {
         Name = "RainbowSmokes";
-        Description = "Smokes colors are randomized";
+        Description = "Smoke colors are randomized";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }

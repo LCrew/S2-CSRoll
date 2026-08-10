@@ -1,3 +1,4 @@
+using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Natives;
@@ -71,6 +72,18 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
     }
 
     protected override bool CheckHidePlayer(IPlayer player) => IsAssignedTo(player.Slot) && IsSilent(player.Slot);
+
+    protected override void OnRegistered()
+    {
+        base.OnRegistered();
+        Core.Event.OnClientDisconnected += OnClientDisconnected;
+    }
+
+    protected override void OnUnregistered()
+    {
+        Core.Event.OnClientDisconnected -= OnClientDisconnected;
+        base.OnUnregistered();
+    }
 
     protected override void OnEnabled()
     {
@@ -339,5 +352,15 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         }
 
         return HookResult.Continue;
+    }
+
+    /// <summary>Bug fix: this class's own per-slot cosmetic/timing dictionaries were only ever cleared in OnDisabled - a mid-round disconnect left stale entries a reconnecting player into the same slot could briefly inherit.</summary>
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        _lastSoundTime.Remove(@event.PlayerId);
+        _damageFlashUntil.Remove(@event.PlayerId);
+        _currentAlpha.Remove(@event.PlayerId);
+        _lastAlphaUpdateTime.Remove(@event.PlayerId);
+        _lastHtmlUpdateTime.Remove(@event.PlayerId);
     }
 }

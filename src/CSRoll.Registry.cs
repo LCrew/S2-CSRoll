@@ -42,9 +42,10 @@ public partial class CSRoll
         () => new GameModifierXrayAll(),
 
         // Phase 1f
+        // ResetOnReload removed - it became functionally identical to TeleportOnReload (Phase 1g)
+        // once that was fixed to always teleport to the player's own team spawn.
         () => new GameModifierSwapPlacesOnKill(),
         () => new GameModifierSwapPlacesOnHit(),
-        () => new GameModifierResetOnReload(),
 
         // Phase 1g
         // Bug fix: no longer NavMesh-dependent - always teleports to the player's own team spawn now

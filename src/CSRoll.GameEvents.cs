@@ -9,6 +9,19 @@ public partial class CSRoll
 {
     private Guid _roundStartHookId;
     private Guid _roundEndHookId;
+    private float _lastRoundStartHandledTime = float.NegativeInfinity;
+
+    // Bug fix: CS2 fires EventRoundStart twice in a row during the warmup-to-live-match transition
+    // (see ModifierRuntime._rollGeneration's doc comment for the reveal-side half of this same
+    // quirk) - without this, the automatic random-round roll ran twice for one real round, silently
+    // costing every player one round of PerPlayerRepeatCooldownRounds cooldown history, and playing
+    // the spin-reveal banner animation twice in a row. Two genuinely separate rounds are always
+    // several seconds apart (round time + freeze time), so a second EventRoundStart arriving
+    // implausibly soon after the last one is treated as the same underlying transition and skipped
+    // entirely. Deliberately scoped to just this automatic per-round-start path, not
+    // ApplyRandomRoundsForRound itself - !randomroundsreroll and other manual admin triggers call
+    // that directly and are legitimate even in quick succession.
+    private const float RoundStartDebounceSeconds = 2f;
 
     // Bug fix: these were [GameEventHandler(HookMode.Post)] attributes, relying on the same
     // SwiftlyS2 attribute-scanning auto-registration that turned out to double-register every
@@ -30,6 +43,14 @@ public partial class CSRoll
     {
         if (Runtime.RandomRoundsEnabled)
         {
+            var now = Core.Engine.GlobalVars.CurrentTime;
+            if (now - _lastRoundStartHandledTime < RoundStartDebounceSeconds)
+            {
+                return HookResult.Continue;
+            }
+
+            _lastRoundStartHandledTime = now;
+
             if (Runtime.RegisteredModifiers.Count == 0)
             {
                 CSRollUtils.PrintTitleToChatAll(Core, "No registered modifiers found! Skipping random round...");

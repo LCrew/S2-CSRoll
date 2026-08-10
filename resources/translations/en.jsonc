@@ -23,7 +23,7 @@
   "Kamikaze.Description": "On death, drops {count} grenades near your body that explode for {mult} HE damage",
 
   "ConditionalInvisibility.DisplayName": "Conditional Invisibility",
-  "ConditionalInvisibility.Description": " You are invisible while silent - any sound briefly reveals you",
+  "ConditionalInvisibility.Description": "You are invisible while silent - any sound briefly reveals you",
 
   "FullInvisibility.DisplayName": "Full Invisibility",
   "FullInvisibility.Description": "You are always invisible, knife only, can't buy or pick up weapons",
@@ -73,7 +73,7 @@
   "SmallPlayers.Description": "You are 2X smaller, with 50 HP",
 
   "PoisonSmoke.DisplayName": "Poisonous Smoke",
-  "PoisonSmoke.Description": "Your thrown smokes deal damage to enemies standing in them",
+  "PoisonSmoke.Description": "Your thrown smokes deal damage to enemies standing in them, and grants a smoke grenade",
 
   "LongerFlashes.DisplayName": "Longer Flashes",
   "LongerFlashes.Description": "Flash bang effect lasts [green]{mult}[default] longer",
@@ -82,16 +82,13 @@
   "DodgyGrenades.Description": "Timers on flashes, HE's and smokes are randomized",
 
   "RainbowSmokes.DisplayName": "Gay Smokes",
-  "RainbowSmokes.Description": "Smokes colors are randomized",
+  "RainbowSmokes.Description": "Smoke colors are randomized",
 
   "SwapOnDeath.DisplayName": "Swap On Death",
   "SwapOnDeath.Description": "You will swap places on kill",
 
   "SwapOnHit.DisplayName": "Swap On Hit",
   "SwapOnHit.Description": "You will swap places on hit",
-
-  "ResetOnReload.DisplayName": "Reset On Reload",
-  "ResetOnReload.Description": "Players are teleported to spawn on reload",
 
   "MasterZeus.DisplayName": "Master Zeus",
   "MasterZeus.Description": "Zeus recharges much faster and hits at very long range",
@@ -134,7 +131,7 @@
   // sv_hegrenade_damage_multiplier, weapon_accuracy_forcespread). HighGravity/LowGravity removed
   // entirely per explicit request - their GravityScale writes never actually affected physics live.
   "LeadBoots.DisplayName": "Heavy Boots",
-  "LeadBoots.Description": "Movement speed is much slower",
+  "LeadBoots.Description": "Movement speed is much slower - grants armor, a helmet and bonus health to compensate",
 
   "Jetpack.DisplayName": "Jetpack",
   "Jetpack.Description": "Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe",

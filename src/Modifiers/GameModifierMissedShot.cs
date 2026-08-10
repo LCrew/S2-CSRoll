@@ -145,6 +145,18 @@ public sealed class GameModifierDontMiss : GameModifierMissedShot
         IncompatibleModifiers = ["DropOnMiss"];
     }
 
+    protected override void OnRegistered()
+    {
+        base.OnRegistered();
+        Core.Event.OnClientDisconnected += OnClientDisconnected;
+    }
+
+    protected override void OnUnregistered()
+    {
+        Core.Event.OnClientDisconnected -= OnClientDisconnected;
+        base.OnUnregistered();
+    }
+
     protected override void OnEnabled()
     {
         base.OnEnabled();
@@ -229,5 +241,11 @@ public sealed class GameModifierDontMiss : GameModifierMissedShot
         // Bug fix: passing no inflictor/attacker meant this self-damage never actually applied
         // in testing - self-inflicted damage needs a valid attacker/inflictor entity reference.
         player.TakeDamage(vData.Damage, DamageTypes_t.DMG_GENERIC, pawn, pawn);
+    }
+
+    /// <summary>Bug fix: this class's own _cachedOriginalMaxHealth was only ever cleared in OnDisabled - a mid-round disconnect left a stale entry a reconnecting player into the same slot could briefly inherit.</summary>
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        _cachedOriginalMaxHealth.Remove(@event.PlayerId);
     }
 }

@@ -282,10 +282,13 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
+        // Bug fix: this used to remove the bookkeeping dictionary entries directly instead of
+        // going through RemoveXrayFromSlot - the only method that actually despawns the relay/glow
+        // CDynamicProp entities. A disconnecting glow target's props were never despawned and just
+        // persisted, glowing, in the map for the rest of the round.
+        RemoveXrayFromSlot(@event.PlayerId);
         CachedXrayEnabledSlots.Remove(@event.PlayerId);
         CSRollUtils.RevokeXrayVision(@event.PlayerId);
-        _relayEntityIndex.Remove(@event.PlayerId);
-        _glowPropEntityIndex.Remove(@event.PlayerId);
     }
 }
 

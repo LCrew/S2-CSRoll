@@ -133,7 +133,12 @@ public sealed class GameModifierRevive : GameModifierBase
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
     {
-        if (@event.UserIdPlayer is { IsValid: true } player)
+        // Bug fix: this used to reset state for every spawning player with no IsAssignedTo check,
+        // unlike every other hook in this file (harmless today only because OnTakeDamage re-checks
+        // IsAssignedTo before consuming these values, but it let both dictionaries accumulate an
+        // entry for every player who ever spawned while Revive was active, not just the assigned
+        // one - a foot-gun if that downstream guard is ever refactored away).
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot))
         {
             _currentChancePercent[player.Slot] = _rolledBasePercent ?? 0f;
             _reviveCount[player.Slot] = 0;

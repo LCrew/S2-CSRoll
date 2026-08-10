@@ -24,7 +24,6 @@ public sealed class GameModifierTeleportOnReload : GameModifierBase
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
             "TeleportOnHit",
-            "ResetOnReload",
         ];
     }
 
@@ -67,7 +66,6 @@ public sealed class GameModifierTeleportOnHit : GameModifierBase
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
             "TeleportOnReload",
-            "ResetOnReload",
         ];
     }
 

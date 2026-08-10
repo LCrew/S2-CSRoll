@@ -29,8 +29,6 @@ namespace CSRoll.Modifiers;
 /// </summary>
 public sealed class GameModifierKamikaze : GameModifierBase
 {
-    private const float ScatterSpeed = 150f;
-
     private readonly HashSet<uint> _kamikazeGrenadeIndices = [];
     private Guid _deathHookId;
     private Guid _detonateHookId;
@@ -75,10 +73,11 @@ public sealed class GameModifierKamikaze : GameModifierBase
         }
 
         var count = Math.Max(0, Runtime.Config.Kamikaze.GrenadeCount);
+        var scatterSpeed = Runtime.Config.Kamikaze.ScatterSpeed;
         for (var i = 0; i < count; i++)
         {
             var angleRadians = Random.Shared.NextSingle() * MathF.Tau;
-            var velocity = new Vector(MathF.Cos(angleRadians) * ScatterSpeed, MathF.Sin(angleRadians) * ScatterSpeed, ScatterSpeed * 0.4f);
+            var velocity = new Vector(MathF.Cos(angleRadians) * scatterSpeed, MathF.Sin(angleRadians) * scatterSpeed, scatterSpeed * 0.4f);
             var angle = velocity.ToQAngles();
 
             _kamikazeGrenadeIndices.Add(Core.Game.EmitHEGrenade(position, angle, velocity, pawn).Index);

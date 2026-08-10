@@ -18,7 +18,8 @@ public sealed class GameModifierSwapPlacesOnKill : GameModifierBase
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
             "SwapOnHit",
-            "ResetOnReload",
+            "TeleportOnReload",
+            "TeleportOnHit",
         ];
     }
 
@@ -64,7 +65,8 @@ public sealed class GameModifierSwapPlacesOnHit : GameModifierBase
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
             "SwapOnDeath",
-            "ResetOnReload",
+            "TeleportOnReload",
+            "TeleportOnHit",
         ];
     }
 
@@ -83,50 +85,6 @@ public sealed class GameModifierSwapPlacesOnHit : GameModifierBase
         if (@event.AttackerPlayer is { IsValid: true } attacker && IsAssignedTo(attacker.Slot) && @event.UserIdPlayer is { IsValid: true } victim)
         {
             CSRollUtils.SwapPlayerLocations(Core, attacker, victim);
-        }
-
-        return HookResult.Continue;
-    }
-}
-
-/// <summary>Reloading teleports the player back to their own team's spawn area.</summary>
-public sealed class GameModifierResetOnReload : GameModifierBase
-{
-    private Guid _reloadHookId;
-
-    public GameModifierResetOnReload()
-    {
-        Name = "ResetOnReload";
-        Description = "Players are teleported back to their spawn on reload";
-        SupportsRandomRounds = true;
-        SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = [
-            "SwapOnDeath",
-            "SwapOnHit",
-        ];
-    }
-
-    protected override void OnEnabled()
-    {
-        _reloadHookId = Core.GameEvent.HookPost<EventWeaponReload>(OnPlayerReload);
-    }
-
-    protected override void OnDisabled()
-    {
-        Core.GameEvent.Unhook(_reloadHookId);
-    }
-
-    private HookResult OnPlayerReload(EventWeaponReload @event)
-    {
-        var player = @event.UserIdPlayer;
-        if (player is not { IsValid: true, IsAlive: true } || !IsAssignedTo(player.Slot) || player.Controller is not { } controller)
-        {
-            return HookResult.Continue;
-        }
-
-        if (CSRollUtils.GetSpawnLocation(Core, controller.Team) is { } spawnPosition)
-        {
-            CSRollUtils.TeleportPlayer(Core, player, spawnPosition);
         }
 
         return HookResult.Continue;

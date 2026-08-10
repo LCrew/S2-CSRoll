@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
@@ -118,6 +119,7 @@ public sealed class ModifierRuntime
         }
 
         _core.Event.OnTick += RefreshSpectatorHud;
+        _core.Event.OnClientDisconnected += OnClientDisconnected;
     }
 
     private void InitialiseModifiers(IEnumerable<Func<GameModifierBase>> factories)
@@ -157,6 +159,7 @@ public sealed class ModifierRuntime
     public void Unregister()
     {
         _core.Event.OnTick -= RefreshSpectatorHud;
+        _core.Event.OnClientDisconnected -= OnClientDisconnected;
 
         RemoveAllModifiers();
 
@@ -180,6 +183,35 @@ public sealed class ModifierRuntime
         // being reset by a registry reload - only a genuine plugin unload (full session end, e.g. map
         // change) should clear it, which already happens naturally since ModifierRuntime itself is
         // recreated from scratch then.
+    }
+
+    /// <summary>
+    /// Bug fix: player slots are small, reused indices - without this, a disconnecting per-player-
+    /// assigned player's slot stayed "owned" by that modifier until it deactivated, so a new player
+    /// connecting into the freed slot before then silently inherited the effect (every modifier's
+    /// IsAssignedTo(slot) check has no way to know the slot changed hands on its own).
+    ///
+    /// Also opportunistically prunes _lastRoundAssignedPerPlayer for the departed session - that
+    /// dictionary is deliberately never cleared by Unregister() (see its own comment above), but a
+    /// SessionId becomes permanently unusable once the connection ends anyway, so any entry left
+    /// behind is pure unbounded growth on a server with high player churn, never a real future
+    /// lookup hit.
+    /// </summary>
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        foreach (var modifier in _activeModifiers)
+        {
+            modifier.RemoveAssignedSlot(@event.PlayerId);
+        }
+
+        if (_core.PlayerManager.GetPlayer(@event.PlayerId) is { } player)
+        {
+            var staleKeys = _lastRoundAssignedPerPlayer.Keys.Where(key => key.SessionId == player.SessionId).ToList();
+            foreach (var key in staleKeys)
+            {
+                _lastRoundAssignedPerPlayer.Remove(key);
+            }
+        }
     }
 
     /// <summary>

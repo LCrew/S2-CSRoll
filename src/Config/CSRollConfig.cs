@@ -40,14 +40,6 @@ public class CSRollConfig
     /// </summary>
     public bool RandomizePlayers { get; set; } = true;
 
-    /// <summary>
-    /// TeleportOnReload/TeleportOnHit depend on raw memory signature scanning to
-    /// locate CS2's internal nav-mesh data - inherently fragile and tied to the exact game
-    /// binary. Set to false to skip that scan entirely (e.g. if it crashes the plugin or the
-    /// server on a given CS2 build) without affecting any other modifier.
-    /// </summary>
-    public bool EnableNavMeshTeleports { get; set; } = false;
-
     /// <summary>Tunables for the RandomHealth modifier (health set to a random number in this range each activation).</summary>
     public RandomHealthConfig RandomHealth { get; set; } = new();
 
@@ -295,6 +287,9 @@ public class ClusterGrenadesConfig
 
     /// <summary>Most mini grenades a detonation can split into (inclusive) - rolled fresh per detonation, so one HE could split into 2 while a smoke thrown moments later splits into 4.</summary>
     public int MaxClusterCount { get; set; } = 4;
+
+    /// <summary>Outward toss speed given to each spawned mini grenade.</summary>
+    public float ClusterSpeed { get; set; } = 250f;
 }
 
 public class KamikazeConfig
@@ -304,6 +299,9 @@ public class KamikazeConfig
 
     /// <summary>Damage multiplier applied to the blast damage these specific grenades deal.</summary>
     public float DamageMultiplier { get; set; } = 1.25f;
+
+    /// <summary>Outward scatter speed given to each grenade dropped on death.</summary>
+    public float ScatterSpeed { get; set; } = 150f;
 }
 
 public class ReviveConfig
@@ -337,6 +335,18 @@ public class MasterZeusConfig
 {
     /// <summary>Flat damage dealt by a successful extended-range zap. The cooldown between zaps is NOT here - it reads the real mp_taser_recharge_time server cvar live instead (deliberately global, see the class-level remarks), so there's one single source of truth shared with the native close-range zeus recharge.</summary>
     public float ZapDamage { get; set; } = 200f;
+
+    /// <summary>Max distance (units) the extended-range zap can reach - the single most balance-defining number for this modifier, previously a hardcoded constant.</summary>
+    public float RangeDistance { get; set; } = 4000f;
+
+    /// <summary>Cosine of the aim-cone half-angle used for target acquisition - lower is a wider/more forgiving cone. ~0.85 is roughly a 60-degree full cone.</summary>
+    public float AimConeCosine { get; set; } = 0.85f;
+
+    /// <summary>Distance the LOS trace's start point is nudged forward along the aim direction before tracing, clearing the shooter's own head hitbox so the trace doesn't immediately self-block.</summary>
+    public float MuzzleOffsetDistance { get; set; } = 24f;
+
+    /// <summary>Cooldown used only if mp_taser_recharge_time somehow can't be read live.</summary>
+    public float FallbackCooldownSeconds { get; set; } = 2f;
 }
 
 public class PlantAnywhereConfig

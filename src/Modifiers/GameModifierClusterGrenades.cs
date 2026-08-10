@@ -1,3 +1,4 @@
+using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Natives;
@@ -41,7 +42,6 @@ namespace CSRoll.Modifiers;
 /// </summary>
 public sealed class GameModifierClusterGrenades : GameModifierBase
 {
-    private const float ClusterSpeed = 250f;
     private const float MolotovRecursionGuardSeconds = 1.5f;
 
     private readonly HashSet<uint> _clusterSpawnedEntityIndices = [];
@@ -65,6 +65,16 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
         SupportsPerPlayerRandomization = true;
     }
 
+    protected override void OnRegistered()
+    {
+        Core.Event.OnClientDisconnected += OnClientDisconnected;
+    }
+
+    protected override void OnUnregistered()
+    {
+        Core.Event.OnClientDisconnected -= OnClientDisconnected;
+    }
+
     protected override void OnEnabled()
     {
         _heHookId = Core.GameEvent.HookPost<EventHegrenadeDetonate>(OnHegrenadeDetonate);
@@ -79,6 +89,12 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
         Core.GameEvent.Unhook(_smokeHookId);
         _clusterSpawnedEntityIndices.Clear();
         _lastMolotovClusterTime.Clear();
+    }
+
+    /// <summary>Bug fix: _lastMolotovClusterTime was only ever cleared in OnDisabled - a mid-round disconnect left a stale entry a reconnecting player into the same slot could briefly inherit.</summary>
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        _lastMolotovClusterTime.Remove(@event.PlayerId);
     }
 
     private HookResult OnHegrenadeDetonate(EventHegrenadeDetonate @event)
@@ -142,7 +158,8 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
     private void SpawnMiniGrenade(string designerName, Vector position, CCSPlayerPawn throwerPawn, Team team)
     {
         var angleRadians = Random.Shared.NextSingle() * MathF.Tau;
-        var velocity = new Vector(MathF.Cos(angleRadians) * ClusterSpeed, MathF.Sin(angleRadians) * ClusterSpeed, ClusterSpeed * 0.3f);
+        var clusterSpeed = Runtime.Config.ClusterGrenades.ClusterSpeed;
+        var velocity = new Vector(MathF.Cos(angleRadians) * clusterSpeed, MathF.Sin(angleRadians) * clusterSpeed, clusterSpeed * 0.3f);
         var angle = velocity.ToQAngles();
 
         switch (designerName)

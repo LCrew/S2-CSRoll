@@ -114,6 +114,18 @@ public sealed class GameModifierSmallPlayers : GameModifierScalePlayer
 
     protected override float GetScale() => 0.5f;
 
+    protected override void OnRegistered()
+    {
+        base.OnRegistered();
+        Core.Event.OnClientDisconnected += OnClientDisconnected;
+    }
+
+    protected override void OnUnregistered()
+    {
+        Core.Event.OnClientDisconnected -= OnClientDisconnected;
+        base.OnUnregistered();
+    }
+
     protected override void OnEnabled()
     {
         base.OnEnabled();
@@ -184,5 +196,11 @@ public sealed class GameModifierSmallPlayers : GameModifierScalePlayer
         pawn.MaxHealthUpdated();
         pawn.Health = Math.Min(pawn.Health, originalMaxHealth);
         pawn.HealthUpdated();
+    }
+
+    /// <summary>Bug fix: this class's own _cachedOriginalMaxHealth was only ever cleared in OnDisabled - a mid-round disconnect left a stale entry a reconnecting player into the same slot could briefly inherit.</summary>
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        _cachedOriginalMaxHealth.Remove(@event.PlayerId);
     }
 }

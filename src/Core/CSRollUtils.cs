@@ -574,18 +574,4 @@ public static class CSRollUtils
 
         return null;
     }
-
-    /// <summary>
-    /// Picks a random T or CT spawn point, falling back to the other team's spawns if that team
-    /// has none. Used by the NavMesh-dependent teleport modifiers when INavMeshService.IsAvailable
-    /// is false (signature scan failed) - a guaranteed-reachable, always-available substitute for
-    /// GetRandomPosition() so those modifiers still work rather than being hidden from testing.
-    /// </summary>
-    public static Vector? GetRandomSpawnLocation(ISwiftlyCore core)
-    {
-        var firstTeam = Random.Shared.Next(2) == 0 ? Team.T : Team.CT;
-        var secondTeam = firstTeam == Team.T ? Team.CT : Team.T;
-
-        return GetSpawnLocation(core, firstTeam) ?? GetSpawnLocation(core, secondTeam);
-    }
 }

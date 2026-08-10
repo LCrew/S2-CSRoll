@@ -119,9 +119,19 @@ public sealed class GameModifierSpeedhack : GameModifierVelocity
 /// both reset each life) - a tradeoff for the reduced mobility, using CBaseEntity.ArmorValue and
 /// CCSPlayer_ItemServices.HasHelmet (both confirmed settable schema fields with matching Updated()
 /// methods) plus a flat health bonus on top of the normal spawn health.
+///
+/// Bug fix: OnDisabled used to only reset the speed multiplier (via base.OnDisabled()) - the armor,
+/// helmet, and bonus health were never reverted, so a player whose LeadBoots wore off mid-round kept
+/// all three permanently for that life with none of the compensating slowdown anymore. Now caches
+/// the pre-grant armor/helmet state per slot (freshly on every grant, since a fresh spawn naturally
+/// resets both anyway) and reverts it on disable; the bonus health is subtracted back out rather
+/// than reset to a stale cached value, clamped to a minimum of 1 so removing the bonus can never
+/// itself be a death sentence.
 /// </summary>
 public sealed class GameModifierLeadBoots : GameModifierVelocity
 {
+    private readonly Dictionary<int, int> _cachedOriginalArmor = [];
+    private readonly Dictionary<int, bool> _cachedOriginalHasHelmet = [];
     private Guid _spawnHookId;
 
     public GameModifierLeadBoots()
@@ -134,6 +144,16 @@ public sealed class GameModifierLeadBoots : GameModifierVelocity
     }
 
     protected override float GetSpeedMultiplier() => Runtime.Config.LeadBoots.SpeedMultiplier;
+
+    protected override void OnRegistered()
+    {
+        Core.Event.OnClientDisconnected += OnClientDisconnected;
+    }
+
+    protected override void OnUnregistered()
+    {
+        Core.Event.OnClientDisconnected -= OnClientDisconnected;
+    }
 
     protected override void OnEnabled()
     {
@@ -153,6 +173,18 @@ public sealed class GameModifierLeadBoots : GameModifierVelocity
     protected override void OnDisabled()
     {
         Core.GameEvent.Unhook(_spawnHookId);
+
+        foreach (var slot in _cachedOriginalArmor.Keys.ToList())
+        {
+            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } player)
+            {
+                RevertArmorAndHealth(player);
+            }
+        }
+
+        _cachedOriginalArmor.Clear();
+        _cachedOriginalHasHelmet.Clear();
+
         base.OnDisabled();
     }
 
@@ -173,6 +205,9 @@ public sealed class GameModifierLeadBoots : GameModifierVelocity
             return;
         }
 
+        _cachedOriginalArmor[player.Slot] = pawn.ArmorValue;
+        _cachedOriginalHasHelmet[player.Slot] = pawn.ItemServices?.HasHelmet ?? false;
+
         pawn.ArmorValue = Runtime.Config.LeadBoots.ArmorValue;
         pawn.ArmorValueUpdated();
 
@@ -184,5 +219,31 @@ public sealed class GameModifierLeadBoots : GameModifierVelocity
 
         pawn.Health += Runtime.Config.LeadBoots.BonusHealth;
         pawn.HealthUpdated();
+    }
+
+    private void RevertArmorAndHealth(IPlayer player)
+    {
+        if (player.PlayerPawn is not { } pawn)
+        {
+            return;
+        }
+
+        pawn.ArmorValue = _cachedOriginalArmor.GetValueOrDefault(player.Slot);
+        pawn.ArmorValueUpdated();
+
+        if (pawn.ItemServices is { } itemServices)
+        {
+            itemServices.HasHelmet = _cachedOriginalHasHelmet.GetValueOrDefault(player.Slot);
+            itemServices.HasHelmetUpdated();
+        }
+
+        pawn.Health = Math.Max(1, pawn.Health - Runtime.Config.LeadBoots.BonusHealth);
+        pawn.HealthUpdated();
+    }
+
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        _cachedOriginalArmor.Remove(@event.PlayerId);
+        _cachedOriginalHasHelmet.Remove(@event.PlayerId);
     }
 }

@@ -68,10 +68,6 @@ namespace CSRoll.Modifiers;
 /// </summary>
 public sealed class GameModifierMasterZeus : GameModifierBase
 {
-    private const float ExtendedRangeDistance = 4000f;
-    private const float AimConeCosine = 0.85f; // ~roughly a 60-degree full cone, generous aim tolerance
-    private const float MuzzleOffsetDistance = 24f; // clears the shooter's own head hitbox before the LOS trace starts
-    private const float FallbackCooldownSeconds = 2f; // only used if the cvar somehow isn't found
     private const string TaserDesignerName = "weapon_taser";
     private const string RechargeCvarName = "mp_taser_recharge_time";
 
@@ -87,6 +83,16 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         Description = "Zeus recharges much faster and hits at very long range";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
+    }
+
+    protected override void OnRegistered()
+    {
+        Core.Event.OnClientDisconnected += OnClientDisconnected;
+    }
+
+    protected override void OnUnregistered()
+    {
+        Core.Event.OnClientDisconnected -= OnClientDisconnected;
     }
 
     protected override void OnEnabled()
@@ -203,11 +209,11 @@ public sealed class GameModifierMasterZeus : GameModifierBase
             if (!_loggedCvarReadFailure)
             {
                 _loggedCvarReadFailure = true;
-                Core.Logger.LogWarning(ex, "[CSRoll] MasterZeus failed to read {Cvar} - falling back to a fixed {Fallback}s cooldown.", RechargeCvarName, FallbackCooldownSeconds);
+                Core.Logger.LogWarning(ex, "[CSRoll] MasterZeus failed to read {Cvar} - falling back to a fixed {Fallback}s cooldown.", RechargeCvarName, Runtime.Config.MasterZeus.FallbackCooldownSeconds);
             }
         }
 
-        return FallbackCooldownSeconds;
+        return Runtime.Config.MasterZeus.FallbackCooldownSeconds;
     }
 
     /// <summary>
@@ -242,7 +248,7 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         // a trace that starts inside solid typically reports DidHit=true immediately, regardless of
         // IgnoreEntity on anyone else. Nudging the start point forward, clear of the shooter's own
         // collision, before tracing toward the target avoids that self-block.
-        var traceOrigin = eyePosition + (forward * MuzzleOffsetDistance);
+        var traceOrigin = eyePosition + (forward * Runtime.Config.MasterZeus.MuzzleOffsetDistance);
 
         IPlayer? bestTarget = null;
         var bestDistanceSquared = float.MaxValue;
@@ -263,13 +269,14 @@ public sealed class GameModifierMasterZeus : GameModifierBase
 
             var toCandidate = candidatePosition - traceOrigin;
             var distanceSquared = toCandidate.LengthSquared();
-            if (distanceSquared > ExtendedRangeDistance * ExtendedRangeDistance || distanceSquared >= bestDistanceSquared)
+            var rangeDistance = Runtime.Config.MasterZeus.RangeDistance;
+            if (distanceSquared > rangeDistance * rangeDistance || distanceSquared >= bestDistanceSquared)
             {
                 rejectedOutOfRange++;
                 continue;
             }
 
-            if (Vector.Dot(forward, toCandidate.Normalized()) < AimConeCosine)
+            if (Vector.Dot(forward, toCandidate.Normalized()) < Runtime.Config.MasterZeus.AimConeCosine)
             {
                 rejectedAimCone++;
                 continue;
@@ -318,5 +325,12 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         var damage = Runtime.Config.MasterZeus.ZapDamage;
         bestTarget.TakeDamage(damage, DamageTypes_t.DMG_SHOCK, shooterPawn, shooterPawn);
         LogZapDebug(shooter, $"dealt {damage} damage to {(bestTarget.Controller is { IsValid: true } tc ? tc.PlayerName : bestTarget.Slot.ToString())}");
+    }
+
+    /// <summary>Bug fix: _attackButtonWasDown/_lastZapTime were only ever cleared in OnDisabled - a mid-round disconnect left stale entries a reconnecting player into the same slot could briefly inherit.</summary>
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        _attackButtonWasDown.Remove(@event.PlayerId);
+        _lastZapTime.Remove(@event.PlayerId);
     }
 }
