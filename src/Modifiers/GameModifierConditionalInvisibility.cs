@@ -10,7 +10,7 @@ namespace CSRoll.Modifiers;
 
 /// <summary>
 /// The player(s) this rolled for are invisible while silent - making any sound (footsteps, gunfire,
-/// reload, grenade throw) reveals them, and they fade invisible again after a config-tunable
+/// reload, grenade throw, taking damage, or starting a bomb plant) reveals them, and they fade invisible again after a config-tunable
 /// cooldown of continued silence. Scoped the same way every other per-player modifier is (via
 /// IsAssignedTo/AssignedSlots) - this used to pick one random player itself instead, which meant it
 /// couldn't participate in normal per-player random rolls at all (whoever the roll "gave" it to and
@@ -51,6 +51,8 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
     private Guid _fireHookId;
     private Guid _reloadHookId;
     private Guid _grenadeHookId;
+    private Guid _hurtHookId;
+    private Guid _bombPlantHookId;
     private Guid _spawnResetHookId;
 
     public GameModifierConditionalInvisibility()
@@ -76,6 +78,12 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         _reloadHookId = Core.GameEvent.HookPost<EventWeaponReload>(OnWeaponReload);
         _grenadeHookId = Core.GameEvent.HookPost<EventGrenadeThrown>(OnGrenadeThrown);
 
+        // Bug fix: taking damage (a pained grunt, physically flinching) and starting a bomb plant
+        // (a long, committed, noisy action) used to not reveal at all - a hidden player could tank
+        // hits or plant the bomb in total silence from the game's perspective.
+        _hurtHookId = Core.GameEvent.HookPost<EventPlayerHurt>(OnPlayerHurt);
+        _bombPlantHookId = Core.GameEvent.HookPost<EventBombBeginplant>(OnBombBeginPlant);
+
         // Runs Pre, before the base class's own Post EventPlayerSpawn hook re-checks
         // CheckHidePlayer, so a fresh life never inherits a stale cooldown from the last one.
         _spawnResetHookId = Core.GameEvent.HookPre<EventPlayerSpawn>(OnPlayerSpawnPre);
@@ -91,6 +99,8 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         Core.GameEvent.Unhook(_fireHookId);
         Core.GameEvent.Unhook(_reloadHookId);
         Core.GameEvent.Unhook(_grenadeHookId);
+        Core.GameEvent.Unhook(_hurtHookId);
+        Core.GameEvent.Unhook(_bombPlantHookId);
         Core.GameEvent.Unhook(_spawnResetHookId);
 
         foreach (var slot in AssignedSlots)
@@ -251,6 +261,26 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
     }
 
     private HookResult OnGrenadeThrown(EventGrenadeThrown @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player)
+        {
+            MarkSoundMade(player.Slot);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private HookResult OnPlayerHurt(EventPlayerHurt @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player)
+        {
+            MarkSoundMade(player.Slot);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private HookResult OnBombBeginPlant(EventBombBeginplant @event)
     {
         if (@event.UserIdPlayer is { IsValid: true } player)
         {
