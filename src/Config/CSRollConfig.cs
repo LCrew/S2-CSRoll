@@ -316,7 +316,7 @@ public class BountyConfig
     public float MinMultiplier { get; set; } = 0.5f;
 
     /// <summary>Highest possible money-reward multiplier applied to damage dealt (inclusive).</summary>
-    public float MaxMultiplier { get; set; } = 2.0f;
+    public float MaxMultiplier { get; set; } = 3.0f;
 }
 
 public class WeaponRouletteConfig

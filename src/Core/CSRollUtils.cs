@@ -95,8 +95,14 @@ public static class CSRollUtils
                 continue;
             }
 
+            // Bug fix: RemoveWeapon only detaches the weapon from the player - the underlying
+            // entity isn't destroyed, so it was left sitting on the ground as a live, pickup-able
+            // world entity (harmless for RandomLoadout/GrenadesOnly, which only strip once per
+            // life, but WeaponRoulette re-strips every reroll and was littering the map with
+            // abandoned guns). Despawn() actually removes it.
             removed.Add(weapon.DesignerName);
             weaponServices.RemoveWeapon(weapon);
+            weapon.Despawn();
         }
 
         return removed;

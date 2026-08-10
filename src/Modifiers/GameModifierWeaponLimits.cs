@@ -127,7 +127,14 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
         }
     }
 
-    private void StripWeapons(IPlayer player)
+    /// <summary>
+    /// Protected (not private) so a subclass can re-run the strip+give cycle on demand - e.g.
+    /// WeaponRoulette re-rolling mid-life - properly wrapped in the _grantInProgress guard, unlike
+    /// calling CSRollUtils.StripWeaponTypes/ItemServices.GiveItem directly would be (which would let
+    /// this same class's own CanAcquire.Pre hook block the forced grant, per the bug-fix note on
+    /// that hook above).
+    /// </summary>
+    protected void StripWeapons(IPlayer player)
     {
         var removed = CSRollUtils.StripWeaponTypes(player, TypesToStrip);
         if (removed.Count > 0)
