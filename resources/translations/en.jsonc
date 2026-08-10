@@ -167,7 +167,7 @@
   "FlankTeleport.Description": "After a cooldown, press Inspect Weapon to teleport behind a random enemy",
 
   "Regeneration.DisplayName": "Regeneration",
-  "Regeneration.Description": "Slowly heals over time, up to your max health",
+  "Regeneration.Description": "Slowly heals over time, up to your max health - faster while standing still",
 
   "Bounty.DisplayName": "Bounty",
   "Bounty.Description": "Damaging enemies grants bonus money",

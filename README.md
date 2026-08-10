@@ -54,7 +54,7 @@ Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Spee
 | Plant Anywhere | Bomb can be planted anywhere after a delay, bomb timer extended (both configurable) |
 | Surf | Will config vars for surfing (server-wide) |
 | Flanker | After a cooldown, press Inspect Weapon to teleport behind a random enemy |
-| Regeneration | Slowly heals over time, up to your max health |
+| Regeneration | Slowly heals over time, up to your max health - faster while standing still |
 | Bounty | Damaging enemies grants bonus money |
 | Weapon Roulette | Forced onto a single random gun, re-rolled every so often |
 

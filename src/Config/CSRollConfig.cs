@@ -303,11 +303,23 @@ public class ClusterGrenadesConfig
 
 public class RegenerationConfig
 {
-    /// <summary>How often (seconds) the assigned player is healed.</summary>
-    public float IntervalSeconds { get; set; } = 1.0f;
+    /// <summary>
+    /// HP/sec healed while moving. Achieved as "give 1 HP every (1/rate) seconds", not a lump sum -
+    /// at the default 2, that's 1 HP every 0.5s.
+    /// </summary>
+    public float MovingRatePerSecond { get; set; } = 2f;
 
-    /// <summary>Health restored per interval, capped at the player's current max health.</summary>
-    public int Amount { get; set; } = 2;
+    /// <summary>HP/sec healed once standing still for at least StationaryDelaySeconds - same "1 HP, more often" calculation (at the default 5, that's 1 HP every 0.2s).</summary>
+    public float StationaryRatePerSecond { get; set; } = 5f;
+
+    /// <summary>How long the player must stand still before the faster stationary rate actually kicks in.</summary>
+    public float StationaryDelaySeconds { get; set; } = 0.5f;
+
+    /// <summary>Horizontal speed (units/sec) below which the player counts as "standing still".</summary>
+    public float MovementThreshold { get; set; } = 5f;
+
+    /// <summary>How often (seconds) the HUD's displayed HP/s number steps by 1 while cosmetically ramping toward the real target rate - purely visual, never affects actual heal timing.</summary>
+    public float DisplayRampStepSeconds { get; set; } = 0.15f;
 }
 
 public class BountyConfig
