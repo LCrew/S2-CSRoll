@@ -253,13 +253,6 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
 /// </summary>
 public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
 {
-    private static readonly HashSet<CSWeaponType> StripTypes =
-    [
-        CSWeaponType.WEAPONTYPE_PISTOL, CSWeaponType.WEAPONTYPE_SUBMACHINEGUN, CSWeaponType.WEAPONTYPE_RIFLE,
-        CSWeaponType.WEAPONTYPE_SHOTGUN, CSWeaponType.WEAPONTYPE_SNIPER_RIFLE, CSWeaponType.WEAPONTYPE_MACHINEGUN,
-        CSWeaponType.WEAPONTYPE_TASER,
-    ];
-
     private const string HeGrenadeName = "weapon_hegrenade";
 
     private Guid _thrownHookId;
@@ -279,7 +272,7 @@ public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
         ];
     }
 
-    protected override HashSet<CSWeaponType> TypesToStrip => StripTypes;
+    protected override HashSet<CSWeaponType> TypesToStrip => CSRollUtils.AllGunWeaponTypes;
 
     protected override bool AnnounceRemovalGlobally => false;
 

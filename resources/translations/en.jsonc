@@ -164,5 +164,14 @@
   "Surf.Description": "Will config vars for surfing",
 
   "FlankTeleport.DisplayName": "Flanker",
-  "FlankTeleport.Description": "After a cooldown, press Inspect Weapon to teleport behind a random enemy"
+  "FlankTeleport.Description": "After a cooldown, press Inspect Weapon to teleport behind a random enemy",
+
+  "Regeneration.DisplayName": "Regeneration",
+  "Regeneration.Description": "Slowly heals over time, up to your max health",
+
+  "Bounty.DisplayName": "Bounty",
+  "Bounty.Description": "Damaging enemies grants bonus money",
+
+  "WeaponRoulette.DisplayName": "Weapon Roulette",
+  "WeaponRoulette.Description": "Forced onto a single random gun, re-rolled every so often"
 }

@@ -99,5 +99,10 @@ public partial class CSRoll
         // New: FlankTeleport (Inspect-Weapon-triggered teleport behind a random enemy, on a
         // cooldown - a from-scratch modifier, not a NavMesh-dependent bug fix).
         () => new GameModifierFlankTeleport(),
+
+        // New: Regeneration, Bounty, WeaponRoulette.
+        () => new GameModifierRegeneration(),
+        () => new GameModifierBounty(),
+        () => new GameModifierWeaponRoulette(),
     ];
 }

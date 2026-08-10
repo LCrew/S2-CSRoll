@@ -70,6 +70,14 @@ public static class CSRollUtils
         CSWeaponType.WEAPONTYPE_TASER, CSWeaponType.WEAPONTYPE_GRENADE,
     ];
 
+    /// <summary>Same as AllRangedWeaponTypes but excludes WEAPONTYPE_GRENADE - "every gun, no grenades, no knife" for modifiers that want to restrict firearms while leaving utility untouched (GrenadesOnly, WeaponRoulette).</summary>
+    public static readonly HashSet<CSWeaponType> AllGunWeaponTypes =
+    [
+        CSWeaponType.WEAPONTYPE_PISTOL, CSWeaponType.WEAPONTYPE_SUBMACHINEGUN, CSWeaponType.WEAPONTYPE_RIFLE,
+        CSWeaponType.WEAPONTYPE_SHOTGUN, CSWeaponType.WEAPONTYPE_SNIPER_RIFLE, CSWeaponType.WEAPONTYPE_MACHINEGUN,
+        CSWeaponType.WEAPONTYPE_TASER,
+    ];
+
     /// <summary>Removes every weapon of the given types from a player, returning the removed item names so the caller can restore them later via RestoreWeapons.</summary>
     public static List<string> StripWeaponTypes(IPlayer player, HashSet<CSWeaponType> typesToStrip)
     {

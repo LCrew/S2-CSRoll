@@ -114,6 +114,15 @@ public class CSRollConfig
 
     /// <summary>Tunables for the ClusterGrenades modifier (min/max mini-grenade count rolled per detonation).</summary>
     public ClusterGrenadesConfig ClusterGrenades { get; set; } = new();
+
+    /// <summary>Tunables for the Regeneration modifier (heal rate/amount over time).</summary>
+    public RegenerationConfig Regeneration { get; set; } = new();
+
+    /// <summary>Tunables for the Bounty modifier (random money-reward multiplier range per damage dealt).</summary>
+    public BountyConfig Bounty { get; set; } = new();
+
+    /// <summary>Tunables for the WeaponRoulette modifier (reroll interval, spin reveal pacing).</summary>
+    public WeaponRouletteConfig WeaponRoulette { get; set; } = new();
 }
 
 public class ConditionalInvisibilityConfig
@@ -290,6 +299,36 @@ public class ClusterGrenadesConfig
 
     /// <summary>Outward toss speed given to each spawned mini grenade.</summary>
     public float ClusterSpeed { get; set; } = 250f;
+}
+
+public class RegenerationConfig
+{
+    /// <summary>How often (seconds) the assigned player is healed.</summary>
+    public float IntervalSeconds { get; set; } = 1.0f;
+
+    /// <summary>Health restored per interval, capped at the player's current max health.</summary>
+    public int Amount { get; set; } = 2;
+}
+
+public class BountyConfig
+{
+    /// <summary>Lowest possible money-reward multiplier applied to damage dealt (inclusive).</summary>
+    public float MinMultiplier { get; set; } = 0.5f;
+
+    /// <summary>Highest possible money-reward multiplier applied to damage dealt (inclusive).</summary>
+    public float MaxMultiplier { get; set; } = 2.0f;
+}
+
+public class WeaponRouletteConfig
+{
+    /// <summary>How often (seconds) the assigned player's weapon rerolls to a new random one.</summary>
+    public float RerollIntervalSeconds { get; set; } = 25f;
+
+    /// <summary>Total duration (seconds) of the slot-machine-style spin reveal shown before each new weapon lands.</summary>
+    public float SpinDurationSeconds { get; set; } = 3f;
+
+    /// <summary>Number of random-name frames the spin cycles through before landing - SpinDurationSeconds is split evenly across this many frames.</summary>
+    public int SpinFrameCount { get; set; } = 12;
 }
 
 public class KamikazeConfig
