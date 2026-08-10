@@ -435,7 +435,16 @@ public static class CSRollUtils
             return;
         }
 
-        player.Teleport(position, angle ?? pawn.EyeAngles, velocity ?? new Vector(0, 0, 0));
+        // Bug fix: this used to pass the full EyeAngles (pitch and all, whether defaulted from the
+        // pawn or passed in explicitly - FlankTeleport passes the FLANK TARGET's EyeAngles) straight
+        // into Teleport()'s angle parameter. A player's entity rotation only ever has a meaningful
+        // YAW - pitch (looking up/down) is a client-side camera value, never meant to be baked into
+        // the body's absolute orientation. Teleporting/reviving while looking at the ground visibly
+        // tilted the whole body model by that pitch, which in turn threw off movement direction
+        // ("walking weird") and the collision hull's assumption of "upright" (occasional
+        // see-through-wall glitches). Only yaw ever reaches Teleport(); pitch/roll are always zeroed.
+        var facingYaw = (angle ?? pawn.EyeAngles).Yaw;
+        player.Teleport(position, new QAngle(0f, facingYaw, 0f), velocity ?? new Vector(0, 0, 0));
 
         pawn.Collision.CollisionGroup = (byte)CollisionGroup.Pushaway;
         pawn.Collision.CollisionGroupUpdated();

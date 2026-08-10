@@ -94,5 +94,10 @@ public partial class CSRoll
         // New: FlankTeleport (Inspect-Weapon-triggered teleport behind a random enemy, on a
         // cooldown - a from-scratch modifier, not a NavMesh-dependent bug fix).
         () => new GameModifierFlankTeleport(),
+
+        // EXPERIMENTAL test fork - see GameModifierXray2.cs's class doc comment. Registered so it's
+        // reachable via !addmodifier/!memodifier for manual A/B testing, but SupportsRandomRounds/
+        // SupportsPerPlayerRandomization are both false so it can never be picked automatically.
+        () => new GameModifierXrayAll2(),
     ];
 }
