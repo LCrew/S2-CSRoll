@@ -1,3 +1,4 @@
+using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
@@ -200,20 +201,17 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     /// <summary>
     /// Single 4-line template shared by both the spin animation and the idle countdown, so there's
     /// only ever one place building this modifier's HUD text. Line 2 and line 4 swap meaning based
-    /// on state: "Timer: Ns" / "[orange]Active:[default] weapon" while idle, or an orange "Rolling"
+    /// on state: "Timer: Ns" / "[orange]Active:[default] weapon" while idle, or a gradient "Rolling"
     /// / the current random spin-frame weapon name while spinning.
     ///
-    /// NOTE: "Rolling" is shown as plain orange bold text, not a true gradient - I couldn't confirm
-    /// a working CS2 HTML gradient tag for this specific center-HTML popup context (the tag
-    /// vocabulary proven elsewhere in this codebase for these popups is limited to
-    /// &lt;span color=""&gt;/&lt;br/&gt;/fontWeight-bold), so this is the safe fallback rather than a guess
-    /// that might render as literal broken tag text. Happy to swap in the real tag if you know the
-    /// exact syntax that works here.
+    /// "Rolling" uses SwiftlyS2.Shared.HtmlGradient.GenerateGradientText - a general-purpose SDK
+    /// helper (lives in the plain SwiftlyS2.Shared namespace, not SwiftlyS2.Shared.Menus), not
+    /// something scoped to the Menu system, confirmed via SDK reflection.
     /// </summary>
     private static string BuildStatusHtml(bool isRolling, string weaponName, float secondsRemaining)
     {
         var line2 = isRolling
-            ? "<span color=\"orange\" class=\"fontWeight-bold\">Rolling</span>"
+            ? "<span class=\"fontWeight-bold\">" + HtmlGradient.GenerateGradientText("Rolling", "#FFA500", "#FF4500") + "</span>"
             : $"<span class=\"fontWeight-bold\">Timer: {secondsRemaining:0.0}s</span>".Replace('.', ',');
 
         var line4 = isRolling
