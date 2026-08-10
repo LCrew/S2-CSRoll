@@ -93,15 +93,96 @@ public abstract class GameModifierScalePlayer : GameModifierBase
     }
 }
 
+/// <summary>
+/// Also sets max health to Config.SmallPlayers.MaxHealth (default 50, was previously untouched -
+/// smaller hitbox with normal 100 HP was pure upside, no trade-off) - applied/restored the same way
+/// GameModifierHealth does, since this class doesn't derive from that hierarchy (single inheritance
+/// already spent on GameModifierScalePlayer above).
+/// </summary>
 public sealed class GameModifierSmallPlayers : GameModifierScalePlayer
 {
+    private readonly Dictionary<int, int> _cachedOriginalMaxHealth = [];
+    private Guid _healthSpawnHookId;
+
     public GameModifierSmallPlayers()
     {
         Name = "SmallPlayers";
-        Description = "You are 2X smaller";
+        Description = "You are 2X smaller, with 50 HP";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }
 
     protected override float GetScale() => 0.5f;
+
+    protected override void OnEnabled()
+    {
+        base.OnEnabled();
+
+        _healthSpawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
+
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        {
+            if (IsAssignedTo(player.Slot))
+            {
+                ApplyMaxHealth(player);
+            }
+        }
+    }
+
+    protected override void OnDisabled()
+    {
+        Core.GameEvent.Unhook(_healthSpawnHookId);
+
+        foreach (var slot in _cachedOriginalMaxHealth.Keys.ToList())
+        {
+            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } player)
+            {
+                RestoreMaxHealth(player);
+            }
+        }
+
+        _cachedOriginalMaxHealth.Clear();
+
+        base.OnDisabled();
+    }
+
+    private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot))
+        {
+            ApplyMaxHealth(player);
+        }
+
+        return HookResult.Continue;
+    }
+
+    private void ApplyMaxHealth(IPlayer player)
+    {
+        if (player.PlayerPawn is not { } pawn)
+        {
+            return;
+        }
+
+        _cachedOriginalMaxHealth[player.Slot] = pawn.MaxHealth;
+
+        var health = Runtime.Config.SmallPlayers.MaxHealth;
+        pawn.MaxHealth = health;
+        pawn.MaxHealthUpdated();
+        pawn.Health = health;
+        pawn.HealthUpdated();
+    }
+
+    private void RestoreMaxHealth(IPlayer player)
+    {
+        if (player.PlayerPawn is not { } pawn)
+        {
+            return;
+        }
+
+        var originalMaxHealth = _cachedOriginalMaxHealth.TryGetValue(player.Slot, out var cached) ? cached : 100;
+        pawn.MaxHealth = originalMaxHealth;
+        pawn.MaxHealthUpdated();
+        pawn.Health = Math.Min(pawn.Health, originalMaxHealth);
+        pawn.HealthUpdated();
+    }
 }

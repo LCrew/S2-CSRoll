@@ -3,6 +3,8 @@ using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Players;
 
+using CSRoll.Core;
+
 namespace CSRoll.Modifiers;
 
 /// <summary>
@@ -19,6 +21,13 @@ namespace CSRoll.Modifiers;
 /// unblocked from every still-hidden target (OnAnyPlayerDeath), and re-blocked the moment they
 /// respawn into a new life (OnPlayerSpawnEvent/OnPlayerSpawnedEvent already ran per-spawn - extended
 /// to also resync every OTHER already-hidden target's block state against the newly-alive viewer).
+///
+/// Wallhack exemption: alive x-ray-enabled viewers (CSRollUtils.HasXrayVision) are exempted from the
+/// block the same way spectators are - reported live that Wallhack couldn't see invisible targets at
+/// all, and "wallhack lets you see through walls" reasonably ought to include seeing through
+/// invisibility too. GameModifierXrayBase grants/revokes into that shared registry as Wallhack
+/// activates/deactivates for a player; XrayVisionGranted/Revoked below react immediately so this
+/// doesn't wait for the next spawn/death to take effect.
 /// </summary>
 public abstract class GameModifierInvisibleBase : GameModifierBase
 {
@@ -33,10 +42,14 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
     {
         Core.Event.OnClientConnected += OnClientConnected;
         Core.Event.OnClientDisconnected += OnClientDisconnected;
+        CSRollUtils.XrayVisionGranted += OnXrayVisionGranted;
+        CSRollUtils.XrayVisionRevoked += OnXrayVisionRevoked;
     }
 
     protected override void OnUnregistered()
     {
+        CSRollUtils.XrayVisionGranted -= OnXrayVisionGranted;
+        CSRollUtils.XrayVisionRevoked -= OnXrayVisionRevoked;
         Core.Event.OnClientConnected -= OnClientConnected;
         Core.Event.OnClientDisconnected -= OnClientDisconnected;
     }
@@ -93,18 +106,26 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
         foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
         {
             // Only currently-alive other players are denied sight - dead players/admins in
-            // spectator mode are deliberately left able to see hidden targets (see class doc
-            // comment for why blocking them broke spectating entirely).
-            if (viewer.Slot != target.Slot && viewer.IsAlive)
+            // spectator mode, and alive x-ray-enabled viewers, are deliberately left able to see
+            // hidden targets (see class doc comment).
+            if (viewer.Slot != target.Slot && viewer.IsAlive && !CSRollUtils.HasXrayVision(viewer.Slot))
             {
                 viewer.ShouldBlockTransmitEntity(entityId, true);
             }
         }
     }
 
-    /// <summary>Resyncs one viewer's transmit-block state against every currently-hidden OTHER target - true (block) for a viewer who just became alive/active, false (unblock) for one who just became a spectator.</summary>
+    /// <summary>
+    /// Resyncs one viewer's transmit-block state against every currently-hidden OTHER target - true
+    /// (block) for a viewer who just became alive/active, false (unblock) for one who just became a
+    /// spectator or just gained x-ray vision. An x-ray-enabled viewer is never actually blocked
+    /// regardless of what the caller asked for - it's the single place that rule is enforced for
+    /// every resync path (spawn, death, grant/revoke).
+    /// </summary>
     private void ResyncHiddenTargetsForViewer(IPlayer viewer, bool block)
     {
+        var effectiveBlock = block && !CSRollUtils.HasXrayVision(viewer.Slot);
+
         foreach (var hiddenSlot in CachedHiddenSlots)
         {
             if (hiddenSlot == viewer.Slot)
@@ -114,8 +135,27 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
 
             if (Core.PlayerManager.GetPlayer(hiddenSlot)?.PlayerPawn is { } pawn)
             {
-                viewer.ShouldBlockTransmitEntity((int)pawn.Index, block);
+                viewer.ShouldBlockTransmitEntity((int)pawn.Index, effectiveBlock);
             }
+        }
+    }
+
+    private void OnXrayVisionGranted(int slot)
+    {
+        if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } viewer)
+        {
+            ResyncHiddenTargetsForViewer(viewer, block: false);
+        }
+    }
+
+    private void OnXrayVisionRevoked(int slot)
+    {
+        // Losing x-ray while dead/spectating shouldn't suddenly block them - only re-block if
+        // they're actually back to being a live combatant, matching the "only alive players are
+        // denied sight" rule everywhere else in this class.
+        if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true, IsAlive: true } viewer)
+        {
+            ResyncHiddenTargetsForViewer(viewer, block: true);
         }
     }
 
@@ -201,13 +241,14 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
         }
 
         // A freshly connected client isn't alive yet (still on no team/spectator) - only block if
-        // they're somehow already alive (e.g. a hot-reload mid-round), matching the "only alive
-        // players are denied sight" rule everywhere else in this class.
+        // they're somehow already alive (e.g. a hot-reload mid-round), matching the "only alive,
+        // non-x-ray players are denied sight" rule everywhere else in this class.
+        var block = viewer.IsAlive && !CSRollUtils.HasXrayVision(viewer.Slot);
         foreach (var hiddenSlot in CachedHiddenSlots)
         {
             if (Core.PlayerManager.GetPlayer(hiddenSlot)?.PlayerPawn is { } pawn)
             {
-                viewer.ShouldBlockTransmitEntity((int)pawn.Index, viewer.IsAlive);
+                viewer.ShouldBlockTransmitEntity((int)pawn.Index, block);
             }
         }
     }

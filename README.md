@@ -26,7 +26,7 @@ Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Spee
 | Steel Body | Can only be damaged by headshots or utility (HE/molotov) |
 | More Damage | Damage dealt is increased by 33% |
 | Revive | Random chance to survive lethal damage, shrinking with each revive |
-| Small Players | You are 2x smaller |
+| Small Players | You are 2x smaller, with 50 HP |
 | Poisonous Smoke | Your thrown smokes deal damage to enemies standing in them, and grants a smoke grenade |
 | Longer Flashes | Flash bang effect lasts 3x longer (configurable) |
 | Chinese Grenades | Timers on flashes, HE's and smokes are randomized |

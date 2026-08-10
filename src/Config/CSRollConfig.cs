@@ -114,6 +114,9 @@ public class CSRollConfig
     /// <summary>Tunables for the DontMiss ("Boomerang Bullets") modifier (bonus max health so a heavy weapon's self-damage on a miss doesn't one-shot the player).</summary>
     public DontMissConfig DontMiss { get; set; } = new();
 
+    /// <summary>Tunables for the SmallPlayers modifier (max health while shrunk).</summary>
+    public SmallPlayersConfig SmallPlayers { get; set; } = new();
+
     /// <summary>Tunables for the LongerFlashes modifier (blind-duration multiplier applied to the assigned player's own flashbang throws).</summary>
     public LongerFlashesConfig LongerFlashes { get; set; } = new();
 
@@ -164,6 +167,12 @@ public class DontMissConfig
     /// one-shot the player at the base 100 HP, reported as dying far too quickly to actually play.
     /// </summary>
     public int BonusHealth { get; set; } = 250;
+}
+
+public class SmallPlayersConfig
+{
+    /// <summary>Max health set while active, restored to normal on disable - a smaller hitbox is harder to hit, so lower health keeps it a real glass-cannon trade-off instead of a pure upside.</summary>
+    public int MaxHealth { get; set; } = 50;
 }
 
 public class LeadBootsConfig

@@ -70,7 +70,7 @@
   "Revive.Description": "[green]{rand%}[default] chance to survive lethal damage, shrinking with each revive",
 
   "SmallPlayers.DisplayName": "Small Players",
-  "SmallPlayers.Description": "You are 2X smaller",
+  "SmallPlayers.Description": "You are 2X smaller, with 50 HP",
 
   "PoisonSmoke.DisplayName": "Poisonous Smoke",
   "PoisonSmoke.Description": "Your thrown smokes deal damage to enemies standing in them",

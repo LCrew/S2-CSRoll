@@ -23,6 +23,16 @@ namespace CSRoll.Modifiers;
 /// player, and the visible glow prop follows the relay (not the player directly) - copied here
 /// verbatim, including its Spawnflags=256 and entity-identity-flags clear, neither of which this
 /// plugin had tried before. Requires in-game verification.
+///
+/// Interaction with invisibility: reported live that x-ray-enabled viewers couldn't see
+/// ConditionalInvisibility/FullInvisibility targets at all - the glow prop's own FollowEntity
+/// attachment to the real (now transmit-blocked) pawn appears to inherit that pawn's per-client
+/// transmission state. A test fork that dropped FollowEntity in favor of per-tick Teleport-based
+/// position tracking was tried and removed (didn't behave as wanted). Fixed instead at the source:
+/// SetupXray grants every x-ray-enabled viewer's slot into CSRollUtils' shared xray-vision registry,
+/// which GameModifierInvisibleBase reads to exempt those viewers from its own transmit-block
+/// entirely - the same technique already used to let spectators see through it. Wallhack now means
+/// seeing the real player too, not just their glow outline.
 /// </summary>
 public abstract class GameModifierXrayBase : GameModifierBase
 {
@@ -67,6 +77,11 @@ public abstract class GameModifierXrayBase : GameModifierBase
             RemoveXrayFromSlot(slot);
         }
 
+        foreach (var slot in CachedXrayEnabledSlots)
+        {
+            CSRollUtils.RevokeXrayVision(slot);
+        }
+
         CachedXrayEnabledSlots.Clear();
     }
 
@@ -78,6 +93,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
             if (CheckEnableXray(player))
             {
                 CachedXrayEnabledSlots.Add(player.Slot);
+                CSRollUtils.GrantXrayVision(player.Slot);
             }
         }
 
@@ -267,6 +283,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         CachedXrayEnabledSlots.Remove(@event.PlayerId);
+        CSRollUtils.RevokeXrayVision(@event.PlayerId);
         _relayEntityIndex.Remove(@event.PlayerId);
         _glowPropEntityIndex.Remove(@event.PlayerId);
     }

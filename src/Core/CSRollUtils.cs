@@ -20,6 +20,37 @@ public static class CSRollUtils
     private static string _titlePrefix = "[CSRoll] ";
 
     /// <summary>
+    /// Cross-modifier shared state: which player slots currently have x-ray vision (Wallhack).
+    /// GameModifierInvisibleBase (ConditionalInvisibility/FullInvisibility) reads this to exempt
+    /// x-ray-enabled viewers from its own transmit-block entirely - the same technique already used
+    /// to exempt spectators, applied here because "wallhack lets you see through walls" reasonably
+    /// ought to include seeing through an invisibility effect too. Simpler and more direct than an
+    /// earlier attempt at reworking how the x-ray glow effect's own entities transmit (a test-only
+    /// fork, removed - didn't behave as wanted).
+    /// </summary>
+    private static readonly HashSet<int> _xrayVisionSlots = [];
+
+    /// <summary>Fired immediately on grant/revoke (not just at the next spawn/death) so GameModifierInvisibleBase can resync a viewer's block state the instant Wallhack activates/deactivates for them mid-round.</summary>
+    public static event Action<int>? XrayVisionGranted;
+
+    /// <summary>See XrayVisionGranted.</summary>
+    public static event Action<int>? XrayVisionRevoked;
+
+    public static void GrantXrayVision(int slot)
+    {
+        _xrayVisionSlots.Add(slot);
+        XrayVisionGranted?.Invoke(slot);
+    }
+
+    public static void RevokeXrayVision(int slot)
+    {
+        _xrayVisionSlots.Remove(slot);
+        XrayVisionRevoked?.Invoke(slot);
+    }
+
+    public static bool HasXrayVision(int slot) => _xrayVisionSlots.Contains(slot);
+
+    /// <summary>
     /// Sets the chat title prefix from config's BannerText, resolving SwiftlyS2's [colorname]
     /// chat color tokens (e.g. "[green]...[default]") via Helper.Colored(). SwiftlyS2 uses square
     /// brackets, not CounterStrikeSharp's curly braces - confirmed via the official porting guide
