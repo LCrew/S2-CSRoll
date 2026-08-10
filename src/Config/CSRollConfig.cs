@@ -119,6 +119,17 @@ public class ConditionalInvisibilityConfig
 
     /// <summary>Seconds the visual fade in/out takes (real alpha blend via RenderMode.kRenderTransAlpha, not an instant transmit-block toggle).</summary>
     public float FadeDurationSeconds { get; set; } = 0.5f;
+
+    /// <summary>
+    /// Taking damage reveals the player too, but as a short, snappy flash rather than the same
+    /// "visible until SoundCooldownSeconds of silence" window a footstep/gunshot/etc gets - getting
+    /// hit isn't an ongoing noise, it's a single instant, so this is its own independent timer/fade
+    /// pair instead of feeding into the normal sound-cooldown system.
+    /// </summary>
+    public float DamageFlashDurationSeconds { get; set; } = 0.5f;
+
+    /// <summary>Fade speed (both in and out) used specifically for the damage flash above - deliberately much quicker than FadeDurationSeconds so it reads as a startled "flinch" rather than a normal reveal.</summary>
+    public float DamageFlashFadeSeconds { get; set; } = 0.15f;
 }
 
 public class SpeedhackConfig

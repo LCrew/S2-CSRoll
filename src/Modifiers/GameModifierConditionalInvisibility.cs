@@ -10,8 +10,13 @@ namespace CSRoll.Modifiers;
 
 /// <summary>
 /// The player(s) this rolled for are invisible while silent - making any sound (footsteps, gunfire,
-/// reload, grenade throw, taking damage, or starting a bomb plant) reveals them, and they fade invisible again after a config-tunable
-/// cooldown of continued silence. Scoped the same way every other per-player modifier is (via
+/// reload, grenade throw, or starting a bomb plant) reveals them, and they fade invisible again after
+/// a config-tunable cooldown of continued silence. Taking damage also reveals them, but as its own
+/// short, snappy flash (DamageFlashDurationSeconds hold, DamageFlashFadeSeconds fade both ways)
+/// completely independent of the sound-cooldown timer - getting hit is a single instant, not an
+/// ongoing noise, so it shouldn't stay visible for a full SoundCooldownSeconds the way a footstep
+/// does. See GetFadeDurationSeconds for how the two independent timers pick which fade speed applies
+/// at any given moment. Scoped the same way every other per-player modifier is (via
 /// IsAssignedTo/AssignedSlots) - this used to pick one random player itself instead, which meant it
 /// couldn't participate in normal per-player random rolls at all (whoever the roll "gave" it to and
 /// whoever actually turned invisible could be two different people). All the per-slot cosmetic state
@@ -43,6 +48,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
     private const int HtmlDurationMs = 400;
 
     private readonly Dictionary<int, float> _lastSoundTime = [];
+    private readonly Dictionary<int, float> _damageFlashUntil = [];
     private readonly Dictionary<int, float> _currentAlpha = [];
     private readonly Dictionary<int, float> _lastAlphaUpdateTime = [];
     private readonly Dictionary<int, float> _lastHtmlUpdateTime = [];
@@ -112,6 +118,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         }
 
         _lastSoundTime.Clear();
+        _damageFlashUntil.Clear();
         _currentAlpha.Clear();
         _lastAlphaUpdateTime.Clear();
         _lastHtmlUpdateTime.Clear();
@@ -122,6 +129,30 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
     private bool IsSilent(int slot) =>
         !_lastSoundTime.TryGetValue(slot, out var last) ||
         Core.Engine.GlobalVars.CurrentTime - last >= Runtime.Config.ConditionalInvisibility.SoundCooldownSeconds;
+
+    private bool IsDamageFlashActive(int slot, float now) =>
+        _damageFlashUntil.TryGetValue(slot, out var until) && now < until;
+
+    /// <summary>
+    /// Picks which fade speed currently governs slot's alpha ramp by comparing whichever of the two
+    /// independent reveal timers (normal sound-cooldown vs the damage flash) expires LATER - that's
+    /// whichever one is actually "in charge" of keeping the player visible right now, so it also
+    /// correctly governs the fade-out the moment it's the one that finally lets go. A flash with no
+    /// concurrent noise makes its own deadline the later one throughout, giving both directions
+    /// (reveal on hit, then snap back) the fast damage timing; ordinary noise does the same for the
+    /// normal timing.
+    /// </summary>
+    private float GetFadeDurationSeconds(int slot)
+    {
+        var soundUntil = _lastSoundTime.TryGetValue(slot, out var lastSound)
+            ? lastSound + Runtime.Config.ConditionalInvisibility.SoundCooldownSeconds
+            : float.NegativeInfinity;
+        var flashUntil = _damageFlashUntil.TryGetValue(slot, out var until) ? until : float.NegativeInfinity;
+
+        return flashUntil > soundUntil
+            ? MathF.Max(0.05f, Runtime.Config.ConditionalInvisibility.DamageFlashFadeSeconds)
+            : MathF.Max(0.05f, Runtime.Config.ConditionalInvisibility.FadeDurationSeconds);
+    }
 
     private void OnTick()
     {
@@ -134,7 +165,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
                 continue;
             }
 
-            var desiredHidden = IsSilent(slot);
+            var desiredHidden = IsSilent(slot) && !IsDamageFlashActive(slot, now);
             var settledHidden = CachedHiddenSlots.Contains(slot);
 
             AdvanceFade(player, slot, pawn, desiredHidden, settledHidden, now);
@@ -149,7 +180,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         _lastAlphaUpdateTime[slot] = now;
 
         var currentAlpha = _currentAlpha.TryGetValue(slot, out var alpha) ? alpha : VisibleAlpha;
-        var fadeDuration = MathF.Max(0.05f, Runtime.Config.ConditionalInvisibility.FadeDurationSeconds);
+        var fadeDuration = GetFadeDurationSeconds(slot);
         var step = 255f * deltaTime / fadeDuration;
 
         if (desiredHidden && !settledHidden)
@@ -272,9 +303,12 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
 
     private HookResult OnPlayerHurt(EventPlayerHurt @event)
     {
+        // Deliberately its own timer (see GetFadeDurationSeconds) rather than MarkSoundMade - taking
+        // a hit is a single instant, not an ongoing noise, so it should flash briefly and snap back
+        // rather than stay visible for the same full SoundCooldownSeconds a footstep/gunshot gets.
         if (@event.UserIdPlayer is { IsValid: true } player)
         {
-            MarkSoundMade(player.Slot);
+            _damageFlashUntil[player.Slot] = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.ConditionalInvisibility.DamageFlashDurationSeconds;
         }
 
         return HookResult.Continue;
@@ -295,6 +329,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         if (@event.UserIdPlayer is { IsValid: true } player)
         {
             _lastSoundTime.Remove(player.Slot);
+            _damageFlashUntil.Remove(player.Slot);
 
             if (IsAssignedTo(player.Slot))
             {
