@@ -139,10 +139,10 @@ public class ConditionalInvisibilityConfig
     /// hit isn't an ongoing noise, it's a single instant, so this is its own independent timer/fade
     /// pair instead of feeding into the normal sound-cooldown system.
     /// </summary>
-    public float DamageFlashDurationSeconds { get; set; } = 0.5f;
+    public float DamageFlashDurationSeconds { get; set; } = 0.3f;
 
     /// <summary>Fade speed (both in and out) used specifically for the damage flash above - deliberately much quicker than FadeDurationSeconds so it reads as a startled "flinch" rather than a normal reveal.</summary>
-    public float DamageFlashFadeSeconds { get; set; } = 0.15f;
+    public float DamageFlashFadeSeconds { get; set; } = 0.07f;
 }
 
 public class SpeedhackConfig
