@@ -182,6 +182,12 @@ public static class CSRollUtils
         "weapon_p250", "weapon_tec9", "weapon_usp_silencer", "weapon_cz75a", "weapon_revolver",
     ];
 
+    /// <summary>Pistols restricted to Terrorists only in standard CS2 (Glock, Tec-9, Dual Berettas).</summary>
+    private static readonly HashSet<string> TOnlyPistols = ["weapon_glock", "weapon_tec9", "weapon_elite"];
+
+    /// <summary>Pistols restricted to Counter-Terrorists only in standard CS2 (Five-SeveN, P2000, USP-S).</summary>
+    private static readonly HashSet<string> CTOnlyPistols = ["weapon_fiveseven", "weapon_hkp2000", "weapon_usp_silencer"];
+
     public static readonly IReadOnlyList<string> MainWeaponNames =
     [
         "weapon_mac10", "weapon_mp5sd", "weapon_mp7", "weapon_mp9", "weapon_p90", "weapon_ump45",
@@ -190,6 +196,19 @@ public static class CSRollUtils
         "weapon_scar20", "weapon_nova", "weapon_xm1014", "weapon_mag7", "weapon_sawedoff",
         "weapon_m249", "weapon_negev",
     ];
+
+    /// <summary>
+    /// Bug fix: GetRandomMainWeaponName/GetRandomPistolName used to ignore team entirely - a real
+    /// bug for anything that force-GiveItems the result, since CS2 enforces standard team weapon
+    /// restrictions (M4A4/M4A1-S/AUG/FAMAS/MP7/MP9/SCAR-20/MAG-7 are CT-only; AK-47/Galil AR/SG 553/
+    /// MAC-10/G3SG1/Sawed-Off are T-only) - a mismatched give can silently fail to arrive, leaving
+    /// the player weapon-less. Both team-restriction sets below reflect CS2's standard default
+    /// loadout rules; everything not listed in either is available to both teams.
+    /// </summary>
+    private static readonly HashSet<string> TOnlyMainWeapons = ["weapon_mac10", "weapon_ak47", "weapon_galilar", "weapon_sg556", "weapon_g3sg1", "weapon_sawedoff"];
+
+    /// <summary>See TOnlyMainWeapons.</summary>
+    private static readonly HashSet<string> CTOnlyMainWeapons = ["weapon_mp9", "weapon_mp7", "weapon_aug", "weapon_famas", "weapon_m4a1", "weapon_m4a1_silencer", "weapon_scar20", "weapon_mag7"];
 
     /// <summary>
     /// Bug fix: GetRandomMainWeaponName used to pick uniformly across all 24 entries above - reported
@@ -213,15 +232,33 @@ public static class CSRollUtils
         "weapon_hegrenade", "weapon_flashbang", "weapon_smokegrenade", "weapon_decoy", "weapon_incendiary",
     ];
 
-    public static string GetRandomPistolName() => PistolNames[Random.Shared.Next(PistolNames.Count)];
+    private static bool IsUsableByTeam(string weaponName, Team team, HashSet<string> tOnly, HashSet<string> ctOnly) =>
+        team switch
+        {
+            Team.T => !ctOnly.Contains(weaponName),
+            Team.CT => !tOnly.Contains(weaponName),
+            _ => true,
+        };
 
-    public static string GetRandomMainWeaponName()
+    public static string GetRandomPistolName(Team team)
     {
-        var totalWeight = MainWeaponNames.Sum(name => MainWeaponWeights.GetValueOrDefault(name, 1));
+        var pool = PistolNames.Where(name => IsUsableByTeam(name, team, TOnlyPistols, CTOnlyPistols)).ToList();
+        return pool.Count > 0 ? pool[Random.Shared.Next(pool.Count)] : PistolNames[Random.Shared.Next(PistolNames.Count)];
+    }
+
+    public static string GetRandomMainWeaponName(Team team)
+    {
+        var pool = MainWeaponNames.Where(name => IsUsableByTeam(name, team, TOnlyMainWeapons, CTOnlyMainWeapons)).ToList();
+        if (pool.Count == 0)
+        {
+            pool = MainWeaponNames.ToList();
+        }
+
+        var totalWeight = pool.Sum(name => MainWeaponWeights.GetValueOrDefault(name, 1));
         var roll = Random.Shared.Next(totalWeight);
 
         var cumulative = 0;
-        foreach (var name in MainWeaponNames)
+        foreach (var name in pool)
         {
             cumulative += MainWeaponWeights.GetValueOrDefault(name, 1);
             if (roll < cumulative)
@@ -230,7 +267,7 @@ public static class CSRollUtils
             }
         }
 
-        return MainWeaponNames[^1];
+        return pool[^1];
     }
 
     public static List<string> GetRandomGrenadeNames(int count)

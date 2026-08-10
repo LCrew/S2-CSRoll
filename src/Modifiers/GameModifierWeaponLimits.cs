@@ -178,15 +178,22 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
 /// <summary>
 /// Replaces the old RandomWeapon (one fixed weapon) and RandomWeapons (a fresh random weapon every
 /// spawn, no pistol/nades/armor) modifiers with a single richer one: a full random loadout chosen
-/// once per activation (same weapons every spawn, like the old RandomWeapon) - a random main weapon,
-/// a random pistol, 1-4 random grenades, and a coin-flip for armor+helmet.
+/// once per player (same weapons every spawn for that player, like the old RandomWeapon) - a random
+/// main weapon, a random pistol, 1-4 random grenades, and a coin-flip for armor+helmet.
+///
+/// Bug fix: the main weapon/pistol used to be a single pair picked ONCE per activation and given to
+/// every assigned player regardless of team - CS2 enforces standard team weapon restrictions
+/// (M4A4/AUG/etc. are CT-only, AK-47/Galil/etc. are T-only - see CSRollUtils' TOnly/CTOnly sets), so
+/// a player on the wrong team for the picked weapon could silently receive nothing. Now rolled once
+/// per player (cached per slot, so it's still consistent across that player's own respawns) using
+/// CSRollUtils.GetRandomMainWeaponName(team)/GetRandomPistolName(team), filtered to their actual team.
 /// </summary>
 public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
 {
-    private string _mainWeaponName = "";
-    private string _pistolName = "";
-    private List<string> _grenadeNames = [];
-    private bool _hasArmor;
+    private readonly Dictionary<int, string> _mainWeaponName = [];
+    private readonly Dictionary<int, string> _pistolName = [];
+    private readonly Dictionary<int, List<string>> _grenadeNames = [];
+    private readonly Dictionary<int, bool> _hasArmor = [];
 
     public GameModifierRandomLoadout()
     {
@@ -203,13 +210,25 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
 
     protected override bool AnnounceRemovalGlobally => false;
 
-    protected override void OnEnabled()
+    protected override void OnRegistered()
     {
-        _mainWeaponName = CSRollUtils.GetRandomMainWeaponName();
-        _pistolName = CSRollUtils.GetRandomPistolName();
-        _grenadeNames = CSRollUtils.GetRandomGrenadeNames(Random.Shared.Next(1, 5));
-        _hasArmor = Random.Shared.Next(2) == 0;
-        base.OnEnabled();
+        base.OnRegistered();
+        Core.Event.OnClientDisconnected += OnClientDisconnected;
+    }
+
+    protected override void OnUnregistered()
+    {
+        Core.Event.OnClientDisconnected -= OnClientDisconnected;
+        base.OnUnregistered();
+    }
+
+    protected override void OnDisabled()
+    {
+        _mainWeaponName.Clear();
+        _pistolName.Clear();
+        _grenadeNames.Clear();
+        _hasArmor.Clear();
+        base.OnDisabled();
     }
 
     protected override void GiveReplacementWeapons(IPlayer player)
@@ -220,22 +239,56 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
             return;
         }
 
-        itemServices.GiveItem(_mainWeaponName);
-        itemServices.GiveItem(_pistolName);
-
+        var slot = player.Slot;
         var team = player.Controller is { IsValid: true } controller ? controller.Team : Team.None;
-        foreach (var grenadeName in _grenadeNames)
+
+        if (!_mainWeaponName.TryGetValue(slot, out var mainWeapon))
+        {
+            mainWeapon = CSRollUtils.GetRandomMainWeaponName(team);
+            _mainWeaponName[slot] = mainWeapon;
+        }
+
+        if (!_pistolName.TryGetValue(slot, out var pistol))
+        {
+            pistol = CSRollUtils.GetRandomPistolName(team);
+            _pistolName[slot] = pistol;
+        }
+
+        if (!_grenadeNames.TryGetValue(slot, out var grenades))
+        {
+            grenades = CSRollUtils.GetRandomGrenadeNames(Random.Shared.Next(1, 5));
+            _grenadeNames[slot] = grenades;
+        }
+
+        if (!_hasArmor.TryGetValue(slot, out var hasArmor))
+        {
+            hasArmor = Random.Shared.Next(2) == 0;
+            _hasArmor[slot] = hasArmor;
+        }
+
+        itemServices.GiveItem(mainWeapon);
+        itemServices.GiveItem(pistol);
+
+        foreach (var grenadeName in grenades)
         {
             itemServices.GiveItem(CSRollUtils.ResolveGrenadeName(grenadeName, team));
         }
 
-        if (_hasArmor && player.PlayerPawn is { } pawn)
+        if (hasArmor && player.PlayerPawn is { } pawn)
         {
             pawn.ArmorValue = 100;
             pawn.ArmorValueUpdated();
             itemServices.HasHelmet = true;
             itemServices.HasHelmetUpdated();
         }
+    }
+
+    private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
+    {
+        _mainWeaponName.Remove(@event.PlayerId);
+        _pistolName.Remove(@event.PlayerId);
+        _grenadeNames.Remove(@event.PlayerId);
+        _hasArmor.Remove(@event.PlayerId);
     }
 }
 
