@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
@@ -122,9 +124,15 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         Core.GameEvent.Unhook(_bombPlantHookId);
         Core.GameEvent.Unhook(_spawnResetHookId);
 
-        foreach (var slot in AssignedSlots)
+        // Bug fix: was "foreach (var slot in AssignedSlots)" - AssignedSlots is the raw per-player
+        // scoping set, which is deliberately EMPTY for a global-scope activation (!addmodifier, as
+        // opposed to !memodifier/a per-player random roll) per IsAssignedTo's own "empty means
+        // everyone" convention used everywhere else in this codebase. Iterating it directly skipped
+        // every player entirely for a globally-active instance. Iterate every connected player and
+        // ask IsAssignedTo instead, matching the convention.
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } player)
+            if (IsAssignedTo(player.Slot))
             {
                 ResetRenderState(player);
             }
@@ -171,13 +179,21 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
 
-        foreach (var slot in AssignedSlots)
+        // Bug fix: was "foreach (var slot in AssignedSlots)" - see OnDisabled's matching bug-fix note.
+        // AssignedSlots is empty for a global-scope activation (!addmodifier), so this entire tick
+        // loop - the only thing that ever checks silence/damage state and drives the fade/HUD - ran
+        // zero iterations for a globally-active instance. Confirmed live: OnPlayerHurt was correctly
+        // firing and setting the damage-flash timer every hit (it uses IsAssignedTo), but nothing
+        // ever read that timer because this loop never touched the player at all - "didn't see him
+        // show up" even though the flash was being armed correctly every single time.
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true, IsAlive: true } player || player.PlayerPawn is not { } pawn)
+            if (!IsAssignedTo(player.Slot) || player is not { IsValid: true, IsAlive: true } || player.PlayerPawn is not { } pawn)
             {
                 continue;
             }
 
+            var slot = player.Slot;
             var desiredHidden = IsSilent(slot) && !IsDamageFlashActive(slot, now);
             var settledHidden = CachedHiddenSlots.Contains(slot);
 
@@ -217,6 +233,8 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
             currentAlpha = InvisibleAlpha;
             _currentAlpha[slot] = currentAlpha;
             ApplyAlpha(pawn, currentAlpha);
+
+            Core.Logger.LogInformation("[CSRoll][ConditionalInvisibility] Revealing slot={Slot} reason={Reason} fadeDuration={FadeDuration}", slot, IsDamageFlashActive(slot, now) ? "damage" : "sound-cooldown-elapsed", fadeDuration);
         }
         else if (!desiredHidden && !settledHidden && currentAlpha < VisibleAlpha)
         {
@@ -322,6 +340,12 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         if (@event.UserIdPlayer is { IsValid: true } player)
         {
             _damageFlashUntil[player.Slot] = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.ConditionalInvisibility.DamageFlashDurationSeconds;
+
+            Core.Logger.LogInformation("[CSRoll][ConditionalInvisibility] OnPlayerHurt: slot={Slot} assigned={Assigned} settledHidden={SettledHidden} flashDuration={FlashDuration}", player.Slot, IsAssignedTo(player.Slot), CachedHiddenSlots.Contains(player.Slot), Runtime.Config.ConditionalInvisibility.DamageFlashDurationSeconds);
+        }
+        else
+        {
+            Core.Logger.LogInformation("[CSRoll][ConditionalInvisibility] OnPlayerHurt fired but UserIdPlayer was null/invalid");
         }
 
         return HookResult.Continue;

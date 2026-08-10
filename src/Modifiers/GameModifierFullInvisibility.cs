@@ -85,11 +85,16 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         Core.GameHooks.Items.CanAcquire.Pre += OnCanAcquireItem;
         Core.Event.OnTick += OnTick;
 
-        foreach (var slot in AssignedSlots)
+        // Bug fix: same mistake as OnTick's own bug-fix note below - iterating AssignedSlots
+        // directly skipped every player for a global (!addmodifier) activation, since AssignedSlots
+        // is only ever populated for a per-player roll/!memodifier. OnPlayerSpawn's own IsAssignedTo
+        // check meant weapons still got stripped eventually (on that player's next spawn), but not
+        // immediately on activation for anyone already alive when a global roll landed.
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } assignedPlayer)
+            if (IsAssignedTo(player.Slot))
             {
-                StripWeapons(assignedPlayer);
+                StripWeapons(player);
             }
         }
     }
