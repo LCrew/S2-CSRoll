@@ -1,4 +1,5 @@
-using SwiftlyS2.Shared;
+using Microsoft.Extensions.Logging;
+
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
@@ -14,20 +15,24 @@ namespace CSRoll.Modifiers;
 /// CanAcquire.Pre buy-and-pickup block (same base RandomLoadout/GrenadesOnly already use), scoped to
 /// CSRollUtils.AllGunWeaponTypes so grenades are explicitly excluded from the block.
 ///
-/// The spin reveal is a small self-contained version of the same visual pattern ModifierRuntime's
-/// own spin-then-reveal system uses (the same tick sound, Core.Scheduler.DelayBySeconds to chain
-/// frames) - not a call into ModifierRuntime itself, which is tightly coupled to revealing which
-/// MODIFIERS got rolled, not an arbitrary weapon pool. Driven by CSRollUtils.GetRandomMainWeaponName()
-/// (the same weighted pool RandomLoadout already uses). The player keeps their current gun for the
-/// whole spin, only swapping at the very last frame - a mid-round reroll doesn't leave them
-/// weaponless for the whole animation.
+/// Bug fix (structural rewrite): the spin used to be driven by a self-rescheduling chain of
+/// Core.Scheduler.DelayBySeconds calls - a mechanism no other modifier in this codebase uses. Every
+/// other tick-based modifier (FlankTeleport, Regeneration, etc.) drives 100% of its logic from
+/// Core.Event.OnTick, so the instant OnDisabled() unsubscribes it, there is no code path left that
+/// can still run - full stop, by construction. The DelayBySeconds chain lived entirely outside that
+/// subscription and depended on manually re-checking generation/IsActive/IsAssignedTo on every single
+/// frame to stop itself; despite that guard being logically correct on paper, it was reported live as
+/// not actually stopping the spin/removing the modifier reliably. Rather than patch that guard again,
+/// the spin is now driven by _spins (a per-slot state dict) advanced from the same OnGameTick loop
+/// that already drives the reroll timer and countdown HUD - so disabling this modifier stops the spin
+/// exactly the same way it stops everything else about it: unconditionally, with nothing left running.
 ///
 /// Bug fix: the landing frame used to call CSRollUtils.StripWeaponTypes/ItemServices.GiveItem
 /// directly - outside GameModifierRemoveWeapons' own _grantInProgress guard, which exists
 /// specifically because this class's own CanAcquire.Pre hook blocks acquiring anything in
-/// TypesToStrip, including its own forced grant (see that hook's bug-fix comment). Now goes through
-/// the base class's own (newly protected) StripWeapons instead, which wraps GiveReplacementWeapons
-/// in that guard correctly.
+/// TypesToStrip, including its own forced grant (see that hook's bug-fix comment). Goes through the
+/// base class's own (protected) StripWeapons instead, which wraps GiveReplacementWeapons in that
+/// guard correctly.
 ///
 /// Bug fix: a player receiving the modifier used to only get their first weapon via a separate
 /// manual loop in OnEnabled, which meant anyone not yet alive at that exact moment (or connecting/
@@ -41,28 +46,42 @@ namespace CSRoll.Modifiers;
 /// SendCenterHTML call sites racing each other, each overwriting whatever the other had just shown -
 /// visibly flickering/interrupting the spin. Unified into one BuildStatusHtml template (title +
 /// timer-or-"Rolling" line + blank spacer + weapon line) used by both, and the countdown refresh
-/// skips entirely for any slot currently mid-spin (tracked via _rollingSlots) rather than racing it.
+/// skips entirely for any slot currently mid-spin (tracked via _spins) rather than racing it.
+///
+/// Bug fix: "Rolling" used to render via HtmlGradient.GenerateGradientText - after repeated reports
+/// that no spin animation was ever visible (just static "Rolling" text) even once the underlying
+/// state-machine bug above was fixed, the gradient helper itself is dropped in favor of a plain
+/// colored span, matching how every other HUD in this codebase (e.g. FlankTeleport's own cooldown
+/// text) already renders colored status text with no issues.
 /// </summary>
 public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 {
     private const int HtmlDurationMs = 400;
     private const float HtmlRefreshIntervalSeconds = 0.1f;
 
+    private sealed class SpinState
+    {
+        public int FrameIndex;
+        public string FinalWeaponName = "";
+        public Team Team;
+        public float NextFrameTime;
+    }
+
     private readonly Dictionary<int, string> _currentWeaponName = [];
     private readonly Dictionary<int, float> _lastHtmlUpdateTime = [];
-    private readonly HashSet<int> _rollingSlots = [];
-    private float _nextRerollTime;
+    private readonly Dictionary<int, SpinState> _spins = [];
 
     /// <summary>
-    /// Bumped every OnEnabled(). IsActive alone can't tell "a spin chain from a PRIOR activation
-    /// still lingering" apart from "the modifier is currently active again" - if disabled and
-    /// re-enabled (e.g. across a round transition) before an orphaned Core.Scheduler.DelayBySeconds
-    /// callback fires, IsActive would already be true again for the NEW activation, incorrectly
-    /// letting a STALE chain from the OLD one complete. Each spin captures the generation it started
-    /// under and refuses to continue once it no longer matches - the same pattern ModifierRuntime
-    /// itself already uses (_rollGeneration) for the analogous reveal-closure problem.
+    /// -1 means "not yet scheduled". OnRoundStart's "re-apply active modifiers in case anything was
+    /// reset" (see its own bug-fix comment) runs Deactivate()+Activate() on every currently-active
+    /// modifier on EVERY round start, not just once - previously this field got unconditionally reset
+    /// to now+RerollIntervalSeconds on every one of those calls, so on a server with round times
+    /// shorter than RerollIntervalSeconds the reroll timer could never actually elapse, pushed back
+    /// every round instead of counting down 25 real seconds as intended. Only initialised the first
+    /// time OnEnabled ever runs for a given activation; a genuinely elapsed timer at the moment of a
+    /// mere reapply is left alone and fires on the very next tick once ticking resumes, which is correct.
     /// </summary>
-    private int _activationGeneration;
+    private float _nextRerollTime = -1f;
 
     public GameModifierWeaponRoulette()
     {
@@ -94,9 +113,19 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 
     protected override void OnEnabled()
     {
-        _activationGeneration++;
-        _nextRerollTime = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
+        // Bug fix: used to unconditionally reset here, which - combined with OnRoundStart's "re-apply
+        // active modifiers" cycle calling Deactivate()+Activate() every round - meant the 25s reroll
+        // countdown got pushed back to now+25 every single round instead of counting down real time.
+        // Only set on this activation's first OnEnabled(); a mere round-start reapply leaves whatever
+        // was already in flight alone.
+        if (_nextRerollTime < 0f)
+        {
+            _nextRerollTime = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
+        }
+
         Core.Event.OnTick += OnGameTick;
+
+        Core.Logger.LogInformation("[CSRoll][WeaponRoulette] OnEnabled - slots=[{Slots}], nextRerollIn={Seconds:0.0}s", string.Join(",", AssignedSlots), _nextRerollTime - Core.Engine.GlobalVars.CurrentTime);
 
         // base.OnEnabled() strips every assigned player's guns and calls GiveReplacementWeapons
         // below for each - which itself detects "no weapon rolled yet" and kicks off the first spin.
@@ -105,10 +134,25 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 
     protected override void OnDisabled()
     {
+        Core.Logger.LogInformation("[CSRoll][WeaponRoulette] OnDisabled - slots=[{Slots}], spinsInFlight=[{Spins}]", string.Join(",", AssignedSlots), string.Join(",", _spins.Keys));
+
+        // Unsubscribing this is the ONLY thing that drives any of this modifier's ongoing behavior -
+        // the reroll timer, the spin frames, the countdown HUD all live inside OnGameTick. The instant
+        // this line runs, nothing about this modifier executes again until a future OnEnabled().
         Core.Event.OnTick -= OnGameTick;
-        _currentWeaponName.Clear();
+
+        // Bug fix: used to unconditionally clear _currentWeaponName here too - since OnRoundStart's
+        // "re-apply active modifiers" cycle runs Deactivate() immediately followed by Activate() on
+        // every round start (not just once), this forced a brand new spin from frame 0 for every
+        // assigned player on every single round, regardless of whether the reroll timer had actually
+        // elapsed. If a round was shorter than SpinDurationSeconds, the animation could never reach
+        // its landing frame - reported as "only ever shows the Rolling text, never completes". Keeping
+        // the currently-held weapon cached across a mere reapply means base.OnEnabled()'s forced
+        // strip+regive silently re-hands the SAME weapon (a harmless full-ammo reset, matching every
+        // other modifier's reapply semantics) instead of triggering a fresh roll - only the real
+        // reroll timer (or a genuinely new player with no cached weapon yet) starts a new spin now.
         _lastHtmlUpdateTime.Clear();
-        _rollingSlots.Clear();
+        _spins.Clear();
         base.OnDisabled();
     }
 
@@ -116,11 +160,14 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     {
         if (_currentWeaponName.TryGetValue(player.Slot, out var weaponName))
         {
-            player.PlayerPawn?.ItemServices?.GiveItem(weaponName);
+            var itemServices = player.PlayerPawn?.ItemServices;
+            itemServices?.GiveItem(weaponName);
+
+            Core.Logger.LogInformation("[CSRoll][WeaponRoulette] GiveReplacementWeapons: slot={Slot} weapon={Weapon} pawnNull={PawnNull} itemServicesNull={ItemServicesNull}", player.Slot, weaponName, player.PlayerPawn is null, itemServices is null);
         }
         else
         {
-            RollNewWeapon(player);
+            StartSpin(player);
         }
     }
 
@@ -136,28 +183,39 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             {
                 if (IsAssignedTo(player.Slot))
                 {
-                    RollNewWeapon(player);
+                    StartSpin(player);
                 }
             }
         }
 
         foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (IsAssignedTo(player.Slot))
+            if (!IsAssignedTo(player.Slot))
+            {
+                continue;
+            }
+
+            if (_spins.TryGetValue(player.Slot, out var spin))
+            {
+                if (now >= spin.NextFrameTime)
+                {
+                    AdvanceSpin(player, spin, now);
+                }
+            }
+            else
             {
                 RefreshCountdownHtml(player, now);
             }
         }
     }
 
-    private void RollNewWeapon(IPlayer player)
+    private void StartSpin(IPlayer player)
     {
         // Bug fix: without this guard, a second near-simultaneous trigger for the same player (e.g.
         // an EventPlayerSpawn firing right around !addmodifier/!memodifier applying) started an
-        // independent second spin chain that stomped the first one's SendCenterHTML calls every
-        // tick - the player only ever saw whichever chain's frame landed last, never a clean
-        // animation. HashSet.Add returns false if the slot's already present.
-        if (!_rollingSlots.Add(player.Slot))
+        // independent second spin that stomped the first one's SendCenterHTML calls every tick - the
+        // player only ever saw whichever one's frame landed last, never a clean animation.
+        if (_spins.ContainsKey(player.Slot))
         {
             return;
         }
@@ -165,44 +223,38 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         // Bug fix: GetRandomMainWeaponName ignored team entirely - CS2 enforces standard team
         // weapon restrictions (M4A4/AUG/etc. CT-only, AK-47/Galil/etc. T-only), so a mismatched
         // GiveItem could silently fail to arrive, leaving the player weapon-less after their pistol
-        // was already stripped. Team is resolved once per roll and carried through the whole spin
-        // chain, not re-resolved per frame.
+        // was already stripped. Team is resolved once per roll and carried through the whole spin.
         var team = player.Controller is { IsValid: true } controller ? controller.Team : Team.None;
-        PlaySpin(player.Slot, team, CSRollUtils.GetRandomMainWeaponName(team), 0, _activationGeneration);
+        var finalWeaponName = CSRollUtils.GetRandomMainWeaponName(team);
+
+        var spin = new SpinState
+        {
+            FrameIndex = 0,
+            FinalWeaponName = finalWeaponName,
+            Team = team,
+            NextFrameTime = Core.Engine.GlobalVars.CurrentTime,
+        };
+
+        _spins[player.Slot] = spin;
+
+        // Play the first frame immediately rather than waiting for the next tick's threshold check -
+        // per explicit request, the spin should start the instant the modifier (or a reroll) hits.
+        AdvanceSpin(player, spin, Core.Engine.GlobalVars.CurrentTime);
     }
 
-    private void PlaySpin(int slot, Team team, string finalWeaponName, int frameIndex, int generation)
+    private void AdvanceSpin(IPlayer player, SpinState spin, float now)
     {
-        // Bug fix: Core.Scheduler.DelayBySeconds callbacks aren't tied to this modifier's lifecycle
-        // at all - without this check, a spin still in flight when the modifier gets disabled
-        // (!removemodifier(s), a random-round rotation ending, etc.) kept running to completion,
-        // stripped+gave a weapon to a player this modifier no longer applied to, and - since
-        // GiveReplacementWeapons re-rolls whenever it finds no cached weapon - could keep re-arming
-        // itself indefinitely. Reported as "stuck rolling forever, even after !removemodifiers".
-        // The generation check additionally catches the case where the modifier got disabled AND
-        // re-enabled again before this callback fired - IsActive alone would already be true again
-        // for the new activation, letting a stale chain from the old one slip through.
-        if (generation != _activationGeneration || !IsActive || !IsAssignedTo(slot))
-        {
-            _rollingSlots.Remove(slot);
-            return;
-        }
-
-        if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true } player)
-        {
-            _rollingSlots.Remove(slot);
-            return;
-        }
-
         var frameCount = Math.Max(1, Runtime.Config.WeaponRoulette.SpinFrameCount);
 
-        if (frameIndex >= frameCount)
+        if (spin.FrameIndex >= frameCount)
         {
-            _rollingSlots.Remove(slot);
-            _currentWeaponName[slot] = finalWeaponName;
+            _spins.Remove(player.Slot);
+            _currentWeaponName[player.Slot] = spin.FinalWeaponName;
 
-            var remaining = Math.Max(0f, _nextRerollTime - Core.Engine.GlobalVars.CurrentTime);
-            player.SendCenterHTML(BuildStatusHtml(isRolling: false, finalWeaponName, remaining), HtmlDurationMs);
+            var remaining = Math.Max(0f, _nextRerollTime - now);
+            player.SendCenterHTML(BuildStatusHtml(isRolling: false, spin.FinalWeaponName, remaining), HtmlDurationMs);
+
+            Core.Logger.LogInformation("[CSRoll][WeaponRoulette] Spin landed: slot={Slot} weapon={Weapon}", player.Slot, spin.FinalWeaponName);
 
             // Goes through the base class's own StripWeapons (strips whatever gun they currently
             // hold, then calls GiveReplacementWeapons under the _grantInProgress guard) rather than
@@ -212,22 +264,16 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         }
 
         var interval = Runtime.Config.WeaponRoulette.SpinDurationSeconds / frameCount;
-        var randomName = CSRollUtils.GetRandomMainWeaponName(team);
+        var randomName = CSRollUtils.GetRandomMainWeaponName(spin.Team);
         player.SendCenterHTML(BuildStatusHtml(isRolling: true, randomName, 0f), (int)(interval * 1000) + 50);
         CSRollUtils.PlaySoundToPlayer(Core, player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume, debugMode: Runtime.DebugMode);
 
-        Core.Scheduler.DelayBySeconds(interval, () => PlaySpin(slot, team, finalWeaponName, frameIndex + 1, generation));
+        spin.FrameIndex++;
+        spin.NextFrameTime = now + interval;
     }
 
     private void RefreshCountdownHtml(IPlayer player, float now)
     {
-        // The spin's own per-frame updates already refresh this player's HTML faster than this
-        // countdown would - sending here too would just flicker/fight with the spin frames.
-        if (_rollingSlots.Contains(player.Slot))
-        {
-            return;
-        }
-
         if (_lastHtmlUpdateTime.TryGetValue(player.Slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
         {
             return;
@@ -243,29 +289,20 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     /// <summary>
     /// Single 4-line template shared by both the spin animation and the idle countdown, so there's
     /// only ever one place building this modifier's HUD text. Line 2 and line 4 swap meaning based
-    /// on state: "Timer: Ns" / "[orange]Active:[default] weapon" while idle, or a gradient "Rolling"
+    /// on state: "Timer: Ns" / "[orange]Active:[default] weapon" while idle, or an orange "Rolling"
     /// / the current random spin-frame weapon name while spinning.
-    ///
-    /// "Rolling" uses SwiftlyS2.Shared.HtmlGradient.GenerateGradientText - a general-purpose SDK
-    /// helper (lives in the plain SwiftlyS2.Shared namespace, not SwiftlyS2.Shared.Menus), not
-    /// something scoped to the Menu system, confirmed via SDK reflection.
-    ///
-    /// Bug fix: wrapping GenerateGradientText's own output in an extra outer &lt;span class=
-    /// "fontWeight-bold"&gt; nested it inside whatever per-character/segment spans the gradient
-    /// helper itself already emits - this limited HTML dialect doesn't reliably render nested spans,
-    /// and everything after the gradient text (the blank line and the weapon name) silently vanished
-    /// as a result (only "Rolling" was ever visible). Using the gradient helper's raw output
-    /// directly, with no extra wrapper, fixes the truncation.
     /// </summary>
     private static string BuildStatusHtml(bool isRolling, string weaponName, float secondsRemaining)
     {
+        var friendlyName = weaponName == "-" ? weaponName : CSRollUtils.GetFriendlyWeaponName(weaponName);
+
         var line2 = isRolling
-            ? HtmlGradient.GenerateGradientText("Rolling", "#FFA500", "#FF4500")
+            ? "<span color=\"orange\" class=\"fontWeight-bold\">Rolling</span>"
             : $"<span class=\"fontWeight-bold\">Timer: {secondsRemaining:0.0}s</span>".Replace('.', ',');
 
         var line4 = isRolling
-            ? weaponName
-            : $"<span color=\"orange\" class=\"fontWeight-bold\">Active:</span> {weaponName}";
+            ? friendlyName
+            : $"<span color=\"orange\" class=\"fontWeight-bold\">Active:</span> {friendlyName}";
 
         return "<span color=\"gold\" class=\"fontWeight-bold\">Weapon Roulette</span><br/>" +
                line2 + "<br/><br/>" +
@@ -276,6 +313,6 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     {
         _currentWeaponName.Remove(@event.PlayerId);
         _lastHtmlUpdateTime.Remove(@event.PlayerId);
-        _rollingSlots.Remove(@event.PlayerId);
+        _spins.Remove(@event.PlayerId);
     }
 }

@@ -102,7 +102,29 @@ public static class CSRollUtils
             // abandoned guns). Despawn() actually removes it.
             removed.Add(weapon.DesignerName);
             weaponServices.RemoveWeapon(weapon);
-            weapon.Despawn();
+
+            try
+            {
+                weapon.Despawn();
+            }
+            catch (InvalidOperationException)
+            {
+                // Bug fix: confirmed via live server logs (not a guess) - Despawn() throws "The
+                // entity instance is no longer valid" whenever RemoveWeapon's own detach already
+                // triggered the engine's cleanup for that weapon entity (observed for WeaponRoulette,
+                // which re-strips every reroll instead of once per life, making the race far more
+                // likely to hit than for RandomLoadout/GrenadesOnly). Already-gone is the goal state
+                // Despawn() was trying to reach anyway, so this is not a real failure - but left
+                // uncaught, the exception propagated out of this whole method and up through every
+                // caller: OnPlayerSpawn (crashed the spawn hook), OnGameTick (crashed the tick,
+                // aborting mid-reroll before the new weapon was ever given - "landed on AWP but
+                // nothing came up"), and worst of all GameModifierBase.Activate() itself, where
+                // IsActive and AssignedSlots are set BEFORE OnEnabled() runs - an exception here left
+                // the modifier fully live and ticking while the caller's own follow-up
+                // (ModifierRuntime adding it to _activeModifiers) never ran, making it permanently
+                // invisible to !removemodifier(s). This one try/catch was the actual root cause of
+                // every remaining WeaponRoulette symptom.
+            }
         }
 
         return removed;
@@ -283,6 +305,60 @@ public static class CSRollUtils
 
     public static string ResolveGrenadeName(string name, Team team) =>
         name == "weapon_incendiary" ? (team == Team.T ? "weapon_molotov" : "weapon_incgrenade") : name;
+
+    /// <summary>Explicit display names for every classname in PistolNames/MainWeaponNames - internal CS2 names don't map onto their real-world names cleanly (e.g. weapon_m4a1 is actually the M4A4, weapon_hkp2000 is the P2000), so a generic strip-and-capitalize transform alone would mislabel several of these.</summary>
+    private static readonly IReadOnlyDictionary<string, string> WeaponDisplayNames = new Dictionary<string, string>
+    {
+        ["weapon_deagle"] = "Desert Eagle",
+        ["weapon_elite"] = "Dual Berettas",
+        ["weapon_fiveseven"] = "Five Seven",
+        ["weapon_glock"] = "Glock",
+        ["weapon_hkp2000"] = "P2000",
+        ["weapon_p250"] = "P250",
+        ["weapon_tec9"] = "Tec-9",
+        ["weapon_usp_silencer"] = "USP-S",
+        ["weapon_cz75a"] = "CZ75-Auto",
+        ["weapon_revolver"] = "R8 Revolver",
+        ["weapon_mac10"] = "MAC-10",
+        ["weapon_mp5sd"] = "MP5-SD",
+        ["weapon_mp7"] = "MP7",
+        ["weapon_mp9"] = "MP9",
+        ["weapon_p90"] = "P90",
+        ["weapon_ump45"] = "UMP-45",
+        ["weapon_bizon"] = "PP-Bizon",
+        ["weapon_ak47"] = "AK-47",
+        ["weapon_aug"] = "AUG",
+        ["weapon_famas"] = "FAMAS",
+        ["weapon_galilar"] = "Galil AR",
+        ["weapon_m4a1"] = "M4A4",
+        ["weapon_m4a1_silencer"] = "M4A1-S",
+        ["weapon_sg556"] = "SG 553",
+        ["weapon_ssg08"] = "SSG 08",
+        ["weapon_awp"] = "AWP",
+        ["weapon_g3sg1"] = "G3SG1",
+        ["weapon_scar20"] = "SCAR-20",
+        ["weapon_nova"] = "Nova",
+        ["weapon_xm1014"] = "XM1014",
+        ["weapon_mag7"] = "MAG-7",
+        ["weapon_sawedoff"] = "Sawed-Off",
+        ["weapon_m249"] = "M249",
+        ["weapon_negev"] = "Negev",
+    };
+
+    /// <summary>Player-facing name for a weapon classname (e.g. "weapon_ump45" -> "UMP-45"). Falls back to stripping the "weapon_" prefix and title-casing each underscore-separated word for anything not in WeaponDisplayNames, so a future addition to the weapon pools never renders as a raw classname even if this map isn't updated for it.</summary>
+    public static string GetFriendlyWeaponName(string weaponName)
+    {
+        if (WeaponDisplayNames.TryGetValue(weaponName, out var displayName))
+        {
+            return displayName;
+        }
+
+        var stripped = weaponName.StartsWith("weapon_", StringComparison.OrdinalIgnoreCase) ? weaponName[7..] : weaponName;
+        var words = stripped.Split('_', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => word.Length > 0 ? char.ToUpperInvariant(word[0]) + word[1..] : word);
+
+        return string.Join(' ', words);
+    }
 
     public static void PrintTitleToChat(ISwiftlyCore core, SwiftlyS2.Shared.Players.IPlayer? player, string message)
     {

@@ -63,16 +63,37 @@ namespace CSRoll.Modifiers;
 /// player's replicated view of it) is untouched. This is genuinely per-player scoped (unlike the
 /// binary patch) and needs no gamedata/signature maintenance at all - replacing both the
 /// AirAccelerate.Pre multiplier and the MovementUnlocker patch entirely. Reverted the same way
-/// (replicate "0") in OnDisabled, and reapplied on every spawn as a safety net in case a fresh life
-/// resets whatever the client thinks a replicated convar's value currently is.
+/// (replicate the real, captured server value) in OnDisabled, and reapplied on every spawn as a
+/// safety net in case a fresh life resets whatever the client thinks a replicated convar's value
+/// currently is.
+///
+/// Extended to the full standard bhop-server convar set (sv_enablebunnyhopping/autobunnyhopping,
+/// sv_maxvelocity, sv_airaccelerate, and the sv_stamina* family) via the same per-player
+/// ReplicateToClientAsString mechanism - each is only ever replicated to the assigned player's own
+/// client, never actually written to the real server-wide convar, so other players' movement (and
+/// this player's movement once the modifier ends) is unaffected.
 /// </summary>
 public sealed class GameModifierBhop : GameModifierBase
 {
-    private const string BunnyhoppingConVarName = "sv_bunnyhopping";
+    /// <summary>Every convar this modifier overrides per-player, and the value it's set to while active. Reverted to each convar's real (captured) server value in OnDisabled.</summary>
+    private static readonly (string Name, string OnValue)[] BunnyhopConVars =
+    [
+        ("sv_bunnyhopping", "1"),
+        ("sv_enablebunnyhopping", "1"),
+        ("sv_autobunnyhopping", "1"),
+        ("sv_maxvelocity", "7000"),
+        ("sv_airaccelerate", "2000"),
+        ("sv_staminamax", "0"),
+        ("sv_staminalandcost", "0"),
+        ("sv_staminajumpcost", "0"),
+        ("sv_accelerate_use_weapon_speed", "0"),
+        ("sv_staminarecoveryrate", "0"),
+    ];
 
     private readonly Dictionary<int, bool> _isHoldingSpace = [];
+    private readonly Dictionary<string, IConVar> _convars = [];
+    private readonly Dictionary<string, string> _originalValues = [];
 
-    private IConVar? _bunnyhoppingConVar;
     private Guid _spawnHookId;
 
     public GameModifierBhop()
@@ -99,8 +120,7 @@ public sealed class GameModifierBhop : GameModifierBase
         Core.Event.OnTick += OnGameTick;
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
-        _bunnyhoppingConVar ??= Core.ConVar.FindAsString(BunnyhoppingConVarName);
-        SetBunnyhoppingForAssignedPlayers(enabled: true);
+        SetBunnyhopConVarsForAssignedPlayers(enabled: true);
     }
 
     protected override void OnDisabled()
@@ -110,32 +130,57 @@ public sealed class GameModifierBhop : GameModifierBase
         Core.GameEvent.Unhook(_spawnHookId);
         _isHoldingSpace.Clear();
 
-        SetBunnyhoppingForAssignedPlayers(enabled: false);
+        SetBunnyhopConVarsForAssignedPlayers(enabled: false);
     }
 
-    private void SetBunnyhoppingForAssignedPlayers(bool enabled)
+    /// <summary>Resolves (and caches) a convar by name the first time it's needed, capturing its real server-side value on first resolve so OnDisabled can replicate players back to the genuine value instead of a hardcoded guess.</summary>
+    private IConVar? ResolveConVar(string name)
     {
-        if (_bunnyhoppingConVar is not { } convar)
+        if (_convars.TryGetValue(name, out var cached))
         {
-            Core.Logger.LogError("[CSRoll] Bhop: {ConVar} convar not found - cannot {Action} per-player bunnyhop.", BunnyhoppingConVarName, enabled ? "enable" : "disable");
-            return;
+            return cached;
         }
 
-        var value = enabled ? "1" : "0";
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        var convar = Core.ConVar.FindAsString(name);
+        if (convar is null)
         {
-            if (IsAssignedTo(player.Slot))
+            Core.Logger.LogError("[CSRoll] Bhop: {ConVar} convar not found - cannot override it per-player.", name);
+            return null;
+        }
+
+        _convars[name] = convar;
+        _originalValues[name] = convar.ValueAsString;
+        return convar;
+    }
+
+    private void SetBunnyhopConVarsForAssignedPlayers(bool enabled)
+    {
+        foreach (var (name, onValue) in BunnyhopConVars)
+        {
+            if (ResolveConVar(name) is not { } convar)
             {
-                convar.ReplicateToClientAsString(player.Slot, value);
+                continue;
+            }
+
+            var value = enabled ? onValue : _originalValues.GetValueOrDefault(name, convar.DefaultValueAsString);
+            foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+            {
+                if (IsAssignedTo(player.Slot))
+                {
+                    convar.ReplicateToClientAsString(player.Slot, value);
+                }
             }
         }
     }
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
     {
-        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) && _bunnyhoppingConVar is { } convar)
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot))
         {
-            convar.ReplicateToClientAsString(player.Slot, "1");
+            foreach (var (name, onValue) in BunnyhopConVars)
+            {
+                ResolveConVar(name)?.ReplicateToClientAsString(player.Slot, onValue);
+            }
         }
 
         return HookResult.Continue;

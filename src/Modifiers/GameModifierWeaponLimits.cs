@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.GameHooks;
@@ -124,6 +126,15 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
             // no-op and buying/picking up "blocked" weapon types silently still worked.
             ctx.SetReturn(AcquireResult.NotAllowedByProhibition);
             ctx.SetHookResult(HookResult.CancelOriginal);
+
+            // Diagnostic (confirmed harmless, not the missing-weapon cause - see StripWeaponTypes'
+            // own bug-fix note for the actual root cause): CS2 retries giving the default spawn
+            // pistol many times per respawn, and every one of those attempts gets correctly blocked
+            // here - gated behind DebugMode since this fires dozens of times per respawn otherwise.
+            if (Runtime.DebugMode)
+            {
+                Core.Logger.LogInformation("[CSRoll][{Modifier}] Blocked acquisition: slot={Slot} weaponType={WeaponType}", Name, player.Slot, type);
+            }
         }
     }
 

@@ -788,6 +788,7 @@ public sealed class ModifierRuntime
             return true;
         }
 
+        _core.Logger.LogInformation("[CSRoll] RemoveModifier: deactivating {Name} (slots=[{Slots}])", modifier.Name, string.Join(",", modifier.AssignedSlots));
         modifier.Deactivate();
         _activeModifiers.Remove(modifier);
         message = $"Removed {CSRollUtils.GetModifierDisplayName(_core, modifier)} modifier.";
@@ -814,6 +815,7 @@ public sealed class ModifierRuntime
 
         for (var i = _activeModifiers.Count - 1; i >= 0; i--)
         {
+            _core.Logger.LogInformation("[CSRoll] RemoveAllModifiers: deactivating {Name} (slots=[{Slots}])", _activeModifiers[i].Name, string.Join(",", _activeModifiers[i].AssignedSlots));
             _activeModifiers[i].Deactivate();
         }
 
