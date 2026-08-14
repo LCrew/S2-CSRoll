@@ -336,11 +336,11 @@ public class WeaponRouletteConfig
     /// <summary>How often (seconds) the assigned player's weapon rerolls to a new random one.</summary>
     public float RerollIntervalSeconds { get; set; } = 25f;
 
-    /// <summary>Total duration (seconds) of the slot-machine-style spin reveal shown before each new weapon lands.</summary>
-    public float SpinDurationSeconds { get; set; } = 3f;
+    /// <summary>Total duration (seconds) of the slot-machine-style spin reveal shown before each new weapon lands - starts exactly this long before RerollIntervalSeconds' own countdown would hit 0, so the new weapon is ready right as the timer reaches zero.</summary>
+    public float SpinDurationSeconds { get; set; } = 2f;
 
-    /// <summary>Number of random-name frames the spin cycles through before landing - SpinDurationSeconds is split evenly across this many frames.</summary>
-    public int SpinFrameCount { get; set; } = 12;
+    /// <summary>Number of random-name frames the spin cycles through before landing - SpinDurationSeconds is split evenly across this many frames, so a higher count also means a faster per-frame flicker within the same total duration.</summary>
+    public int SpinFrameCount { get; set; } = 30;
 }
 
 public class KamikazeConfig

@@ -174,10 +174,22 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     private void OnGameTick()
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
+        var spinDuration = Math.Max(0.1f, Runtime.Config.WeaponRoulette.SpinDurationSeconds);
 
-        if (now >= _nextRerollTime)
+        // Bug fix (per explicit request): the spin used to start only once the countdown had
+        // already hit 0, so the new weapon didn't actually land until SpinDurationSeconds AFTER the
+        // displayed timer reached zero. Triggering spinDuration seconds early instead means the spin
+        // fills exactly the countdown's final stretch and lands right as the timer reaches 0 - "Timer:
+        // 2.0s" switches straight to "Rolling" and the new weapon is ready the moment it would have
+        // hit zero. _nextRerollTime is bumped here (once per cycle, at trigger time) rather than at
+        // landing - the moment this fires, the trigger condition itself goes false again until the
+        // NEXT cycle's window, so this remains a one-shot trigger exactly like the old "now >=
+        // _nextRerollTime" check was, just shifted earlier by spinDuration. Advancing it now instead
+        // of at landing also means a per-player landing (there can be several assigned players, each
+        // landing independently) never double-advances this single shared timestamp.
+        if (now >= _nextRerollTime - spinDuration)
         {
-            _nextRerollTime = now + Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
+            _nextRerollTime += Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
 
             foreach (var player in Core.PlayerManager.GetAllValidPlayers())
             {

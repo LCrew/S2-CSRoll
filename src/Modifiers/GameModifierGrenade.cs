@@ -216,13 +216,26 @@ public sealed class GameModifierRainbowSmokes : GameModifierBase
         }
 
         var grenade = @event.Entity.As<CSmokeGrenadeProjectile>();
-        if (!IsAssignedTo(CSRollUtils.GetThrowerPlayer(Core, grenade)?.Slot ?? -1))
-        {
-            return;
-        }
 
+        // Bug fix: the thrower/IsAssignedTo check used to happen synchronously here, before the
+        // deferred write below - same root cause DodgyGrenades' own ApplyFuse fix documents in this
+        // same file: CBaseCSGrenadeProjectile.Thrower isn't reliably populated yet at the exact
+        // instant OnEntitySpawned fires, so GetThrowerPlayer() returned null and IsAssignedTo(-1)
+        // failed for every smoke whenever this modifier was scoped to a specific player - silently
+        // never recoloring anything. This never showed up while SupportsPerPlayerRandomization was
+        // false (an empty AssignedSlots makes IsAssignedTo always true regardless of thrower
+        // resolution), but broke the moment it was flipped to true so this modifier could actually be
+        // reached through normal per-player rolls/!memodifier (see class doc comment) - the one path
+        // it's used through in practice. Resolving the thrower inside the deferred callback instead,
+        // by which point Thrower is reliably populated, fixes it the same way DodgyGrenades was fixed.
         Core.Scheduler.NextWorldUpdate(() =>
         {
+            var thrower = CSRollUtils.GetThrowerPlayer(Core, grenade);
+            if (!IsAssignedTo(thrower?.Slot ?? -1))
+            {
+                return;
+            }
+
             // Bug fix vs. the CSS original: it never called the dirty-flag equivalent here,
             // so the color change may not have replicated to other clients.
             grenade.SmokeColor = Colors[Random.Shared.Next(Colors.Length)];
