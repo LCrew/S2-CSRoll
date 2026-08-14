@@ -18,7 +18,7 @@ public partial class CSRoll : BasePlugin
 {
     // Single source of truth for the version - also referenced in the PluginMetadata attribute
     // above and logged on every load, so the running build is always identifiable in the console.
-    private const string PluginVersion = "1.30.11";
+    private const string PluginVersion = "1.30.12";
 
     private IServiceProvider _serviceProvider = null!;
     private ICvarRollbackService _cvarService = null!;
@@ -86,6 +86,7 @@ public partial class CSRoll : BasePlugin
         UninitializeGameEvents();
         Runtime?.Unregister();
         _cvarService?.Uninstall();
+        CSRollUtils.ClearXrayVision();
 
         // Bug fix: ChangeToken.OnChange's returned IDisposable used to be discarded - Load() is
         // documented to sometimes run twice (see its own comment above) and self-heals by calling

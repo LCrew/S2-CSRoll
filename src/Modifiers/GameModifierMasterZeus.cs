@@ -259,7 +259,9 @@ public sealed class GameModifierMasterZeus : GameModifierBase
 
         foreach (var candidate in Core.PlayerManager.GetAlive())
         {
-            if (candidate.SteamID == shooter.SteamID || candidate.Controller?.Team == shooter.Controller?.Team ||
+            // Bug fix: self-target check used to compare SteamID - bot SteamID is fixed at 0, so a
+            // bot targeting a different bot was misread as targeting itself and skipped.
+            if (CSRollUtils.IsSamePlayer(candidate, shooter) || candidate.Controller?.Team == shooter.Controller?.Team ||
                 candidate.PlayerPawn is not { } candidatePawn || candidatePawn.AbsOrigin is not { } candidatePosition)
             {
                 continue;

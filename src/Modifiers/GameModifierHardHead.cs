@@ -34,8 +34,7 @@ public sealed class GameModifierHardHead : GameModifierBase
 
     private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
     {
-        var victim = Core.PlayerManager.GetPlayerFromPawn(ctx.Params.Entity.As<CBasePlayerPawn>());
-        if (victim is not { IsValid: true } || !IsAssignedTo(victim.Slot))
+        if (!TryGetAssignedTakeDamageVictim(ref ctx, out _))
         {
             return;
         }

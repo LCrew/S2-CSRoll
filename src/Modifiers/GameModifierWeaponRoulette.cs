@@ -125,7 +125,10 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 
         Core.Event.OnTick += OnGameTick;
 
-        Core.Logger.LogInformation("[CSRoll][WeaponRoulette] OnEnabled - slots=[{Slots}], nextRerollIn={Seconds:0.0}s", string.Join(",", AssignedSlots), _nextRerollTime - Core.Engine.GlobalVars.CurrentTime);
+        if (Runtime.DebugMode)
+        {
+            Core.Logger.LogInformation("[CSRoll][WeaponRoulette] OnEnabled - slots=[{Slots}], nextRerollIn={Seconds:0.0}s", string.Join(",", AssignedSlots), _nextRerollTime - Core.Engine.GlobalVars.CurrentTime);
+        }
 
         // base.OnEnabled() strips every assigned player's guns and calls GiveReplacementWeapons
         // below for each - which itself detects "no weapon rolled yet" and kicks off the first spin.
@@ -134,7 +137,10 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 
     protected override void OnDisabled()
     {
-        Core.Logger.LogInformation("[CSRoll][WeaponRoulette] OnDisabled - slots=[{Slots}], spinsInFlight=[{Spins}]", string.Join(",", AssignedSlots), string.Join(",", _spins.Keys));
+        if (Runtime.DebugMode)
+        {
+            Core.Logger.LogInformation("[CSRoll][WeaponRoulette] OnDisabled - slots=[{Slots}], spinsInFlight=[{Spins}]", string.Join(",", AssignedSlots), string.Join(",", _spins.Keys));
+        }
 
         // Unsubscribing this is the ONLY thing that drives any of this modifier's ongoing behavior -
         // the reroll timer, the spin frames, the countdown HUD all live inside OnGameTick. The instant
@@ -163,7 +169,10 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             var itemServices = player.PlayerPawn?.ItemServices;
             itemServices?.GiveItem(weaponName);
 
-            Core.Logger.LogInformation("[CSRoll][WeaponRoulette] GiveReplacementWeapons: slot={Slot} weapon={Weapon} pawnNull={PawnNull} itemServicesNull={ItemServicesNull}", player.Slot, weaponName, player.PlayerPawn is null, itemServices is null);
+            if (Runtime.DebugMode)
+            {
+                Core.Logger.LogInformation("[CSRoll][WeaponRoulette] GiveReplacementWeapons: slot={Slot} weapon={Weapon} pawnNull={PawnNull} itemServicesNull={ItemServicesNull}", player.Slot, weaponName, player.PlayerPawn is null, itemServices is null);
+            }
         }
         else
         {
@@ -266,7 +275,10 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             var remaining = Math.Max(0f, _nextRerollTime - now);
             player.SendCenterHTML(BuildStatusHtml(isRolling: false, spin.FinalWeaponName, remaining), HtmlDurationMs);
 
-            Core.Logger.LogInformation("[CSRoll][WeaponRoulette] Spin landed: slot={Slot} weapon={Weapon}", player.Slot, spin.FinalWeaponName);
+            if (Runtime.DebugMode)
+            {
+                Core.Logger.LogInformation("[CSRoll][WeaponRoulette] Spin landed: slot={Slot} weapon={Weapon}", player.Slot, spin.FinalWeaponName);
+            }
 
             // Goes through the base class's own StripWeapons (strips whatever gun they currently
             // hold, then calls GiveReplacementWeapons under the _grantInProgress guard) rather than

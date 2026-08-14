@@ -139,6 +139,16 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
         // Thrower to be resolved by then rather than at entity-spawn time.
         void ApplyFuse(string when)
         {
+            // Hardening: the deferred call runs a tick later via NextWorldUpdate - the grenade could
+            // in principle have already detonated/been destroyed within that single tick, and this
+            // raw entity wrapper was being dereferenced with no validity check. Low-probability (a
+            // grenade rarely dies within one tick of spawning) but cheap to guard, and matches the
+            // safer index+IsValid pattern already used elsewhere in this codebase (e.g. GameModifierXray).
+            if (!grenade.IsValid)
+            {
+                return;
+            }
+
             var thrower = CSRollUtils.GetThrowerPlayer(Core, grenade);
             var assigned = IsAssignedTo(thrower?.Slot ?? -1);
 
@@ -230,6 +240,13 @@ public sealed class GameModifierRainbowSmokes : GameModifierBase
         // by which point Thrower is reliably populated, fixes it the same way DodgyGrenades was fixed.
         Core.Scheduler.NextWorldUpdate(() =>
         {
+            // Hardening: see DodgyGrenades.ApplyFuse's matching IsValid guard - this raw entity
+            // wrapper is dereferenced a tick later with no validity check.
+            if (!grenade.IsValid)
+            {
+                return;
+            }
+
             var thrower = CSRollUtils.GetThrowerPlayer(Core, grenade);
             if (!IsAssignedTo(thrower?.Slot ?? -1))
             {

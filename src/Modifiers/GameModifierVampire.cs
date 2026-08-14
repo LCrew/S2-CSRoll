@@ -1,6 +1,8 @@
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
 
+using CSRoll.Core;
+
 namespace CSRoll.Modifiers;
 
 /// <summary>Attacker heals for the damage they deal.</summary>
@@ -50,7 +52,13 @@ public sealed class GameModifierVampire : GameModifierBase
             return HookResult.Continue;
         }
 
-        if (attacker.SteamID == damaged.SteamID || attacker.Controller.Team == damaged.Controller.Team)
+        // Bug fix: self-hit check used to compare SteamID (bot SteamID is fixed at 0, misreading
+        // bot-vs-different-bot hits as self-hits), and Controller used to be dereferenced (.Team)
+        // with no null-check.
+        if (CSRollUtils.IsSamePlayer(attacker, damaged) ||
+            attacker.Controller is not { IsValid: true } attackerController ||
+            damaged.Controller is not { IsValid: true } damagedController ||
+            attackerController.Team == damagedController.Team)
         {
             return HookResult.Continue;
         }

@@ -38,7 +38,9 @@ public sealed class GameModifierSwapPlacesOnKill : GameModifierBase
         var attacker = @event.AttackerPlayer;
         var victim = @event.UserIdPlayer;
 
-        if (attacker is not { IsValid: true } || victim is not { IsValid: true } || attacker.SteamID == victim.SteamID || !IsAssignedTo(attacker.Slot))
+        // Bug fix: self-kill check used to compare SteamID - bot SteamID is fixed at 0, so a bot
+        // killing a different bot was misread as a self-kill and silently excluded.
+        if (attacker is not { IsValid: true } || victim is not { IsValid: true } || CSRollUtils.IsSamePlayer(attacker, victim) || !IsAssignedTo(attacker.Slot))
         {
             return HookResult.Continue;
         }

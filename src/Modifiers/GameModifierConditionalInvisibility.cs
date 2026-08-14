@@ -128,14 +128,11 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         // scoping set, which is deliberately EMPTY for a global-scope activation (!addmodifier, as
         // opposed to !memodifier/a per-player random roll) per IsAssignedTo's own "empty means
         // everyone" convention used everywhere else in this codebase. Iterating it directly skipped
-        // every player entirely for a globally-active instance. Iterate every connected player and
-        // ask IsAssignedTo instead, matching the convention.
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        // every player entirely for a globally-active instance. GetAssignedPlayers() (GameModifierBase)
+        // encapsulates the correct "every connected player, filtered by IsAssignedTo" idiom instead.
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                ResetRenderState(player);
-            }
+            ResetRenderState(player);
         }
 
         _lastSoundTime.Clear();
@@ -186,9 +183,9 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         // firing and setting the damage-flash timer every hit (it uses IsAssignedTo), but nothing
         // ever read that timer because this loop never touched the player at all - "didn't see him
         // show up" even though the flash was being armed correctly every single time.
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (!IsAssignedTo(player.Slot) || player is not { IsValid: true, IsAlive: true } || player.PlayerPawn is not { } pawn)
+            if (player is not { IsValid: true, IsAlive: true } || player.PlayerPawn is not { } pawn)
             {
                 continue;
             }
@@ -234,7 +231,10 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
             _currentAlpha[slot] = currentAlpha;
             ApplyAlpha(pawn, currentAlpha);
 
-            Core.Logger.LogInformation("[CSRoll][ConditionalInvisibility] Revealing slot={Slot} reason={Reason} fadeDuration={FadeDuration}", slot, IsDamageFlashActive(slot, now) ? "damage" : "sound-cooldown-elapsed", fadeDuration);
+            if (Runtime.DebugMode)
+            {
+                Core.Logger.LogInformation("[CSRoll][ConditionalInvisibility] Revealing slot={Slot} reason={Reason} fadeDuration={FadeDuration}", slot, IsDamageFlashActive(slot, now) ? "damage" : "sound-cooldown-elapsed", fadeDuration);
+            }
         }
         else if (!desiredHidden && !settledHidden && currentAlpha < VisibleAlpha)
         {
@@ -341,9 +341,12 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         {
             _damageFlashUntil[player.Slot] = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.ConditionalInvisibility.DamageFlashDurationSeconds;
 
-            Core.Logger.LogInformation("[CSRoll][ConditionalInvisibility] OnPlayerHurt: slot={Slot} assigned={Assigned} settledHidden={SettledHidden} flashDuration={FlashDuration}", player.Slot, IsAssignedTo(player.Slot), CachedHiddenSlots.Contains(player.Slot), Runtime.Config.ConditionalInvisibility.DamageFlashDurationSeconds);
+            if (Runtime.DebugMode)
+            {
+                Core.Logger.LogInformation("[CSRoll][ConditionalInvisibility] OnPlayerHurt: slot={Slot} assigned={Assigned} settledHidden={SettledHidden} flashDuration={FlashDuration}", player.Slot, IsAssignedTo(player.Slot), CachedHiddenSlots.Contains(player.Slot), Runtime.Config.ConditionalInvisibility.DamageFlashDurationSeconds);
+            }
         }
-        else
+        else if (Runtime.DebugMode)
         {
             Core.Logger.LogInformation("[CSRoll][ConditionalInvisibility] OnPlayerHurt fired but UserIdPlayer was null/invalid");
         }

@@ -85,7 +85,13 @@ public sealed class GameModifierFlashingBullets : GameModifierBase
             return;
         }
 
-        if (attacker.SteamID == victim.SteamID || attacker.Controller.Team == victim.Controller.Team)
+        // Bug fix: see GameModifierDisarmingBullets - Controller used to be dereferenced (.Team) with
+        // no null-check (NRE risk on this per-hit hot path), and the self-hit check used SteamID
+        // (unreliable for bots, always 0) instead of Slot.
+        if (CSRollUtils.IsSamePlayer(attacker, victim) ||
+            attacker.Controller is not { IsValid: true } attackerController ||
+            victim.Controller is not { IsValid: true } victimController ||
+            attackerController.Team == victimController.Team)
         {
             return;
         }

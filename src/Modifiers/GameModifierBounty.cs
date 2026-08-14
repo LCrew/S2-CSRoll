@@ -42,8 +42,10 @@ public sealed class GameModifierBounty : GameModifierBase
 
     private HookResult OnPlayerHurt(EventPlayerHurt @event)
     {
+        // Bug fix: self-hit check used to compare SteamID - bot SteamID is fixed at 0, so bot-vs-
+        // different-bot hits were misread as self-hits and silently excluded from bounty payouts.
         if (@event.AttackerPlayer is not { IsValid: true } attacker || @event.UserIdPlayer is not { IsValid: true } victim ||
-            attacker.SteamID == victim.SteamID || !IsAssignedTo(attacker.Slot) ||
+            CSRollUtils.IsSamePlayer(attacker, victim) || !IsAssignedTo(attacker.Slot) ||
             attacker.Controller is not { IsValid: true } attackerController || victim.Controller is not { IsValid: true } victimController ||
             attackerController.Team == victimController.Team)
         {

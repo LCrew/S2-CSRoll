@@ -51,6 +51,15 @@ public static class CSRollUtils
     public static bool HasXrayVision(int slot) => _xrayVisionSlots.Contains(slot);
 
     /// <summary>
+    /// Bug fix: _xrayVisionSlots is a static field, independent of the plugin instance lifecycle - if
+    /// the assembly stays resident across an Unload()/Load() (hot reload), stale x-ray-vision slot
+    /// flags from the previous session could leak into the new one and wrongly exempt whichever new
+    /// player later occupies that slot from GameModifierInvisibleBase's transmit-block. Called from
+    /// CSRoll.Unload() so a fresh load always starts from zero granted slots.
+    /// </summary>
+    public static void ClearXrayVision() => _xrayVisionSlots.Clear();
+
+    /// <summary>
     /// Sets the chat title prefix from config's BannerText, resolving SwiftlyS2's [colorname]
     /// chat color tokens (e.g. "[green]...[default]") via Helper.Colored(). SwiftlyS2 uses square
     /// brackets, not CounterStrikeSharp's curly braces - confirmed via the official porting guide
@@ -678,6 +687,16 @@ public static class CSRollUtils
         var player = core.PlayerManager.GetPlayerFromPawn(entity.As<CBasePlayerPawn>());
         return player is { IsValid: true } ? player : null;
     }
+
+    /// <summary>
+    /// Identity check for "is this the same connected player" (self-damage/self-kill exclusion).
+    /// Bug fix: several modifiers used to compare SteamID for this - bot SteamID is fixed at 0 for
+    /// every bot (confirmed via the SDK's own IPlayer.SteamID doc comment), so any bot-vs-different-bot
+    /// interaction was misread as "hit themselves" and silently excluded. Slot is unique per connected
+    /// player (human or bot) and is what every other per-player lookup in this codebase already keys
+    /// on, so it doesn't have that collision.
+    /// </summary>
+    public static bool IsSamePlayer(IPlayer a, IPlayer b) => a.Slot == b.Slot;
 
     /// <summary>Resolves a thrown grenade projectile's owning player, or null if it's already gone.</summary>
     public static IPlayer? GetThrowerPlayer(ISwiftlyCore core, CBaseCSGrenadeProjectile grenade)

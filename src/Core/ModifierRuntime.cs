@@ -87,6 +87,16 @@ public sealed class ModifierRuntime
         MaxRandomRounds = config.MaxRandomRounds;
     }
 
+    /// <summary>
+    /// Bug fix: Random.Next(min, max) throws ArgumentOutOfRangeException whenever min > max. The
+    /// command handlers (OnMinRandomRounds/OnMaxRandomRounds) now reject changes that would create
+    /// that state, but config.jsonc itself can still be hand-edited with Min > Max and hot-reloaded
+    /// straight into these properties - this clamp is the last line of defense so a bad config value
+    /// degrades to "roll exactly Min" instead of crashing round-start every round.
+    /// </summary>
+    private int RollRandomRoundCount(Random random) =>
+        MaxRandomRounds > MinRandomRounds ? random.Next(MinRandomRounds, MaxRandomRounds) : MinRandomRounds;
+
     public void Initialise(IEnumerable<Func<GameModifierBase>> factories)
     {
         InitialiseModifiers(factories);
@@ -316,7 +326,7 @@ public sealed class ModifierRuntime
         }
         else
         {
-            var count = random.Next(MinRandomRounds, MaxRandomRounds);
+            var count = RollRandomRoundCount(random);
             if (AddRandomModifiers(count, out _, showBanner))
             {
                 // When showBanner is false, AddRandomModifiers only selects the modifiers and stashes
@@ -503,7 +513,7 @@ public sealed class ModifierRuntime
 
     private List<GameModifierBase> PickRandomModifiersForPlayer(List<GameModifierBase> pool, Random random, IPlayer player)
     {
-        var count = random.Next(MinRandomRounds, MaxRandomRounds);
+        var count = RollRandomRoundCount(random);
         if (count <= 0)
         {
             return [];

@@ -163,12 +163,9 @@ public sealed class GameModifierBhop : GameModifierBase
             }
 
             var value = enabled ? onValue : _originalValues.GetValueOrDefault(name, convar.DefaultValueAsString);
-            foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+            foreach (var player in GetAssignedPlayers())
             {
-                if (IsAssignedTo(player.Slot))
-                {
-                    convar.ReplicateToClientAsString(player.Slot, value);
-                }
+                convar.ReplicateToClientAsString(player.Slot, value);
             }
         }
     }
@@ -198,9 +195,9 @@ public sealed class GameModifierBhop : GameModifierBase
 
     private void OnGameTick()
     {
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (!IsAssignedTo(player.Slot) || !player.IsAlive)
+            if (!player.IsAlive)
             {
                 continue;
             }

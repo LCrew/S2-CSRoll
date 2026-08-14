@@ -60,7 +60,13 @@ public sealed class GameModifierSaint : GameModifierBase
             return HookResult.Continue;
         }
 
-        if (attacker.SteamID == victim.SteamID || attacker.Controller.Team == victim.Controller.Team)
+        // Bug fix: self-hit check used to compare SteamID (bot SteamID is fixed at 0, misreading
+        // bot-vs-different-bot kills as suicides), and Controller used to be dereferenced (.Team)
+        // with no null-check.
+        if (CSRollUtils.IsSamePlayer(attacker, victim) ||
+            attacker.Controller is not { IsValid: true } attackerController ||
+            victim.Controller is not { IsValid: true } victimController ||
+            attackerController.Team == victimController.Team)
         {
             return HookResult.Continue;
         }
@@ -70,7 +76,7 @@ public sealed class GameModifierSaint : GameModifierBase
             return HookResult.Continue;
         }
 
-        CSRollUtils.GetRandomDeadTeammate(Core, attacker.Controller.Team)?.Respawn();
+        CSRollUtils.GetRandomDeadTeammate(Core, attackerController.Team)?.Respawn();
 
         return HookResult.Continue;
     }

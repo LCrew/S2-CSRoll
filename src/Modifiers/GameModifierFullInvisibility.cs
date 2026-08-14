@@ -90,12 +90,9 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         // is only ever populated for a per-player roll/!memodifier. OnPlayerSpawn's own IsAssignedTo
         // check meant weapons still got stripped eventually (on that player's next spawn), but not
         // immediately on activation for anyone already alive when a global roll landed.
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                StripWeapons(player);
-            }
+            StripWeapons(player);
         }
     }
 
@@ -131,9 +128,9 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         // nothing and never showed the popup to anyone. Iterating every valid player and filtering by
         // IsAssignedTo (the same pattern used everywhere else in this codebase) correctly covers both
         // the global and per-player-assigned cases.
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (!IsAssignedTo(player.Slot) || !player.IsAlive)
+            if (!player.IsAlive)
             {
                 continue;
             }

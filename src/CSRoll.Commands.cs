@@ -263,29 +263,45 @@ public partial class CSRoll
     public void OnMinRandomRounds(ICommandContext context)
     {
         var arg = context.Args.Length > 0 ? context.Args[0] : "";
-        if (int.TryParse(arg, out var value))
-        {
-            Runtime.MinRandomRounds = value;
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Min modifiers for random rounds set to {value}");
-        }
-        else
+        if (!int.TryParse(arg, out var value) || value < 1)
         {
             CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Failed to set min modifiers for random rounds to {arg}");
+            return;
         }
+
+        // Bug fix: setting Min > Max here used to be accepted outright - ModifierRuntime later
+        // calls Random.Next(MinRandomRounds, MaxRandomRounds), which throws ArgumentOutOfRangeException
+        // whenever min > max, breaking random-round selection on every subsequent round start until an
+        // admin noticed and fixed it back. Rejecting the change up front instead keeps the pair always
+        // valid.
+        if (value > Runtime.MaxRandomRounds)
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Min ({value}) cannot exceed the current max ({Runtime.MaxRandomRounds}) - raise max first.");
+            return;
+        }
+
+        Runtime.MinRandomRounds = value;
+        CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Min modifiers for random rounds set to {value}");
     }
 
     public void OnMaxRandomRounds(ICommandContext context)
     {
         var arg = context.Args.Length > 0 ? context.Args[0] : "";
-        if (int.TryParse(arg, out var value))
-        {
-            Runtime.MaxRandomRounds = value;
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Max modifiers for random rounds set to {value}");
-        }
-        else
+        if (!int.TryParse(arg, out var value) || value < 1)
         {
             CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Failed to set max modifiers for random rounds to {arg}");
+            return;
         }
+
+        // Bug fix: see OnMinRandomRounds - same Random.Next(Min, Max) crash risk if this is set below the current min.
+        if (value < Runtime.MinRandomRounds)
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Max ({value}) cannot be less than the current min ({Runtime.MinRandomRounds}) - lower min first.");
+            return;
+        }
+
+        Runtime.MaxRandomRounds = value;
+        CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Max modifiers for random rounds set to {value}");
     }
 
     public void OnRandomRoundsReRoll(ICommandContext context)

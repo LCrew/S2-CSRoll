@@ -1,4 +1,9 @@
+using System.Linq;
+
 using SwiftlyS2.Shared;
+using SwiftlyS2.Shared.GameHooks;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
 using CSRoll.Services.Interfaces;
@@ -46,6 +51,34 @@ public abstract class GameModifierBase
     public IReadOnlySet<int> AssignedSlots => _assignedSlots;
 
     protected bool IsAssignedTo(int slot) => _assignedSlots.Count == 0 || _assignedSlots.Contains(slot);
+
+    /// <summary>
+    /// Global-scope-safe iteration: every currently valid player this modifier instance is in effect
+    /// for (all of them when AssignedSlots is empty/unscoped, only the assigned ones otherwise). This
+    /// is the same "IsAssignedTo(player.Slot) filter over GetAllValidPlayers()" idiom several modifiers
+    /// already hand-rolled independently - centralized here so future modifiers can't reintroduce the
+    /// "empty AssignedSlots means everyone" footgun by forgetting the filter.
+    /// </summary>
+    protected IEnumerable<IPlayer> GetAssignedPlayers() =>
+        Core.PlayerManager.GetAllValidPlayers().Where(p => IsAssignedTo(p.Slot));
+
+    /// <summary>
+    /// Shared TakeDamage.Pre victim-resolution pattern, duplicated near-identically across several
+    /// modifiers (HardHead, IronBody, Jetpack): resolve the pawn being damaged to its owning IPlayer,
+    /// then bail unless it's valid and in scope for this modifier instance.
+    /// </summary>
+    protected bool TryGetAssignedTakeDamageVictim(ref TakeDamageEntityPreContext ctx, out IPlayer victim)
+    {
+        var resolved = Core.PlayerManager.GetPlayerFromPawn(ctx.Params.Entity.As<CBasePlayerPawn>());
+        if (resolved is not { IsValid: true } || !IsAssignedTo(resolved.Slot))
+        {
+            victim = null!;
+            return false;
+        }
+
+        victim = resolved;
+        return true;
+    }
 
     protected ISwiftlyCore Core { get; private set; } = null!;
     protected ModifierRuntime Runtime { get; private set; } = null!;

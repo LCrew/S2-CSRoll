@@ -80,12 +80,9 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
         var readyAt = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.FlankTeleport.RoundStartCooldownSeconds;
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                _nextAvailableTime[player.Slot] = readyAt;
-            }
+            _nextAvailableTime[player.Slot] = readyAt;
         }
     }
 
@@ -112,9 +109,9 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (!IsAssignedTo(player.Slot) || !player.IsAlive)
+            if (!player.IsAlive)
             {
                 continue;
             }

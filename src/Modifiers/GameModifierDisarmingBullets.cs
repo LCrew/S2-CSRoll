@@ -75,7 +75,15 @@ public sealed class GameModifierDisarmingBullets : GameModifierBase
             return;
         }
 
-        if (attacker.SteamID == victim.SteamID || attacker.Controller.Team == victim.Controller.Team)
+        // Bug fix: Controller used to be dereferenced (.Team) with no null-check - a valid attacker/
+        // victim can still have a null/invalid Controller mid-spawn/death transition, which threw an
+        // NRE on this per-hit hot path. Also switched the self-hit check from SteamID to Slot (via
+        // IsSamePlayer) - bot SteamID is fixed at 0, so two different bots hitting each other used to
+        // be misread as a self-hit and silently excluded.
+        if (CSRollUtils.IsSamePlayer(attacker, victim) ||
+            attacker.Controller is not { IsValid: true } attackerController ||
+            victim.Controller is not { IsValid: true } victimController ||
+            attackerController.Team == victimController.Team)
         {
             return;
         }

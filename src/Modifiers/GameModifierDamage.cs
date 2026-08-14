@@ -26,7 +26,14 @@ public abstract class GameModifierDamageMultiplier : GameModifierBase
 
     private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
     {
-        if (!IsAssignedTo(CSRollUtils.GetPlayerFromEntityHandle(Core, ctx.Params.Info.Attacker)?.Slot ?? -1))
+        // Bug fix: GetPlayerFromEntityHandle returns null for any non-player attacker (world/fall
+        // damage, NPCs, self-inflicted environmental damage). Coercing that to slot -1 used to make
+        // IsAssignedTo(-1) return true whenever this modifier was active in global scope (empty
+        // AssignedSlots means "everyone"), so e.g. fall damage got multiplied by GetDamageMultiplier()
+        // too - not just damage actually dealt by an assigned player, which is the stated intent.
+        // Bailing out here whenever there's no resolvable attacker keeps that scoped correctly.
+        var attacker = CSRollUtils.GetPlayerFromEntityHandle(Core, ctx.Params.Info.Attacker);
+        if (attacker is null || !IsAssignedTo(attacker.Slot))
         {
             return;
         }
