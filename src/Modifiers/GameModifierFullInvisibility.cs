@@ -86,7 +86,7 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         Core.Event.OnTick += OnTick;
 
         // Bug fix: same mistake as OnTick's own bug-fix note below - iterating AssignedSlots
-        // directly skipped every player for a global (!addmodifier) activation, since AssignedSlots
+        // directly skipped every player for a global (!rolltoggle) activation, since AssignedSlots
         // is only ever populated for a per-player roll/!memodifier. OnPlayerSpawn's own IsAssignedTo
         // check meant weapons still got stripped eventually (on that player's next spawn), but not
         // immediately on activation for anyone already alive when a global roll landed.
@@ -122,9 +122,9 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         var now = Core.Engine.GlobalVars.CurrentTime;
 
         // Bug fix: this used to iterate AssignedSlots directly, which is empty for a GLOBAL
-        // activation (!addmodifier, no specific player assignment) - AssignedSlots only ever gets
+        // activation (!rolltoggle, no specific player assignment) - AssignedSlots only ever gets
         // populated for a per-player roll or !memodifier, even though IsAssignedTo already treats an
-        // empty AssignedSlots as "applies to everyone". Activating via !addmodifier therefore iterated
+        // empty AssignedSlots as "applies to everyone". Activating via !rolltoggle therefore iterated
         // nothing and never showed the popup to anyone. Iterating every valid player and filtering by
         // IsAssignedTo (the same pattern used everywhere else in this codebase) correctly covers both
         // the global and per-player-assigned cases.

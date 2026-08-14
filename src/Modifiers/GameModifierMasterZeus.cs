@@ -38,7 +38,7 @@ namespace CSRoll.Modifiers;
 /// exact configuration live-confirmed working (back when this only dealt 15 damage - LOS correctly
 /// let real ranged hits through while still blocking on real obstructions). A later change swapped
 /// this to candidatePawn.EyePosition on a theory that an eye-to-feet trace clips the ground at long
-/// range - live !debug testing showed that swap made LOS reject 100% of attempts, including a
+/// range - live !rolldebug testing showed that swap made LOS reject 100% of attempts, including a
 /// dead-on shot down a clearly open street, so it was a regression, not a fix, and has been reverted
 /// back to AbsOrigin. (LOS being required at all is deliberate: Wallhack should still be blocked by
 /// walls even with an extended-range zap - removing the check entirely was tried and immediately
@@ -217,9 +217,9 @@ public sealed class GameModifierMasterZeus : GameModifierBase
     }
 
     /// <summary>
-    /// Fires (LogInformation, gated behind !debug so it stays silent otherwise) at every decision
+    /// Fires (LogInformation, gated behind !rolldebug so it stays silent otherwise) at every decision
     /// point in the extended-range zap - since two rounds of blind guesses at the cause of "deals no
-    /// damage at any range" haven't fixed it, the next live test with !debug on will show exactly
+    /// damage at any range" haven't fixed it, the next live test with !rolldebug on will show exactly
     /// which step is failing (no eye position, no qualifying target, or damage genuinely not landing)
     /// instead of guessing again.
     /// </summary>
@@ -284,7 +284,7 @@ public sealed class GameModifierMasterZeus : GameModifierBase
                 continue;
             }
 
-            // Bug fix: live !debug logging (StartInSolid=False, HitEntity=func_buyzone) confirmed the
+            // Bug fix: live !rolldebug logging (StartInSolid=False, HitEntity=func_buyzone) confirmed the
             // trace was blocking on a non-solid trigger volume, not real geometry or a self-hit - buy
             // zones, bomb/rescue zones etc. should never physically block a line of sight.
             // HitTrigger(false) alone didn't stop it (func_buyzone apparently isn't classified as a

@@ -66,26 +66,21 @@ All commands are chat commands (prefix with `!`).
 
 | Command | Access | Description |
 | --- | --- | --- |
-| `!listmodifiers` | Everyone | Prints the name and description for each registered modifier. |
-| `!listactivemodifiers` | Everyone | Prints the name and description for each active modifier. |
+| `!rolllist` | Everyone | Prints the name and description for each registered modifier. |
+| `!rollactive` | Everyone | Prints the name, scope (Global or which player(s)), and description for each active modifier. |
 | `!rollhelp` | Everyone | Prints every available CSRoll command. |
-| `!addmodifier <name>` | Admin | Add a modifier that will persist until the end of the game. |
 | `!memodifier <name>` | Admin | Apply a modifier scoped to just yourself, without affecting anyone else. |
-| `!togglemodifier <name>` | Admin | Enables/Disables a given modifier by name. |
+| `!rolltoggle <name>` | Admin | Adds the modifier globally if inactive, removes it (from everyone currently assigned) if active. |
 | `!removemodifier <name>` | Admin | Remove an active modifier. |
 | `!removemodifiers` | Admin | Clear / Remove all active modifiers. |
-| `!disablemodifier <name>` | Admin | Deactivate a modifier and remove it from the registered pool so it can't be added/rolled again until modifiers are reloaded. |
+| `!disablemodifier <name>` | Admin | Deactivate a modifier and remove it from the registered pool so it can't be added/rolled again until the plugin next reloads. |
 | `!addrandommodifier` | Admin | Add a random modifier to be activated immediately. |
-| `!addrandommodifiers <count>` | Admin | Add a random number of modifiers to be activated immediately. |
 | `!randomrounds` | Admin | Toggle random rounds on/off. |
-| `!minrandomrounds <min>` | Admin | Set the min number of random round modifiers to be active each round. |
-| `!maxrandomrounds <max>` | Admin | Set the max number of random round modifiers to be active each round. |
 | `!randomroundsreroll` | Admin | Re-roll the current random round modifiers and apply them to the current round. |
-| `!reloadmodifiers` | Admin | Re-initialises all registered modifiers. (This will remove all active modifiers too) |
-| `!reloadconfig` | Admin | Reload `config.jsonc` from disk without restarting the plugin or resetting active modifiers. |
-| `!surf` | Admin | Enable/Disable the surf modifier. |
-| `!wallhack` | Admin | Enable/Disable the wallhack modifier for all players. |
-| `!debug` | Admin | Toggle whether per-player random-round assignments are reported to admins in chat. |
+| `!rollreload` | Admin | Reload `config.jsonc` from disk without restarting the plugin or resetting active modifiers. |
+| `!rolldebug` | Admin | Toggle whether per-player random-round assignments are reported to admins in chat. |
+
+`MinRandomRounds`/`MaxRandomRounds` are config-only now (`config.jsonc`) - no chat command sets them at runtime. `Surf`/`Wallhack` are regular modifiers (manage them like any other via `!rolltoggle Surf` / `!rolltoggle Wallhack` or `!memodifier`), not dedicated commands.
 
 ## Installation
 

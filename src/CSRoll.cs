@@ -18,7 +18,7 @@ public partial class CSRoll : BasePlugin
 {
     // Single source of truth for the version - also referenced in the PluginMetadata attribute
     // above and logged on every load, so the running build is always identifiable in the console.
-    private const string PluginVersion = "1.30.12";
+    private const string PluginVersion = "1.31.0";
 
     private IServiceProvider _serviceProvider = null!;
     private ICvarRollbackService _cvarService = null!;
@@ -117,11 +117,26 @@ public partial class CSRoll : BasePlugin
         if (Runtime is not null)
         {
             Runtime.Config = newConfig;
+
+            // Bug fix: MinRandomRounds/MaxRandomRounds are separate mutable properties on
+            // ModifierRuntime (not read live off Runtime.Config), previously kept in sync only by the
+            // now-removed !minrandomrounds/!maxrandomrounds commands writing straight to them.
+            // Now that config.jsonc is the sole source for these, a reload (hot-reload or !rollreload)
+            // has to re-sync them explicitly here or an edited config.jsonc value would never actually
+            // take effect on a running server, permanently stuck at whatever was live on last Load().
+            Runtime.MinRandomRounds = newConfig.MinRandomRounds;
+            Runtime.MaxRandomRounds = newConfig.MaxRandomRounds;
         }
 
         if (disabledModifiersChanged)
         {
-            Core.Logger.LogWarning("[CSRoll] DisabledModifiers changed - run !reloadmodifiers for this to take effect.");
+            // Bug fix: this used to point admins at !reloadmodifiers, which has been removed (it only
+            // rebuilt the registered-modifier list/pool - not something day-to-day admin usage needs,
+            // since disabling a modifier for the rest of the session already happens live via
+            // !disablemodifier). A DisabledModifiers edit in config.jsonc now requires a full plugin
+            // reload (map change or server restart) to take effect - flagging that plainly instead of
+            // pointing at a command that no longer exists.
+            Core.Logger.LogWarning("[CSRoll] DisabledModifiers changed - this only takes effect on the next full plugin reload (map change/restart), not from config reload alone.");
         }
     }
 }

@@ -125,7 +125,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         Core.GameEvent.Unhook(_spawnResetHookId);
 
         // Bug fix: was "foreach (var slot in AssignedSlots)" - AssignedSlots is the raw per-player
-        // scoping set, which is deliberately EMPTY for a global-scope activation (!addmodifier, as
+        // scoping set, which is deliberately EMPTY for a global-scope activation (!rolltoggle, as
         // opposed to !memodifier/a per-player random roll) per IsAssignedTo's own "empty means
         // everyone" convention used everywhere else in this codebase. Iterating it directly skipped
         // every player entirely for a globally-active instance. GetAssignedPlayers() (GameModifierBase)
@@ -177,7 +177,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         var now = Core.Engine.GlobalVars.CurrentTime;
 
         // Bug fix: was "foreach (var slot in AssignedSlots)" - see OnDisabled's matching bug-fix note.
-        // AssignedSlots is empty for a global-scope activation (!addmodifier), so this entire tick
+        // AssignedSlots is empty for a global-scope activation (!rolltoggle), so this entire tick
         // loop - the only thing that ever checks silence/damage state and drives the fade/HUD - ran
         // zero iterations for a globally-active instance. Confirmed live: OnPlayerHurt was correctly
         // firing and setting the damage-flash timer every hit (it uses IsAssignedTo), but nothing

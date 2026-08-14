@@ -233,7 +233,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     private void StartSpin(IPlayer player)
     {
         // Bug fix: without this guard, a second near-simultaneous trigger for the same player (e.g.
-        // an EventPlayerSpawn firing right around !addmodifier/!memodifier applying) started an
+        // an EventPlayerSpawn firing right around !rolltoggle/!memodifier applying) started an
         // independent second spin that stomped the first one's SendCenterHTML calls every tick - the
         // player only ever saw whichever one's frame landed last, never a clean animation.
         if (_spins.ContainsKey(player.Slot))

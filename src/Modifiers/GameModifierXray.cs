@@ -305,6 +305,6 @@ public sealed class GameModifierXrayAll : GameModifierXrayBase
     // IsAssignedTo, not an unconditional true - when this rolls for a specific player via
     // per-player random rounds (see SupportsPerPlayerRandomization above, replacing the removed
     // RandomXray modifier's "some people get it" role), only that assigned player gets x-ray;
-    // a global !addmodifier toggle (no specific assignment) still means everyone, same as before.
+    // a global !rolltoggle (no specific assignment) still means everyone, same as before.
     protected override bool CheckEnableXray(IPlayer viewer) => IsAssignedTo(viewer.Slot);
 }

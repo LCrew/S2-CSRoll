@@ -185,7 +185,7 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
 /// from the SupportsPerPlayerRandomization pool - a prior "supplementary global roll" that used to
 /// also consider global-only modifiers like this one every round was removed entirely (see
 /// ModifierRuntime.ApplyRandomRoundsForRound's own comment), so with SupportsPerPlayerRandomization
-/// false this could only ever appear via an explicit admin !addmodifier/!addrandommodifier - reported
+/// false this could only ever appear via an explicit admin !rolltoggle/!addrandommodifier - reported
 /// live as "I've never rolled this, is this rollable even?" Flipped to true: the modifier's own
 /// IsAssignedTo(thrower) check already scopes the color-swap to just the assigned player's throws
 /// regardless, so per-player assignment isn't the redundant no-op the old comment assumed - it's

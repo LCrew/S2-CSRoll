@@ -24,7 +24,7 @@ namespace CSRoll.Modifiers;
 /// risky and can silently misbehave; reading/writing as text sidesteps that entirely.
 ///
 /// Bug fix: the bomb timer cvar name was wrong - "mp_c4_timer" doesn't exist in this CS2 build at
-/// all (confirmed via live !debug logging: FindAsString returned null for it). The real name,
+/// all (confirmed via live !rolldebug logging: FindAsString returned null for it). The real name,
 /// confirmed via a live CS2 server config bundled with MatchZy (a widely-used match plugin), is
 /// "mp_c4timer" - no underscore between "c4" and "timer".
 /// </summary>

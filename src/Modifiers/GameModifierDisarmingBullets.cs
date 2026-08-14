@@ -17,7 +17,7 @@ namespace CSRoll.Modifiers;
 /// the odds stay fixed for the life of one activation.
 ///
 /// DynamicPercentText exposes the actual rolled percent for the current activation (or the
-/// configured range if never yet activated, e.g. for !listmodifiers before this has ever been
+/// configured range if never yet activated, e.g. for !rolllist before this has ever been
 /// rolled) - CSRollUtils.GetModifierDescription substitutes it into any "{rand%}" token found in
 /// either a translations/en.jsonc override or the hardcoded Description fallback below, so the
 /// wording is freely customizable there while the value always tracks the live roll.

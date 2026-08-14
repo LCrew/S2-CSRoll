@@ -517,6 +517,10 @@ public static class CSRollUtils
         _ => "red",
     };
 
+    /// <summary>Modifier display name wrapped in [gold]...[default] and color-resolved - the shared accessibility formatting used by !rolllist and !rollactive.</summary>
+    private static string GetColoredModifierDisplayName(ISwiftlyCore core, GameModifierBase modifier) =>
+        SwiftlyS2.Shared.Helper.Colored($"[gold]{GetModifierDisplayName(core, modifier)}[default]");
+
     public static void PrintModifiersToChat(ISwiftlyCore core, SwiftlyS2.Shared.Players.IPlayer? player, IReadOnlyCollection<GameModifierBase> modifiers, string title, bool withDescriptions = true)
     {
         PrintTitleToChat(core, player, title);
@@ -529,9 +533,52 @@ public static class CSRollUtils
 
         foreach (var modifier in modifiers)
         {
-            var displayName = GetModifierDisplayName(core, modifier);
+            var displayName = GetColoredModifierDisplayName(core, modifier);
             var line = withDescriptions ? $"• {displayName} - [{GetModifierDescription(core, modifier)}]" : $"• {displayName}";
             player?.SendChat(line);
+        }
+    }
+
+    /// <summary>
+    /// Resolves what a modifier's AssignedSlots means in player-facing terms: "Global" for an empty
+    /// set (the same "empty means everyone" convention GameModifierBase.IsAssignedTo uses internally),
+    /// or the connected player name(s) it's currently scoped to otherwise.
+    /// </summary>
+    private static string GetModifierScopeText(ISwiftlyCore core, GameModifierBase modifier)
+    {
+        if (modifier.AssignedSlots.Count == 0)
+        {
+            return "Global";
+        }
+
+        var names = modifier.AssignedSlots
+            .Select(slot => core.PlayerManager.GetPlayer(slot)?.Controller is { IsValid: true } controller ? controller.PlayerName : $"Slot {slot}")
+            .ToList();
+
+        return string.Join(", ", names);
+    }
+
+    /// <summary>
+    /// !rollactive's listing: unlike PrintModifiersToChat (used for the registered-modifier list,
+    /// where scope is meaningless), each active modifier now also shows WHO it currently applies to -
+    /// "Global" or specific player name(s) - since most modifiers are per-player-assigned by default
+    /// (Config.RandomizePlayers), a flat name/description list with no scope was misleading.
+    /// </summary>
+    public static void PrintActiveModifiersToChat(ISwiftlyCore core, SwiftlyS2.Shared.Players.IPlayer? player, IReadOnlyCollection<GameModifierBase> modifiers)
+    {
+        PrintTitleToChat(core, player, "Active modifiers");
+
+        if (modifiers.Count == 0)
+        {
+            player?.SendChat("None");
+            return;
+        }
+
+        foreach (var modifier in modifiers)
+        {
+            var displayName = GetColoredModifierDisplayName(core, modifier);
+            var scope = GetModifierScopeText(core, modifier);
+            player?.SendChat($"• {displayName} ({scope}) - [{GetModifierDescription(core, modifier)}]");
         }
     }
 
@@ -591,7 +638,7 @@ public static class CSRollUtils
     /// Looks up a modifier's chat/HTML-shown display name from resources/translations/en.jsonc (key:
     /// "{Name}.DisplayName"), falling back to the modifier's internal Name if no override exists.
     /// The internal Name itself is never renamed - it's still what IncompatibleModifiers lists,
-    /// DisabledModifiers config, and admin commands (!addmodifier etc.) all match against - this only
+    /// DisabledModifiers config, and admin commands (!rolltoggle etc.) all match against - this only
     /// changes what players actually see printed, e.g. renaming the confusing "DontMiss"/"DropOnMiss"
     /// pair to something clearer without touching any code or breaking existing references to them.
     /// </summary>

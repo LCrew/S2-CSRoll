@@ -31,24 +31,17 @@ public partial class CSRoll
     // fixed upstream.
     private void InitializeCommands()
     {
-        _commandGuids.Add(Core.Command.RegisterCommand("reloadmodifiers", Debounce("reloadmodifiers", OnReloadModifiers), registerRaw: true, permission: AdminPermission, helpText: "Re-initialises all registered modifiers. (This will remove all active modifiers too)"));
-        _commandGuids.Add(Core.Command.RegisterCommand("listmodifiers", Debounce("listmodifiers", OnListModifiers), registerRaw: true, helpText: "Prints the name and description for each registered modifier."));
-        _commandGuids.Add(Core.Command.RegisterCommand("listactivemodifiers", Debounce("listactivemodifiers", OnListActiveModifiers), registerRaw: true, helpText: "Prints the name and description for each active modifier."));
-        _commandGuids.Add(Core.Command.RegisterCommand("addmodifier", Debounce("addmodifier", OnAddModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Add a modifier that will persist until the end of the game."));
-        _commandGuids.Add(Core.Command.RegisterCommand("togglemodifier", Debounce("togglemodifier", OnToggleModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Enables/Disables a given modifier by name."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rolllist", Debounce("rolllist", OnRollList), registerRaw: true, helpText: "Prints the name and description for each registered modifier."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rollactive", Debounce("rollactive", OnRollActive), registerRaw: true, helpText: "Prints the name, scope, and description for each active modifier."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rolltoggle", Debounce("rolltoggle", OnRollToggle), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Adds the modifier globally if inactive, removes it if active."));
         _commandGuids.Add(Core.Command.RegisterCommand("addrandommodifier", Debounce("addrandommodifier", OnAddRandomModifier), registerRaw: true, permission: AdminPermission, helpText: "Add a random modifier to be activated immediately."));
-        _commandGuids.Add(Core.Command.RegisterCommand("addrandommodifiers", Debounce("addrandommodifiers", OnAddRandomModifiers), registerRaw: true, permission: AdminPermission, helpText: "<modifier count> - Add a random number of modifiers to be activated immediately."));
         _commandGuids.Add(Core.Command.RegisterCommand("removemodifier", Debounce("removemodifier", OnRemoveModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Remove an active modifier."));
         _commandGuids.Add(Core.Command.RegisterCommand("removemodifiers", Debounce("removemodifiers", OnRemoveModifiers), registerRaw: true, permission: AdminPermission, helpText: "Clear / Remove all active modifiers."));
         _commandGuids.Add(Core.Command.RegisterCommand("disablemodifier", Debounce("disablemodifier", OnDisableModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Deactivate a modifier and remove it from the registered pool so it can't be added/rolled again until modifiers are reloaded."));
         _commandGuids.Add(Core.Command.RegisterCommand("randomrounds", Debounce("randomrounds", OnRandomRounds), registerRaw: true, permission: AdminPermission, helpText: "Toggle random rounds on/off."));
-        _commandGuids.Add(Core.Command.RegisterCommand("minrandomrounds", Debounce("minrandomrounds", OnMinRandomRounds), registerRaw: true, permission: AdminPermission, helpText: "<min number> - Set the min number of random round modifiers to be active each round."));
-        _commandGuids.Add(Core.Command.RegisterCommand("maxrandomrounds", Debounce("maxrandomrounds", OnMaxRandomRounds), registerRaw: true, permission: AdminPermission, helpText: "<max number> - Set the max number of random round modifiers to be active each round."));
         _commandGuids.Add(Core.Command.RegisterCommand("randomroundsreroll", Debounce("randomroundsreroll", OnRandomRoundsReRoll), registerRaw: true, permission: AdminPermission, helpText: "Re-roll the current random round modifiers and apply them to the current round."));
-        _commandGuids.Add(Core.Command.RegisterCommand("surf", Debounce("surf", OnSurf), registerRaw: true, permission: AdminPermission, helpText: "Enable/Disable the surf modifier."));
-        _commandGuids.Add(Core.Command.RegisterCommand("wallhack", Debounce("wallhack", OnWallhack), registerRaw: true, permission: AdminPermission, helpText: "Enable/Disable the wallhack modifier for all players."));
-        _commandGuids.Add(Core.Command.RegisterCommand("debug", Debounce("debug", OnDebug), registerRaw: true, permission: AdminPermission, helpText: "Toggle whether per-player random-round assignments are reported to admins in chat."));
-        _commandGuids.Add(Core.Command.RegisterCommand("reloadconfig", Debounce("reloadconfig", OnReloadConfig), registerRaw: true, permission: AdminPermission, helpText: "Reload config.jsonc from disk without restarting the plugin or resetting active modifiers."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rolldebug", Debounce("rolldebug", OnRollDebug), registerRaw: true, permission: AdminPermission, helpText: "Toggle whether per-player random-round assignments are reported to admins in chat."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rollreload", Debounce("rollreload", OnRollReload), registerRaw: true, permission: AdminPermission, helpText: "Reload config.jsonc from disk without restarting the plugin or resetting active modifiers."));
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollhelp", Debounce("rollhelp", OnRollHelp), registerRaw: true, helpText: "Prints every available CSRoll command."));
 
@@ -110,38 +103,18 @@ public partial class CSRoll
         return HookResult.Stop;
     }
 
-    public void OnReloadModifiers(ICommandContext context)
-    {
-        CSRollUtils.PrintTitleToChat(Core, context.Sender, "Reloading Modifiers...");
-        Runtime.Unregister();
-        Runtime.Initialise(BuildModifierFactories());
-        context.Reply("Modifiers reloaded.");
-    }
-
-    public void OnListModifiers(ICommandContext context)
+    public void OnRollList(ICommandContext context)
     {
         CSRollUtils.PrintModifiersToChat(Core, context.Sender, Runtime.RegisteredModifiers, "Registered modifiers");
     }
 
-    public void OnListActiveModifiers(ICommandContext context)
+    public void OnRollActive(ICommandContext context)
     {
-        CSRollUtils.PrintModifiersToChat(Core, context.Sender, Runtime.ActiveModifiers, "Active modifiers");
+        CSRollUtils.PrintActiveModifiersToChat(Core, context.Sender, Runtime.ActiveModifiers);
     }
 
-    public void OnAddModifier(ICommandContext context)
-    {
-        var modifierName = context.Args.Length > 0 ? context.Args[0] : "";
-        if (Runtime.AddModifierByName(modifierName, out var message))
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Added {modifierName} modifier.");
-        }
-        else
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, message);
-        }
-    }
-
-    public void OnToggleModifier(ICommandContext context)
+    /// <summary>Merged !addmodifier/!togglemodifier - both did the same thing once the modifier was already active (nothing left to distinguish once !addmodifier's only path forward on an active modifier was to fail).</summary>
+    public void OnRollToggle(ICommandContext context)
     {
         var modifierName = context.Args.Length > 0 ? context.Args[0] : "";
         var wasActive = Runtime.IsModifierActiveByName(modifierName);
@@ -164,19 +137,6 @@ public partial class CSRoll
         }
     }
 
-    public void OnAddRandomModifiers(ICommandContext context)
-    {
-        var arg = context.Args.Length > 0 ? context.Args[0] : "";
-        if (int.TryParse(arg, out var count) && Runtime.AddRandomModifiers(count, out var added))
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender,
-                count == added.Count ? $"Adding {count} random modifiers." : $"Only added {added.Count} random modifiers.");
-            return;
-        }
-
-        CSRollUtils.PrintTitleToChat(Core, context.Sender, "Failed to add random modifiers.");
-    }
-
     public void OnRemoveModifier(ICommandContext context)
     {
         var modifierName = context.Args.Length > 0 ? context.Args[0] : "";
@@ -197,7 +157,7 @@ public partial class CSRoll
         CSRollUtils.PrintTitleToChat(Core, context.Sender, message);
     }
 
-    public void OnReloadConfig(ICommandContext context)
+    public void OnRollReload(ICommandContext context)
     {
         // Core.Configuration.Manager is typed as IConfigurationManager (IConfiguration +
         // IConfigurationBuilder only - no Reload()), but the concrete instance backing it is the
@@ -237,11 +197,12 @@ public partial class CSRoll
         foreach (var command in Core.Command.GetCommandsByPlugin("CSRoll").OrderBy(c => c.CommandName, StringComparer.OrdinalIgnoreCase))
         {
             var adminTag = string.IsNullOrEmpty(command.Permission) ? "" : " [admin]";
-            context.Sender?.SendChat($"!{command.CommandName}{adminTag} - {command.HelpText}");
+            var coloredCommand = SwiftlyS2.Shared.Helper.Colored($"[orange]!{command.CommandName}[default]");
+            context.Sender?.SendChat($"{coloredCommand}{adminTag} - {command.HelpText}");
         }
     }
 
-    public void OnDebug(ICommandContext context)
+    public void OnRollDebug(ICommandContext context)
     {
         Runtime.DebugMode = !Runtime.DebugMode;
         CSRollUtils.PrintTitleToChat(Core, context.Sender, Runtime.DebugMode
@@ -260,50 +221,6 @@ public partial class CSRoll
         Runtime.ToggleRandomRounds();
     }
 
-    public void OnMinRandomRounds(ICommandContext context)
-    {
-        var arg = context.Args.Length > 0 ? context.Args[0] : "";
-        if (!int.TryParse(arg, out var value) || value < 1)
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Failed to set min modifiers for random rounds to {arg}");
-            return;
-        }
-
-        // Bug fix: setting Min > Max here used to be accepted outright - ModifierRuntime later
-        // calls Random.Next(MinRandomRounds, MaxRandomRounds), which throws ArgumentOutOfRangeException
-        // whenever min > max, breaking random-round selection on every subsequent round start until an
-        // admin noticed and fixed it back. Rejecting the change up front instead keeps the pair always
-        // valid.
-        if (value > Runtime.MaxRandomRounds)
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Min ({value}) cannot exceed the current max ({Runtime.MaxRandomRounds}) - raise max first.");
-            return;
-        }
-
-        Runtime.MinRandomRounds = value;
-        CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Min modifiers for random rounds set to {value}");
-    }
-
-    public void OnMaxRandomRounds(ICommandContext context)
-    {
-        var arg = context.Args.Length > 0 ? context.Args[0] : "";
-        if (!int.TryParse(arg, out var value) || value < 1)
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Failed to set max modifiers for random rounds to {arg}");
-            return;
-        }
-
-        // Bug fix: see OnMinRandomRounds - same Random.Next(Min, Max) crash risk if this is set below the current min.
-        if (value < Runtime.MinRandomRounds)
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Max ({value}) cannot be less than the current min ({Runtime.MinRandomRounds}) - lower min first.");
-            return;
-        }
-
-        Runtime.MaxRandomRounds = value;
-        CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Max modifiers for random rounds set to {value}");
-    }
-
     public void OnRandomRoundsReRoll(ICommandContext context)
     {
         if (!Runtime.RandomRoundsEnabled)
@@ -320,23 +237,5 @@ public partial class CSRoll
 
         Runtime.RemoveAllModifiers();
         Runtime.ApplyRandomRoundsForRound();
-    }
-
-    public void OnSurf(ICommandContext context) => ToggleModifierByNameCommand(context, "Surf");
-
-    public void OnWallhack(ICommandContext context) => ToggleModifierByNameCommand(context, "Wallhack");
-
-    private void ToggleModifierByNameCommand(ICommandContext context, string modifierName)
-    {
-        var wasActive = Runtime.IsModifierActiveByName(modifierName);
-
-        if (Runtime.ToggleModifierByName(modifierName, out var message))
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"{modifierName} {(wasActive ? "Disabled" : "Enabled")}.");
-        }
-        else
-        {
-            CSRollUtils.PrintTitleToChat(Core, context.Sender, message);
-        }
     }
 }

@@ -28,7 +28,7 @@ public sealed class ModifierRuntime
     /// <summary>
     /// Off by default. When off, per-player random-round assignments ("who got which modifier")
     /// are never sent to chat at all - each player's own center-HTML banner already tells them
-    /// privately. When toggled on via !debug, that "who got what" breakdown is sent to connected
+    /// privately. When toggled on via !rolldebug, that "who got what" breakdown is sent to connected
     /// admins only, never broadcast to the whole server.
     /// </summary>
     public bool DebugMode { get; set; }
@@ -183,8 +183,8 @@ public sealed class ModifierRuntime
         _lastSpectatorHudUpdateTime.Clear();
 
         // Bug fix: this used to also clear _lastRoundAssignedPerPlayer and reset _roundNumber to 0 -
-        // meaning !reloadmodifiers (which calls Unregister() then re-Initialise() to rebuild the
-        // registered-modifier list, e.g. after a config change) silently wiped every player's
+        // meaning any Unregister()-then-Initialise() registry reload (e.g. after a config change)
+        // silently wiped every player's
         // PerPlayerRepeatCooldownRounds history too, letting a modifier they'd just rolled repeat
         // immediately regardless of how many real rounds had actually passed. Reported as "got Jetpack
         // again with only a single round in between" - a reload between those rounds is the most
@@ -319,7 +319,7 @@ public sealed class ModifierRuntime
         // per-player randomization directly instead (see their own files), so they lose nothing by
         // this removal - only modifiers that are still genuinely global-only (PlantAnywhere, etc.)
         // are excluded from the automatic rotation now; they're still fully usable via an explicit
-        // admin !addmodifier.
+        // admin !rolltoggle.
         if (Config.RandomizePlayers)
         {
             appliedAnything = AssignRandomModifiersPerPlayer(showBanner);
@@ -730,14 +730,14 @@ public sealed class ModifierRuntime
     /// a currently-active modifier but leaves it eligible to be rolled/added again immediately
     /// afterward. Deactivates it first if active, then Unregister()s it (so its own OnUnregistered
     /// cleanup runs - e.g. dropping any OnClientConnected/OnClientDisconnected subscriptions) and
-    /// drops it from RegisteredModifiers, so !addmodifier/!memodifier/the random pools can no longer
+    /// drops it from RegisteredModifiers, so !rolltoggle/!memodifier/the random pools can no longer
     /// select it at all.
     ///
-    /// Also appends the name to Config.DisabledModifiers in memory, so a later !reloadmodifiers
-    /// (without an intervening !reloadconfig) still respects the disable instead of silently bringing
-    /// the modifier back. This does NOT write back to config.jsonc on disk, though - an explicit
-    /// !reloadconfig re-reads the file fresh and will re-enable this modifier unless it's also been
-    /// added to DisabledModifiers there by hand.
+    /// Also appends the name to Config.DisabledModifiers in memory - this does NOT write back to
+    /// config.jsonc on disk, though, so it only lasts for the rest of this session: an explicit
+    /// !rollreload re-reads the file fresh and will re-enable this modifier unless it's also been
+    /// added to DisabledModifiers there by hand, and so will the next full plugin reload (map
+    /// change/restart) regardless, since that always re-reads config.jsonc from scratch too.
     /// </summary>
     public bool DisableModifierByName(string modifierName, out string message)
     {
@@ -876,7 +876,7 @@ public sealed class ModifierRuntime
             return false;
         }
 
-        // Bug fix: this shared/global roll had no !debug visibility at all, unlike the per-player
+        // Bug fix: this shared/global roll had no !rolldebug visibility at all, unlike the per-player
         // roll's admin listing - live testing found modifiers activated here (e.g. PlantAnywhere -
         // anything that doesn't support per-player randomization, including the
         // ConditionalInvisibility/FullInvisibility supplementary roll) reported as "hidden": nobody
@@ -908,7 +908,7 @@ public sealed class ModifierRuntime
         return true;
     }
 
-    /// <summary>Immediate activation with an immediate banner/chat announcement - used by callers with no separate reveal animation following them (manual !addmodifier/!addrandommodifier(s)/!reroll). The round-start automatic roll defers activation instead - see PlaySpinThenRevealActiveModifiersBanner.</summary>
+    /// <summary>Immediate activation with an immediate banner/chat announcement - used by callers with no separate reveal animation following them (manual !rolltoggle/!addrandommodifier(s)/!reroll). The round-start automatic roll defers activation instead - see PlaySpinThenRevealActiveModifiersBanner.</summary>
     private void ActivateModifiers(List<GameModifierBase> modifiers)
     {
         if (modifiers.Count == 0)
@@ -977,9 +977,9 @@ public sealed class ModifierRuntime
         }
 
         // Bug fix: any active modifier with an EMPTY AssignedSlots is global in scope (e.g. an admin
-        // !addmodifier on something that doesn't support per-player randomization like
+        // !rolltoggle on something that doesn't support per-player randomization like
         // PlantAnywhere) - live testing confirmed these were taking effect completely
-        // silently under RandomizePlayers=true: no chat, no spin, not even in the !debug listing,
+        // silently under RandomizePlayers=true: no chat, no spin, not even in the !rolldebug listing,
         // since the per-player branch below only ever iterates each modifier's AssignedSlots, which
         // contributes nothing for a global-scope one. These now always get their own broadcast
         // reveal, regardless of RandomizePlayers.
