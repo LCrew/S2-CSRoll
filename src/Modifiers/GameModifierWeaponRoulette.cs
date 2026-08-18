@@ -83,6 +83,9 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     /// </summary>
     private float _nextRerollTime = -1f;
 
+    /// <summary>Single clamped source for the spin's total duration - both the early-trigger window in OnGameTick and AdvanceSpin's per-frame interval must agree, or the spin can't fill exactly the countdown's final stretch (see AdvanceSpin's own bug-fix note).</summary>
+    private float SpinDurationSeconds => Math.Max(0.1f, Runtime.Config.WeaponRoulette.SpinDurationSeconds);
+
     public GameModifierWeaponRoulette()
     {
         Name = "WeaponRoulette";
@@ -183,7 +186,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     private void OnGameTick()
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
-        var spinDuration = Math.Max(0.1f, Runtime.Config.WeaponRoulette.SpinDurationSeconds);
+        var spinDuration = SpinDurationSeconds;
 
         // Bug fix (per explicit request): the spin used to start only once the countdown had
         // already hit 0, so the new weapon didn't actually land until SpinDurationSeconds AFTER the
@@ -198,7 +201,16 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         // landing independently) never double-advances this single shared timestamp.
         if (now >= _nextRerollTime - spinDuration)
         {
-            _nextRerollTime += Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
+            // Bug fix: advancing purely by += drifts when _nextRerollTime is badly stale. It's
+            // deliberately NOT reset in OnDisabled (so a mere round-start reapply doesn't restart the
+            // countdown), so after this modifier sits deactivated for several rounds the timestamp can
+            // be many intervals in the past - the trigger then stayed true for one tick per elapsed
+            // interval, re-entering this block repeatedly instead of being the one-shot the comment
+            // below describes. Snapping forward to a fresh now-based deadline whenever it has fallen
+            // more than one interval behind keeps the += path (which preserves exact cadence in the
+            // normal case) without letting a stale value burn through several cycles at once.
+            var interval = Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
+            _nextRerollTime = _nextRerollTime + interval < now ? now + interval : _nextRerollTime + interval;
 
             foreach (var player in Core.PlayerManager.GetAllValidPlayers())
             {
@@ -287,7 +299,13 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             return;
         }
 
-        var interval = Runtime.Config.WeaponRoulette.SpinDurationSeconds / frameCount;
+        // Bug fix: this used the RAW config value while OnGameTick's early-trigger used the clamped
+        // SpinDurationSeconds - so at SpinDurationSeconds <= 0 the trigger fired only 0.1s early but
+        // the spin still took frameCount ticks to land, putting the new weapon AFTER the countdown
+        // hit zero: exactly the defect the early-trigger change was made to fix. A negative value
+        // additionally produced a negative SendCenterHTML duration below. Both sites now read the
+        // same clamped value.
+        var interval = SpinDurationSeconds / frameCount;
         var randomName = CSRollUtils.GetRandomMainWeaponName(spin.Team);
         player.SendCenterHTML(BuildStatusHtml(isRolling: true, randomName, 0f), (int)(interval * 1000) + 50);
         CSRollUtils.PlaySoundToPlayer(Core, player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume, debugMode: Runtime.DebugMode);

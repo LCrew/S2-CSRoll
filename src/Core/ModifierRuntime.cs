@@ -88,14 +88,20 @@ public sealed class ModifierRuntime
     }
 
     /// <summary>
-    /// Bug fix: Random.Next(min, max) throws ArgumentOutOfRangeException whenever min > max. The
-    /// command handlers (OnMinRandomRounds/OnMaxRandomRounds) now reject changes that would create
-    /// that state, but config.jsonc itself can still be hand-edited with Min > Max and hot-reloaded
-    /// straight into these properties - this clamp is the last line of defense so a bad config value
-    /// degrades to "roll exactly Min" instead of crashing round-start every round.
+    /// Bug fix: Random.Next(min, max) throws ArgumentOutOfRangeException whenever min > max, and
+    /// Min/MaxRandomRounds come straight from config.jsonc (hand-editable, hot-reloaded) with nothing
+    /// else validating them - the !minrandomrounds/!maxrandomrounds commands that used to reject a
+    /// Min > Max pair were removed when these became config-only, so this clamp is now the ONLY
+    /// defense. A bad config value degrades to "roll exactly Min" instead of crashing round-start.
+    ///
+    /// Bug fix: Max is treated as INCLUSIVE (hence Max + 1). Random.Next's own upper bound is
+    /// exclusive, so "MinRandomRounds: 1, MaxRandomRounds: 3" could previously only ever roll 1 or 2 -
+    /// the configured maximum was unreachable, which is not what the field name implies (and the
+    /// Max == Min case was already effectively inclusive, so the two boundaries disagreed with
+    /// each other).
     /// </summary>
     private int RollRandomRoundCount(Random random) =>
-        MaxRandomRounds > MinRandomRounds ? random.Next(MinRandomRounds, MaxRandomRounds) : MinRandomRounds;
+        MaxRandomRounds > MinRandomRounds ? random.Next(MinRandomRounds, MaxRandomRounds + 1) : MinRandomRounds;
 
     public void Initialise(IEnumerable<Func<GameModifierBase>> factories)
     {
@@ -209,8 +215,23 @@ public sealed class ModifierRuntime
     /// </summary>
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
-        foreach (var modifier in _activeModifiers)
+        // Iterating a copy: an orphaned modifier is removed from _activeModifiers inside this loop.
+        foreach (var modifier in _activeModifiers.ToList())
         {
+            // Bug fix: a per-player modifier whose LAST assigned player just disconnected would
+            // otherwise be left with an empty AssignedSlots, which IsAssignedTo reads as "applies to
+            // everyone" - silently widening it from one player to the whole server instead of ending
+            // it. See GameModifierBase.IsOnlyAssignedSlot for the full write-up, including why this
+            // must be checked BEFORE the slot is removed rather than after. Deactivating (rather than
+            // just dropping it from the list) runs the modifier's own OnDisabled cleanup.
+            if (modifier.IsOnlyAssignedSlot(@event.PlayerId))
+            {
+                _core.Logger.LogInformation("[CSRoll] Deactivating {Name} - its last assigned player (slot {Slot}) disconnected.", modifier.Name, @event.PlayerId);
+                modifier.Deactivate();
+                _activeModifiers.Remove(modifier);
+                continue;
+            }
+
             modifier.RemoveAssignedSlot(@event.PlayerId);
         }
 

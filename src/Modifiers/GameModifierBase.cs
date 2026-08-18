@@ -124,8 +124,28 @@ public abstract class GameModifierBase
     /// modifier deactivates, IsAssignedTo(slot) had no way to know the slot changed hands, so the
     /// newcomer silently inherited the effect. ModifierRuntime calls this for every active modifier
     /// on every disconnect so a freed slot is never still "owned" by anyone.
+    ///
     /// </summary>
     internal void RemoveAssignedSlot(int slot) => _assignedSlots.Remove(slot);
+
+    /// <summary>
+    /// Bug fix: true when `slot` is the ONLY slot this modifier is currently assigned to - i.e.
+    /// removing it would leave a previously-SCOPED modifier with an empty AssignedSlots, which
+    /// IsAssignedTo reads as "applies to everyone". A per-player modifier assigned to exactly one
+    /// player therefore silently WIDENED from "scoped to that player" to "server-wide" the moment
+    /// they disconnected, instead of ending: ConditionalInvisibility rolled for one player who then
+    /// disconnects mid-round started hiding every player on the server, FullInvisibility started
+    /// stripping everyone's weapons, MoreDamage buffed everyone. ModifierRuntime tests this BEFORE
+    /// removing the slot and deactivates instead - deliberately in that order, because Deactivate()
+    /// runs OnDisabled() before clearing the set, and several modifiers' OnDisabled iterates by
+    /// IsAssignedTo to undo their effect (Vampire heals its assigned players back to full, etc.).
+    /// Removing the slot first would leave that cleanup loop reading an already-empty set as
+    /// "everyone" and applying itself to every player on the server.
+    ///
+    /// A Count == 0 set returns false: that's a genuinely global activation (!rolltoggle), which has
+    /// no owning slot to lose and must not be deactivated by an unrelated player's disconnect.
+    /// </summary>
+    internal bool IsOnlyAssignedSlot(int slot) => _assignedSlots.Count == 1 && _assignedSlots.Contains(slot);
 
     internal void Deactivate()
     {

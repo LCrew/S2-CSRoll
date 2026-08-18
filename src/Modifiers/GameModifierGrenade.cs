@@ -242,7 +242,12 @@ public sealed class GameModifierRainbowSmokes : GameModifierBase
         {
             // Hardening: see DodgyGrenades.ApplyFuse's matching IsValid guard - this raw entity
             // wrapper is dereferenced a tick later with no validity check.
-            if (!grenade.IsValid)
+            //
+            // IsActive matters specifically because the assignment check moved INTO this deferred
+            // callback: Deactivate() clears AssignedSlots, and an empty set means "everyone" to
+            // IsAssignedTo - so a smoke thrown in the tick before this modifier was removed would
+            // otherwise still get recolored here, for any thrower at all.
+            if (!IsActive || !grenade.IsValid)
             {
                 return;
             }
