@@ -163,12 +163,9 @@ public sealed class GameModifierDontMiss : GameModifierMissedShot
 
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                ApplyBonusHealth(player);
-            }
+            ApplyBonusHealth(player);
         }
     }
 

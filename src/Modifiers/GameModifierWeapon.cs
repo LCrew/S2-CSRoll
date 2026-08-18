@@ -50,9 +50,9 @@ public sealed class GameModifierOnePerMag : GameModifierBase
 
     private void EnforceOnePerMag()
     {
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (!IsAssignedTo(player.Slot) || player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is not { } weapon)
+            if (player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is not { } weapon)
             {
                 continue;
             }

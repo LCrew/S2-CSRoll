@@ -37,21 +37,18 @@ public abstract class GameModifierVelocity : GameModifierBase
     {
         Core.Event.OnTick -= ApplyToAllPlayers;
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                SetSpeedMultiplier(player, 1.0f);
-            }
+            SetSpeedMultiplier(player, 1.0f);
         }
     }
 
     private void ApplyToAllPlayers()
     {
         var runMultiplier = GetSpeedMultiplier();
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot) && player.PlayerPawn is { } pawn)
+            if (player.PlayerPawn is { } pawn)
             {
                 // Walking (IN_SPEED held) is left at 1.0 - see the bug-fix note above.
                 var multiplier = player.PressedButtons.HasFlag(GameButtonFlags.Shift) ? 1.0f : runMultiplier;

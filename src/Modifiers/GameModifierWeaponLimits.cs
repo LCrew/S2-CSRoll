@@ -54,12 +54,9 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
         // replaces that global cvar entirely.
         Core.GameHooks.Items.CanAcquire.Pre += OnCanAcquireItem;
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                StripWeapons(player);
-            }
+            StripWeapons(player);
         }
     }
 

@@ -33,12 +33,9 @@ public abstract class GameModifierHealth : GameModifierBase
     {
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                ApplyHealth(player);
-            }
+            ApplyHealth(player);
         }
     }
 
@@ -46,12 +43,9 @@ public abstract class GameModifierHealth : GameModifierBase
     {
         Core.GameEvent.Unhook(_spawnHookId);
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                ResetHealth(player);
-            }
+            ResetHealth(player);
         }
     }
 

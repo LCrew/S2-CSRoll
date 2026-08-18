@@ -32,12 +32,9 @@ public abstract class GameModifierScalePlayer : GameModifierBase
     {
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                ApplyScale(player);
-            }
+            ApplyScale(player);
         }
     }
 
@@ -45,12 +42,9 @@ public abstract class GameModifierScalePlayer : GameModifierBase
     {
         Core.GameEvent.Unhook(_spawnHookId);
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                ResetScale(player);
-            }
+            ResetScale(player);
         }
     }
 
@@ -132,12 +126,9 @@ public sealed class GameModifierSmallPlayers : GameModifierScalePlayer
 
         _healthSpawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                ApplyMaxHealth(player);
-            }
+            ApplyMaxHealth(player);
         }
     }
 

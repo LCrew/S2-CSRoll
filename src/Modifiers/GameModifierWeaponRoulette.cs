@@ -212,22 +212,14 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             var interval = Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
             _nextRerollTime = _nextRerollTime + interval < now ? now + interval : _nextRerollTime + interval;
 
-            foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+            foreach (var player in GetAssignedPlayers())
             {
-                if (IsAssignedTo(player.Slot))
-                {
-                    StartSpin(player);
-                }
+                StartSpin(player);
             }
         }
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (!IsAssignedTo(player.Slot))
-            {
-                continue;
-            }
-
             if (_spins.TryGetValue(player.Slot, out var spin))
             {
                 if (now >= spin.NextFrameTime)

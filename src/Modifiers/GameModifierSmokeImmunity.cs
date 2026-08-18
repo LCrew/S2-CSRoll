@@ -47,12 +47,9 @@ public sealed class GameModifierSmokeImmunity : GameModifierBase
         var entityIndex = (int)@event.EntityID;
         _blockedEntityIndices.Add(entityIndex);
 
-        foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var viewer in GetAssignedPlayers())
         {
-            if (IsAssignedTo(viewer.Slot))
-            {
-                viewer.ShouldBlockTransmitEntity(entityIndex, true);
-            }
+            viewer.ShouldBlockTransmitEntity(entityIndex, true);
         }
 
         return HookResult.Continue;
@@ -71,12 +68,9 @@ public sealed class GameModifierSmokeImmunity : GameModifierBase
 
     private void UnblockForAssignedViewers(int entityIndex)
     {
-        foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var viewer in GetAssignedPlayers())
         {
-            if (IsAssignedTo(viewer.Slot))
-            {
-                viewer.ShouldBlockTransmitEntity(entityIndex, false);
-            }
+            viewer.ShouldBlockTransmitEntity(entityIndex, false);
         }
     }
 }

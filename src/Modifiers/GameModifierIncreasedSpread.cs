@@ -31,9 +31,9 @@ public sealed class GameModifierIncreasedSpread : GameModifierBase
     {
         Core.Event.OnTick -= ApplyToAllPlayers;
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot) && player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
+            if (player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
             {
                 var csWeapon = weapon.As<CCSWeaponBase>();
                 csWeapon.AccuracyPenalty = 0f;

@@ -111,12 +111,9 @@ public sealed class GameModifierJetpack : GameModifierBase
 
         _lastTickTime = -1f;
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (IsAssignedTo(player.Slot))
-            {
-                _fuel[player.Slot] = Runtime.Config.Jetpack.MaxFuel;
-            }
+            _fuel[player.Slot] = Runtime.Config.Jetpack.MaxFuel;
         }
     }
 
@@ -224,9 +221,9 @@ public sealed class GameModifierJetpack : GameModifierBase
         var deltaSeconds = _lastTickTime < 0f ? 0f : Math.Max(0f, now - _lastTickTime);
         _lastTickTime = now;
 
-        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
+        foreach (var player in GetAssignedPlayers())
         {
-            if (!IsAssignedTo(player.Slot) || !player.IsAlive)
+            if (!player.IsAlive)
             {
                 continue;
             }
