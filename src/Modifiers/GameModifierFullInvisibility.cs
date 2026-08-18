@@ -146,17 +146,23 @@ public sealed class GameModifierFullInvisibility : GameModifierInvisibleBase
         }
     }
 
-    /// <summary>Centers "FULL" inside a GaugeBarWidth-wide run of '-' - computed once rather than hardcoded, so it stays actually centered if GaugeBarWidth or the label text ever changes.</summary>
+    /// <summary>
+    /// Centers "FULL" inside a GaugeBarWidth-wide bar - computed once rather than hardcoded, so it
+    /// stays actually centered if GaugeBarWidth or the label text ever changes. Rendered in
+    /// CSRollUtils.MonoFontClass and padded with the same '█' glyph CSRollUtils.BuildGaugeHtml uses
+    /// for a filled cell, so this permanently-full gauge lines up column-for-column with every real
+    /// percentage gauge instead of being a visually different width built from dashes.
+    /// </summary>
     private static string BuildPermanentGaugeHtml()
     {
         const string label = " FULL ";
         var totalPadding = Math.Max(0, GaugeBarWidth - label.Length);
         var leftPadding = totalPadding / 2;
         var rightPadding = totalPadding - leftPadding;
-        var bar = new string('-', leftPadding) + label + new string('-', rightPadding);
+        var bar = new string('█', leftPadding) + label + new string('█', rightPadding);
 
-        return "<span color=\"lime\" class=\"fontWeight-bold\">INVISIBLE</span><br/>" +
-               $"<span color=\"gold\" class=\"fontWeight-bold\">[{bar}] ∞%</span>";
+        return "<span color=\"lime\" class=\"fontWeight-Bold\">INVISIBLE</span><br/>" +
+               $"<span color=\"gold\" class=\"fontWeight-Bold {CSRollUtils.MonoFontClass}\">[{bar}] ∞%</span>";
     }
 
     private void StripWeapons(IPlayer player)

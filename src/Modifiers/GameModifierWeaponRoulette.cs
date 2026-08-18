@@ -331,14 +331,14 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         var friendlyName = weaponName == "-" ? weaponName : CSRollUtils.GetFriendlyWeaponName(weaponName);
 
         var line2 = isRolling
-            ? "<span color=\"orange\" class=\"fontWeight-bold\">Rolling</span>"
-            : $"<span class=\"fontWeight-bold\">Timer: {secondsRemaining:0.0}s</span>".Replace('.', ',');
+            ? "<span color=\"orange\" class=\"fontWeight-Bold\">Rolling</span>"
+            : $"<span class=\"fontWeight-Bold\">Timer: {secondsRemaining:0.0}s</span>".Replace('.', ',');
 
         var line4 = isRolling
             ? friendlyName
-            : $"<span color=\"orange\" class=\"fontWeight-bold\">Active:</span> {friendlyName}";
+            : $"<span color=\"orange\" class=\"fontWeight-Bold\">Active:</span> {friendlyName}";
 
-        return "<span color=\"gold\" class=\"fontWeight-bold\">Weapon Roulette</span><br/>" +
+        return "<span color=\"gold\" class=\"fontWeight-Bold\">Weapon Roulette</span><br/>" +
                line2 + "<br/><br/>" +
                line4;
     }

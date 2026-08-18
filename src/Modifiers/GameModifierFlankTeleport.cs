@@ -214,11 +214,11 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
 
         var remaining = _nextAvailableTime.GetValueOrDefault(player.Slot, now) - now;
         var statusLine = remaining > 0f
-            ? $"<span color=\"red\" class=\"fontWeight-bold\">Cooldown: {remaining:0.0}s</span>".Replace('.', ',')
-            : "<span color=\"gold\" class=\"fontWeight-bold\">Ready</span>";
+            ? $"<span color=\"red\" class=\"fontWeight-Bold\">Cooldown: {remaining:0.0}s</span>".Replace('.', ',')
+            : "<span color=\"gold\" class=\"fontWeight-Bold\">Ready</span>";
 
-        var html = "<span color=\"gold\" class=\"fontWeight-bold\">Teleporter</span><br/>" +
-                   "<span class=\"fontWeight-bold\">Press \"F\" to Teleport</span><br/>" +
+        var html = "<span color=\"gold\" class=\"fontWeight-Bold\">Teleporter</span><br/>" +
+                   "<span class=\"fontWeight-Bold\">Press \"F\" to Teleport</span><br/>" +
                    statusLine;
 
         player.SendCenterHTML(html, HtmlDurationMs);

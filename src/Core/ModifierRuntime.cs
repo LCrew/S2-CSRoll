@@ -605,7 +605,7 @@ public sealed class ModifierRuntime
                 continue;
             }
 
-            _core.PlayerManager.GetPlayer(slot)?.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), 6000);
+            _core.PlayerManager.GetPlayer(slot)?.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal), 6000);
         }
     }
 
@@ -733,7 +733,7 @@ public sealed class ModifierRuntime
 
             if (Config.ShowCentreMsg && _core.PlayerManager.GetPlayer(slot) is { IsValid: true } player)
             {
-                player.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, [modifier]), 6000);
+                player.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, [modifier], Config.SpinReveal), 6000);
             }
         }
 
@@ -939,7 +939,7 @@ public sealed class ModifierRuntime
 
         if (Config.ShowCentreMsg)
         {
-            CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), 6000);
+            CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal), 6000);
         }
 
         foreach (var player in _core.PlayerManager.GetAllValidPlayers())
@@ -1063,12 +1063,13 @@ public sealed class ModifierRuntime
             foreach (var player in _core.PlayerManager.GetAllValidPlayers())
             {
                 SendOwnModifiersChatMessage(player, modifiers);
+                CSRollUtils.SendRevealFade(_core, player, Config.SpinReveal);
             }
         }
 
         if (Config.ShowCentreMsg)
         {
-            PlaySpinThenRevealAll(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), Reveal);
+            PlaySpinThenRevealAll(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal), Reveal);
         }
         else
         {
@@ -1119,12 +1120,18 @@ public sealed class ModifierRuntime
                     }
                 }
 
-                SendOwnModifiersChatMessage(_core.PlayerManager.GetPlayer(slot), modifiers);
+                // Re-resolved rather than captured: this runs from a scheduler continuation at the end
+                // of the spin, by which point the player may have disconnected.
+                if (_core.PlayerManager.GetPlayer(slot) is { IsValid: true } revealed)
+                {
+                    SendOwnModifiersChatMessage(revealed, modifiers);
+                    CSRollUtils.SendRevealFade(_core, revealed, Config.SpinReveal);
+                }
             }
 
             if (Config.ShowCentreMsg)
             {
-                PlaySpinThenReveal(slot, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers), Reveal);
+                PlaySpinThenReveal(slot, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal), Reveal);
             }
             else
             {

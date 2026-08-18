@@ -453,6 +453,51 @@ public class SpinRevealConfig
 
     /// <summary>Volume (0-1) for the per-frame spin tick sound - matches SwiftlyS2's own menu-scroll default.</summary>
     public float TickSoundVolume { get; set; } = 0.75f;
+
+    /// <summary>
+    /// Optional image shown above the modifier name on the reveal banner (e.g. a server/CSRoll logo).
+    /// Empty (the default) disables it entirely and emits no &lt;img&gt; tag at all.
+    ///
+    /// OFF BY DEFAULT ON PURPOSE - this is a remote fetch performed by every client that sees the
+    /// banner, which (a) exposes each player's IP address to whatever host serves the image and
+    /// (b) puts a network round-trip in the reveal path. Only set this if you're comfortable with
+    /// both, and prefer a host you control over a random image host.
+    ///
+    /// Must be a direct image URL (https://.../logo.png). Panorama also accepts
+    /// "file://{images}/..." paths, but those resolve against the CLIENT's own installed CS2 image
+    /// tree, so they can only reference art the game already ships - not anything you supply.
+    ///
+    /// NOTE: image rendering in this panel is evidenced by other live plugins doing the same thing,
+    /// but has not been verified first-hand for this plugin - test it in-game before relying on it.
+    /// If it doesn't render, leaving this empty restores exactly the previous behaviour.
+    /// </summary>
+    public string RevealImageUrl { get; set; } = "";
+
+    /// <summary>
+    /// Pixel width/height for RevealImageUrl. Both are always emitted when an image is configured:
+    /// Panorama has a long-standing quirk where an &lt;img&gt; with no explicit dimensions renders
+    /// tiny on first display and only corrects itself on a later show, so these are not optional.
+    /// </summary>
+    public int RevealImageWidth { get; set; } = 256;
+
+    /// <summary>See RevealImageWidth.</summary>
+    public int RevealImageHeight { get; set; } = 64;
+
+    /// <summary>
+    /// Brief screen flash when a modifier reveal lands, via CUserMessageFade - a cheap way to give
+    /// the reveal some physical punch that markup alone can't. Disabled by default since it's an
+    /// intrusive full-screen effect; FadeDurationMs/FadeHoldMs control how brief it is.
+    /// </summary>
+    public bool FadeOnReveal { get; set; } = false;
+
+    /// <summary>Fade-in/out duration in milliseconds for FadeOnReveal.</summary>
+    public int FadeDurationMs { get; set; } = 400;
+
+    /// <summary>How long the fade colour holds at full strength, in milliseconds, before fading back out.</summary>
+    public int FadeHoldMs { get; set; } = 100;
+
+    /// <summary>Fade colour as "R,G,B,A" (0-255 each). The default is a low-alpha white flash rather than a heavy blackout.</summary>
+    public string FadeColor { get; set; } = "255,255,255,64";
 }
 
 public class SpectatorHudConfig

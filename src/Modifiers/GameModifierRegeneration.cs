@@ -130,9 +130,9 @@ public sealed class GameModifierRegeneration : GameModifierBase
         _lastHtmlUpdateTime[slot] = now;
 
         var color = displayedRate >= Runtime.Config.Regeneration.StationaryRatePerSecond ? "gold" : "lime";
-        var html = "<span color=\"gold\" class=\"fontWeight-bold\">Regeneration</span><br/>" +
-                   "<span class=\"fontWeight-bold\">Health: </span>" +
-                   $"<span color=\"{color}\" class=\"fontWeight-bold\">{displayedRate:0} HP/s</span>";
+        var html = "<span color=\"gold\" class=\"fontWeight-Bold\">Regeneration</span><br/>" +
+                   "<span class=\"fontWeight-Bold\">Health: </span>" +
+                   $"<span color=\"{color}\" class=\"fontWeight-Bold\">{displayedRate:0} HP/s</span>";
 
         player.SendCenterHTML(html, HtmlDurationMs);
     }

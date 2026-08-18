@@ -8,6 +8,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 using SwiftlyS2.Shared.Sounds;
 
+using CSRoll.Config;
 using CSRoll.Modifiers;
 
 namespace CSRoll.Core;
@@ -425,20 +426,60 @@ public static class CSRollUtils
         core.PlayerManager.SendCenterHTML(html, durationMs);
     }
 
+    /// <summary>Title size for the reveal banner - one step down from the modifier name itself, so the name is what the eye lands on.</summary>
+    private const string RevealTitleSizeClass = "fontSize-l";
+
     /// <summary>
-    /// Builds the "Activating Modifiers" center banner: a red title the same size as the modifier
-    /// entries, then each activated modifier on its own line. Earlier testing with a bare
-    /// &lt;br&gt; silently dropped everything after it - CS2's center-print HTML is parsed as
-    /// strict XML, and an unclosed &lt;br&gt; tag breaks the parser rather than rendering a line
-    /// break. Using the self-closed &lt;br/&gt; form keeps the document well-formed.
+    /// Modifier-name size for the reveal banner. csgostyles.css tops out at fontSize-xxxl (64px),
+    /// which is overwhelming for a multi-modifier roll; xxl (40px) is large enough to read as a
+    /// genuine reveal while still fitting several stacked lines on screen.
     /// </summary>
-    public static string BuildActivatingModifiersHtml(ISwiftlyCore core, IReadOnlyCollection<GameModifierBase> modifiers)
+    private const string RevealNameSizeClass = "fontSize-xxl";
+
+    /// <summary>
+    /// Builds the "Activating Modifiers" center banner: a red title, then each activated modifier on
+    /// its own larger line.
+    ///
+    /// Uses the self-closed &lt;br/&gt; form. An older comment here claimed the bare &lt;br&gt; form
+    /// breaks the panel because the markup is parsed as strict XML - that is wrong, and worth not
+    /// carrying forward into new code: Valve's own shipped csgo_english.txt contains hundreds of bare
+    /// &lt;br&gt; tags (and several genuinely unbalanced &lt;b&gt; tags) that render fine in the retail
+    /// client, and SwiftlyS2's own br-handling regex deliberately accepts every form. It is a lenient
+    /// HTML parser, not an XML one. &lt;br/&gt; is still perfectly valid, so nothing here needs to
+    /// change - but the parser is not the constraint the old note assumed it was.
+    /// </summary>
+    public static string BuildActivatingModifiersHtml(ISwiftlyCore core, IReadOnlyCollection<GameModifierBase> modifiers, SpinRevealConfig? spinReveal = null)
     {
         var title = modifiers.Count == 1 ? "Activating Modifier:" : "Activating Modifiers:";
-        var lines = new List<string> { $"<span color=\"red\" class=\"fontWeight-bold\">{title}</span>" };
-        lines.AddRange(modifiers.Select(m => $"<span color=\"gold\" class=\"fontWeight-bold\">{GetModifierDisplayName(core, m)}</span>"));
+        var lines = new List<string>();
+
+        if (BuildRevealImageTag(spinReveal) is { } imageTag)
+        {
+            lines.Add(imageTag);
+        }
+
+        lines.Add($"<span color=\"red\" class=\"{RevealTitleSizeClass} fontWeight-Bold\">{title}</span>");
+        lines.AddRange(modifiers.Select(m => $"<span color=\"gold\" class=\"{RevealNameSizeClass} fontWeight-Bold\">{GetModifierDisplayName(core, m)}</span>"));
 
         return string.Join("<br/>", lines);
+    }
+
+    /// <summary>
+    /// The optional reveal logo, or null when none is configured (the default) - in which case no
+    /// &lt;img&gt; tag is emitted at all, so a server that never sets RevealImageUrl behaves exactly
+    /// as it did before the option existed and makes no outbound request from any client.
+    /// Width/height are always emitted - see SpinRevealConfig.RevealImageWidth for why.
+    /// </summary>
+    private static string? BuildRevealImageTag(SpinRevealConfig? spinReveal)
+    {
+        if (spinReveal is not { } config || string.IsNullOrWhiteSpace(config.RevealImageUrl))
+        {
+            return null;
+        }
+
+        var width = Math.Max(1, config.RevealImageWidth);
+        var height = Math.Max(1, config.RevealImageHeight);
+        return $"<img src='{config.RevealImageUrl}' width='{width}' height='{height}'/>";
     }
 
     /// <summary>
@@ -448,15 +489,15 @@ public static class CSRollUtils
     /// </summary>
     public static string BuildSpectatorHudHtml(ISwiftlyCore core, string targetName, IReadOnlyCollection<GameModifierBase> modifiers)
     {
-        var lines = new List<string> { $"<span color=\"gold\" class=\"fontWeight-bold\">Watching: {targetName}</span>" };
+        var lines = new List<string> { $"<span color=\"gold\" class=\"fontWeight-Bold\">Watching: {targetName}</span>" };
 
         if (modifiers.Count == 0)
         {
-            lines.Add("<span class=\"fontWeight-bold\">No modifiers</span>");
+            lines.Add("<span class=\"fontWeight-Bold\">No modifiers</span>");
         }
         else
         {
-            lines.AddRange(modifiers.Select(m => $"<span class=\"fontWeight-bold\">{GetModifierDisplayName(core, m)}</span>"));
+            lines.AddRange(modifiers.Select(m => $"<span class=\"fontWeight-Bold\">{GetModifierDisplayName(core, m)}</span>"));
         }
 
         return string.Join("<br/>", lines);
@@ -467,7 +508,7 @@ public static class CSRollUtils
     {
         var color = enabled ? "green" : "red";
         var status = enabled ? "Enabled" : "Disabled";
-        return $"<span color=\"{color}\" class=\"fontSize-l fontWeight-bold\">Random Rounds {status}</span>";
+        return $"<span color=\"{color}\" class=\"fontSize-l fontWeight-Bold\">Random Rounds {status}</span>";
     }
 
     /// <summary>
@@ -477,23 +518,34 @@ public static class CSRollUtils
     /// </summary>
     public static string BuildSpinFrameHtml(string name)
     {
-        return $"<span color=\"red\" class=\"fontWeight-bold\">Rolling...</span><br/><span color=\"gold\" class=\"fontWeight-bold\">{name}</span>";
+        return $"<span color=\"red\" class=\"{RevealTitleSizeClass} fontWeight-Bold\">Rolling...</span><br/>" +
+               $"<span color=\"gold\" class=\"{RevealNameSizeClass} fontWeight-Bold\">{name}</span>";
     }
 
     /// <summary>
-    /// Builds a two-line center-HTML status gauge: a colored label line, then an ASCII progress bar
-    /// ("[####----------------] 42%"). Deliberately plain "fontWeight-bold" text with no "fontSize-l"
-    /// class - the same size as BuildSpinFrameHtml's "Rolling..." frame - so every gauge popup
-    /// (invisibility status, teleport cooldown, etc.) reads as one consistent HUD family rather than
-    /// a mismatched larger element.
+    /// Panorama's default label font (notosans) is proportional, so any run of mixed glyphs changes
+    /// width as its contents change. csgostyles.css - Valve's globally-loaded stylesheet - defines a
+    /// set of genuinely monospaced families; this is the one used for anything that has to stay
+    /// column-aligned (progress bars, padded numbers). Verified present in Valve's shipped CSS
+    /// alongside mono-spaced-font/stratum-light-mono/stratum-bold-mono.
+    /// </summary>
+    public const string MonoFontClass = "stratum-regular-mono";
+
+    /// <summary>
+    /// Builds a two-line center-HTML status gauge: a colored label line, then a progress bar
+    /// ("[████████░░░░░░░░░░░░] 42%"). Deliberately plain bold text with no "fontSize-l" class - the
+    /// same size as BuildSpinFrameHtml's "Rolling..." frame - so every gauge popup (invisibility
+    /// status, teleport cooldown, etc.) reads as one consistent HUD family rather than a mismatched
+    /// larger element.
     ///
-    /// Bug fix: the bar used to mix two different glyphs ('#' for filled, '-' for empty) - Panorama's
-    /// UI font is proportional, not monospace, and '#' renders noticeably wider than '-', so the
-    /// popup's total line width visibly grew as the bar filled up, eventually wrapping the trailing
-    /// "NN%" onto a third line. Fixed by using the SAME glyph ('#') for every cell regardless of
-    /// fill state and expressing progress purely through color (barColor vs grey) instead - the
-    /// character count and glyph widths are now identical at 0% and 100%, so the line width never
-    /// shifts. The percent number is also padded to a constant 3-character field for the same reason.
+    /// The bar previously used the SAME glyph ('#') for every cell, expressing fill state purely
+    /// through color, because a proportional font renders '#' and '-' at different widths - so a
+    /// mixed-glyph bar visibly changed width as it filled, eventually wrapping the trailing "NN%"
+    /// onto a third line. That workaround is retired: rendering the bar in MonoFontClass makes every
+    /// glyph exactly one column wide, so distinct filled/empty glyphs can be used again for real
+    /// shape contrast (readable even for a colorblind player, and legible at a glance rather than
+    /// relying on a lime-vs-grey distinction alone). The percent stays padded to a constant
+    /// 3-character field, which now actually holds its column instead of merely approximating it.
     /// </summary>
     public static string BuildGaugeHtml(string label, string labelColor, float ratio, string barColor, int barWidth = 20)
     {
@@ -502,11 +554,52 @@ public static class CSRollUtils
         var empty = barWidth - filled;
         var percent = (int)Math.Round(clamped * 100f);
 
-        var filledSegment = filled > 0 ? $"<span color=\"{barColor}\">{new string('#', filled)}</span>" : "";
-        var emptySegment = empty > 0 ? $"<span color=\"grey\">{new string('#', empty)}</span>" : "";
+        var filledSegment = filled > 0 ? $"<span color=\"{barColor}\">{new string('█', filled)}</span>" : "";
+        var emptySegment = empty > 0 ? $"<span color=\"grey\">{new string('░', empty)}</span>" : "";
 
-        return $"<span color=\"{labelColor}\" class=\"fontWeight-bold\">{label}</span><br/>" +
-               $"<span class=\"fontWeight-bold\">[{filledSegment}{emptySegment}] {percent,3}%</span>";
+        return $"<span color=\"{labelColor}\" class=\"fontWeight-Bold\">{label}</span><br/>" +
+               $"<span class=\"fontWeight-Bold {MonoFontClass}\">[{filledSegment}{emptySegment}] {percent,3}%</span>";
+    }
+
+    /// <summary>
+    /// CS2 screen-fade flags (engine FFADE_* values). FADE_IN means "start at the given colour and
+    /// fade back to normal", which is the shape we want for a brief flash punctuating a reveal;
+    /// PURGE clears any fade already in flight so overlapping reveals can't stack into a long blackout.
+    /// </summary>
+    private const int FadeFlagIn = 0x0001;
+    private const int FadeFlagPurge = 0x0010;
+
+    /// <summary>
+    /// Brief screen flash on one player, used to punctuate a modifier reveal. Parses FadeColor from
+    /// its "R,G,B,A" config form; a malformed value disables the flash rather than throwing inside a
+    /// reveal callback (this runs from a scheduler continuation, where an exception would abort the
+    /// rest of the reveal).
+    /// </summary>
+    public static void SendRevealFade(ISwiftlyCore core, IPlayer player, SpinRevealConfig config)
+    {
+        if (!config.FadeOnReveal || !TryParseRgba(config.FadeColor, out var r, out var g, out var b, out var a))
+        {
+            return;
+        }
+
+        core.NetMessage.Send<SwiftlyS2.Shared.ProtobufDefinitions.CCSUsrMsg_Fade>(msg =>
+        {
+            msg.Duration = Math.Max(0, config.FadeDurationMs);
+            msg.HoldTime = Math.Max(0, config.FadeHoldMs);
+            msg.Flags = FadeFlagIn | FadeFlagPurge;
+            msg.Clr = new Color(r, g, b, a);
+            msg.Recipients.AddRecipient(player.Slot);
+        });
+    }
+
+    /// <summary>Parses "R,G,B,A" (0-255 each) - returns false for anything malformed so callers can silently skip rather than throw.</summary>
+    private static bool TryParseRgba(string value, out byte r, out byte g, out byte b, out byte a)
+    {
+        r = g = b = a = 0;
+        var parts = value.Split(',', StringSplitOptions.TrimEntries);
+        return parts.Length == 4 &&
+            byte.TryParse(parts[0], out r) && byte.TryParse(parts[1], out g) &&
+            byte.TryParse(parts[2], out b) && byte.TryParse(parts[3], out a);
     }
 
     /// <summary>Gauge-bar color band shared by every percentage-based gauge popup - green when healthy, orange mid, red low.</summary>
