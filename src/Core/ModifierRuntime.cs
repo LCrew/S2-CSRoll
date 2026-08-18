@@ -33,6 +33,16 @@ public sealed class ModifierRuntime
     /// </summary>
     public bool DebugMode { get; set; }
 
+    /// <summary>
+    /// Every modifier CSRoll knows how to construct, by name - both classic modifiers and cvar-file
+    /// modifiers, keyed on the name each produces. A superset of _registeredModifiers: this also
+    /// includes anything currently disabled (via Config.DisabledModifiers), so !rollmenu's
+    /// enable/disable list can show and re-register a disabled modifier without a full plugin reload.
+    /// Built once in Initialise() and never mutated afterward (Initialise itself only ever runs once
+    /// per plugin load - see the removed !reloadmodifiers command's history).
+    /// </summary>
+    private readonly Dictionary<string, Func<GameModifierBase>> _allModifierFactories = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly List<GameModifierBase> _registeredModifiers = [];
     private readonly List<GameModifierBase> _activeModifiers = [];
     private List<GameModifierBase> _lastActiveModifiers = [];
@@ -141,11 +151,25 @@ public sealed class ModifierRuntime
     private void InitialiseModifiers(IEnumerable<Func<GameModifierBase>> factories)
     {
         _registeredModifiers.Clear();
+        _allModifierFactories.Clear();
 
         foreach (var factory in factories)
         {
             var modifier = factory();
-            if (modifier.IsRegistered && !Config.DisabledModifiers.Any(x => x.Equals(modifier.Name, StringComparison.OrdinalIgnoreCase)))
+            if (!modifier.IsRegistered)
+            {
+                // Hard-coded off (not a config-driven disable) - never offered as togglable at all,
+                // by any command or the !rollmenu enable/disable list.
+                _core.Logger.LogInformation("[CSRoll] Disabled modifier: {Name}", modifier.Name);
+                continue;
+            }
+
+            // Bug fix: the factory is remembered here regardless of whether this modifier starts
+            // disabled, so DisableModifierByName's effect can later be reversed (EnableModifierByName)
+            // without a full plugin reload - previously there was no way back short of restarting.
+            _allModifierFactories[modifier.Name] = factory;
+
+            if (!Config.DisabledModifiers.Any(x => x.Equals(modifier.Name, StringComparison.OrdinalIgnoreCase)))
             {
                 _registeredModifiers.Add(modifier);
             }
@@ -161,7 +185,19 @@ public sealed class ModifierRuntime
         foreach (var file in _cvarService.FindCvarModifierFiles())
         {
             var handle = _cvarService.ParseCvarModifierFile(file);
-            if (handle.ModifierName is null || Config.DisabledModifiers.Contains(handle.ModifierName, StringComparer.OrdinalIgnoreCase))
+            if (handle.ModifierName is null)
+            {
+                continue;
+            }
+
+            // Same reasoning as InitialiseModifiers - keep a factory around so a disabled cvar
+            // modifier can be re-enabled later without re-reading the whole registered-modifier list
+            // from scratch. Re-parses the file fresh on each call rather than capturing `handle`
+            // directly, since ParseCvarModifierFile is presumably cheap (a small local file) and this
+            // avoids ever handing out a second live reference to the same mutable handle instance.
+            _allModifierFactories[handle.ModifierName] = () => new GameModifierCvar(_cvarService.ParseCvarModifierFile(file));
+
+            if (Config.DisabledModifiers.Contains(handle.ModifierName, StringComparer.OrdinalIgnoreCase))
             {
                 _core.Logger.LogInformation("[CSRoll] Disabled cvar modifier config: {File}", file);
                 continue;
@@ -609,17 +645,6 @@ public sealed class ModifierRuntime
         }
     }
 
-    public bool ToggleModifier(GameModifierBase? modifier, out string message)
-    {
-        if (modifier is null)
-        {
-            message = "Modifier is null?";
-            return false;
-        }
-
-        return IsModifierActive(modifier) ? RemoveModifier(modifier, out message) : AddModifier(modifier, out message);
-    }
-
     public bool ToggleModifierByName(string modifierName, out string message)
     {
         if (!IsModifierRegisteredByName(modifierName))
@@ -783,9 +808,49 @@ public sealed class ModifierRuntime
             Config.DisabledModifiers = [.. Config.DisabledModifiers, modifier.Name];
         }
 
-        message = $"Disabled {CSRollUtils.GetModifierDisplayName(_core, modifier)} - it can no longer be added/rolled until config.jsonc's DisabledModifiers is updated and modifiers are reloaded.";
+        message = $"Disabled {CSRollUtils.GetModifierDisplayName(_core, modifier)} - it can no longer be added/rolled until re-enabled (!rollmenu) or the plugin reloads.";
         return true;
     }
+
+    /// <summary>
+    /// Reverses DisableModifierByName without a full plugin reload: constructs a fresh instance from
+    /// the remembered factory (see _allModifierFactories), Register()s it, adds it back to
+    /// RegisteredModifiers, and drops it from Config.DisabledModifiers in memory. The new instance
+    /// starts with no active/assigned state - re-enabling only makes it eligible to be rolled/added
+    /// again, it does not itself activate anything.
+    /// </summary>
+    public bool EnableModifierByName(string modifierName, out string message)
+    {
+        if (IsModifierRegisteredByName(modifierName))
+        {
+            message = $"{modifierName} is already enabled.";
+            return false;
+        }
+
+        if (!_allModifierFactories.TryGetValue(modifierName, out var factory))
+        {
+            message = $"{modifierName} modifier is not known.";
+            return false;
+        }
+
+        var modifier = factory();
+        modifier.Register(_core, this, _cvarService);
+        _registeredModifiers.Add(modifier);
+
+        Config.DisabledModifiers = Config.DisabledModifiers.Where(x => !x.Equals(modifierName, StringComparison.OrdinalIgnoreCase)).ToArray();
+
+        message = $"Enabled {CSRollUtils.GetModifierDisplayName(_core, modifier)} - it can be added/rolled again.";
+        return true;
+    }
+
+    /// <summary>
+    /// One GameModifierBase per name CSRoll knows about, for !rollmenu's enable/disable list - the
+    /// live registered instance where one exists (so IsModifierActive/AssignedSlots etc. reflect
+    /// reality), or a fresh throwaway instance from its factory otherwise (display purposes only -
+    /// Name/Description - never Register()'d or Activate()'d, and discarded after the caller reads it).
+    /// </summary>
+    public IEnumerable<GameModifierBase> GetAllKnownModifiers() =>
+        _allModifierFactories.Select(kv => GetRegisteredModifierByName(kv.Key) ?? kv.Value());
 
     public void RemoveModifierByName(string modifierName, out string message)
     {

@@ -74,7 +74,7 @@ All commands are chat commands (prefix with `!`).
 | `!rolltoggle <name>` | Admin | Adds the modifier globally if inactive, removes it (from everyone currently assigned) if active. |
 | `!removemodifier <name>` | Admin | Remove an active modifier. |
 | `!removemodifiers` | Admin | Clear / Remove all active modifiers. |
-| `!disablemodifier <name>` | Admin | Deactivate a modifier and remove it from the registered pool so it can't be added/rolled again until the plugin next reloads. |
+| `!disablemodifier <name>` | Admin | Deactivate a modifier and remove it from the registered pool so it can't be added/rolled again until re-enabled (`!rollmenu`) or the plugin reloads. |
 | `!addrandommodifier` | Admin | Add a random modifier to be activated immediately. |
 | `!randomrounds` | Admin | Toggle random rounds on/off. |
 | `!randomroundsreroll` | Admin | Re-roll the current random round modifiers and apply them to the current round. |

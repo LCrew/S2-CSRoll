@@ -426,19 +426,10 @@ public static class CSRollUtils
         core.PlayerManager.SendCenterHTML(html, durationMs);
     }
 
-    /// <summary>Title size for the reveal banner - one step down from the modifier name itself, so the name is what the eye lands on.</summary>
-    private const string RevealTitleSizeClass = "fontSize-l";
-
-    /// <summary>
-    /// Modifier-name size for the reveal banner. csgostyles.css tops out at fontSize-xxxl (64px),
-    /// which is overwhelming for a multi-modifier roll; xxl (40px) is large enough to read as a
-    /// genuine reveal while still fitting several stacked lines on screen.
-    /// </summary>
-    private const string RevealNameSizeClass = "fontSize-xxl";
-
     /// <summary>
     /// Builds the "Activating Modifiers" center banner: a red title, then each activated modifier on
-    /// its own larger line.
+    /// its own line. Deliberately no fontSize class (reverted after v1.32.0's larger sizing was
+    /// reported as too big) - default size, matching every other popup in this codebase.
     ///
     /// Uses the self-closed &lt;br/&gt; form. An older comment here claimed the bare &lt;br&gt; form
     /// breaks the panel because the markup is parsed as strict XML - that is wrong, and worth not
@@ -458,8 +449,8 @@ public static class CSRollUtils
             lines.Add(imageTag);
         }
 
-        lines.Add($"<span color=\"red\" class=\"{RevealTitleSizeClass} fontWeight-Bold\">{title}</span>");
-        lines.AddRange(modifiers.Select(m => $"<span color=\"gold\" class=\"{RevealNameSizeClass} fontWeight-Bold\">{GetModifierDisplayName(core, m)}</span>"));
+        lines.Add($"<span color=\"red\" class=\"fontWeight-Bold\">{title}</span>");
+        lines.AddRange(modifiers.Select(m => $"<span color=\"gold\" class=\"fontWeight-Bold\">{GetModifierDisplayName(core, m)}</span>"));
 
         return string.Join("<br/>", lines);
     }
@@ -518,8 +509,8 @@ public static class CSRollUtils
     /// </summary>
     public static string BuildSpinFrameHtml(string name)
     {
-        return $"<span color=\"red\" class=\"{RevealTitleSizeClass} fontWeight-Bold\">Rolling...</span><br/>" +
-               $"<span color=\"gold\" class=\"{RevealNameSizeClass} fontWeight-Bold\">{name}</span>";
+        return "<span color=\"red\" class=\"fontWeight-Bold\">Rolling...</span><br/>" +
+               $"<span color=\"gold\" class=\"fontWeight-Bold\">{name}</span>";
     }
 
     /// <summary>

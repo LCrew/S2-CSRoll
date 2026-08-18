@@ -83,8 +83,41 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     /// </summary>
     private float _nextRerollTime = -1f;
 
-    /// <summary>Single clamped source for the spin's total duration - both the early-trigger window in OnGameTick and AdvanceSpin's per-frame interval must agree, or the spin can't fill exactly the countdown's final stretch (see AdvanceSpin's own bug-fix note).</summary>
-    private float SpinDurationSeconds => Math.Max(0.1f, Runtime.Config.WeaponRoulette.SpinDurationSeconds);
+    /// <summary>
+    /// Floor on how fast a single spin frame can flip, regardless of config. Reported bug: with the
+    /// shipped defaults (SpinDurationSeconds=2, SpinFrameCount=30), each frame only got ~67ms on
+    /// screen - fast enough that neither the "Rolling" animation nor the landing "Active: weapon"
+    /// text was visibly rendering at all (weapon-giving itself, a plain ItemServices call with no
+    /// HTML involved, was unaffected - only the HUD text was silently swallowed by updates arriving
+    /// faster than the panel could settle). 150ms is comfortably above that failure point while still
+    /// reading as a fast slot-machine flicker.
+    /// </summary>
+    private const float MinFrameIntervalSeconds = 0.15f;
+
+    /// <summary>
+    /// Single clamped source for the spin's total duration - both the early-trigger window in OnGameTick
+    /// and AdvanceSpin's per-frame interval must agree, or the spin can't fill exactly the countdown's
+    /// final stretch (see AdvanceSpin's own bug-fix note).
+    ///
+    /// Bug fix: this used to only clamp the FLOOR of the total duration (0.1s), which let a high
+    /// SpinFrameCount divide it into imperceptibly-fast frames - see MinFrameIntervalSeconds. Now
+    /// widens the effective total duration whenever frameCount * MinFrameIntervalSeconds would exceed
+    /// the configured value, so every individual frame is guaranteed at least MinFrameIntervalSeconds
+    /// on screen. This means the spin can now run LONGER than SpinDurationSeconds for a high frame
+    /// count - a deliberate tradeoff (a visible animation that lands late beats an invisible one that
+    /// lands on time) - and since OnGameTick's early-trigger window is computed from this same
+    /// property, the "lands exactly when the countdown reaches zero" property still holds against
+    /// whatever the REAL total duration ends up being, not the nominal config value.
+    /// </summary>
+    private float SpinDurationSeconds
+    {
+        get
+        {
+            var configured = Math.Max(0.1f, Runtime.Config.WeaponRoulette.SpinDurationSeconds);
+            var frameCount = Math.Max(1, Runtime.Config.WeaponRoulette.SpinFrameCount);
+            return Math.Max(configured, frameCount * MinFrameIntervalSeconds);
+        }
+    }
 
     public GameModifierWeaponRoulette()
     {
@@ -320,18 +353,26 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         player.SendCenterHTML(BuildStatusHtml(isRolling: false, weaponName, remaining), HtmlDurationMs);
     }
 
+    /// <summary>Orange-family gradient for the "Rolling" text - gold through to a deep orange-red, matching the flat orange it replaces.</summary>
+    private static readonly string RollingGradientHtml = SwiftlyS2.Shared.HtmlGradient.GenerateGradientText("Rolling", "#FFD700", "#FF4500");
+
     /// <summary>
     /// Single 4-line template shared by both the spin animation and the idle countdown, so there's
     /// only ever one place building this modifier's HUD text. Line 2 and line 4 swap meaning based
-    /// on state: "Timer: Ns" / "[orange]Active:[default] weapon" while idle, or an orange "Rolling"
+    /// on state: "Timer: Ns" / "[orange]Active:[default] weapon" while idle, or a gradient "Rolling"
     /// / the current random spin-frame weapon name while spinning.
+    ///
+    /// The gradient was previously removed after live reports that no spin animation was ever
+    /// visible - but the actual cause (confirmed separately) was per-frame updates arriving faster
+    /// than the panel could render at all, not the gradient markup itself; see
+    /// GameModifierWeaponRoulette.MinFrameIntervalSeconds. Re-added now that the real cause is fixed.
     /// </summary>
     private static string BuildStatusHtml(bool isRolling, string weaponName, float secondsRemaining)
     {
         var friendlyName = weaponName == "-" ? weaponName : CSRollUtils.GetFriendlyWeaponName(weaponName);
 
         var line2 = isRolling
-            ? "<span color=\"orange\" class=\"fontWeight-Bold\">Rolling</span>"
+            ? $"<span class=\"fontWeight-Bold\">{RollingGradientHtml}</span>"
             : $"<span class=\"fontWeight-Bold\">Timer: {secondsRemaining:0.0}s</span>".Replace('.', ',');
 
         var line4 = isRolling

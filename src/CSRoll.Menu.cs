@@ -36,6 +36,26 @@ public partial class CSRoll
     /// </summary>
     private const int MenuMaxRandomRounds = 10;
 
+    /// <summary>
+    /// Shared chrome palette for every CSRoll menu - applied once per menu via its Design API so
+    /// nothing is left at the framework's plain white/grey default. Colors are set through
+    /// IMenuBuilderAPI.Design (reached via menu.Builder.Design) rather than embedded in option TEXT,
+    /// deliberately: these apply to menu-level chrome (footer/nav marker/guide line/disabled state)
+    /// with no effect on any option's text length, so they can't make the text-truncation issue worse.
+    /// </summary>
+    private static void ApplyMenuTheme(IMenuAPI menu)
+    {
+        if (menu.Builder?.Design is not { } design)
+        {
+            return;
+        }
+
+        design.SetMenuFooterColor("#FFB347");
+        design.SetNavigationMarkerColor("#FFD700");
+        design.SetVisualGuideLineColor("#FF8C00");
+        design.SetDisabledColor("#888888");
+    }
+
     private void InitializeMenu()
     {
         _commandGuids.Add(Core.Command.RegisterCommand("rollmenu", Debounce("rollmenu", OnRollMenu), registerRaw: true, permission: AdminPermission, helpText: "Opens the CSRoll configuration menu."));
@@ -52,9 +72,25 @@ public partial class CSRoll
         Core.MenusAPI.OpenMenuForPlayer(sender, BuildRootMenu());
     }
 
+    /// <summary>
+    /// Every CreateMenu call in this file passes ScrollLeftFade explicitly instead of taking the
+    /// framework's default (TruncateEnd). Reported bug: option/comment text longer than the panel's
+    /// display width was being permanently cut off with the default style rather than made readable -
+    /// ScrollLeftFade instead scrolls the full text through view over a couple of seconds, so nothing
+    /// is ever permanently hidden. Labels are also kept short throughout this file so short text
+    /// simply displays normally and only genuinely long text (a modifier's full display name, say)
+    /// ever needs to scroll at all.
+    /// </summary>
+    private IMenuAPI CreateThemedMenu(MenuConfiguration configuration)
+    {
+        var menu = Core.MenusAPI.CreateMenu(configuration, new MenuKeybindOverrides(), optionTextStyle: MenuOptionTextStyle.ScrollLeftFade);
+        ApplyMenuTheme(menu);
+        return menu;
+    }
+
     private IMenuAPI BuildRootMenu()
     {
-        var menu = Core.MenusAPI.CreateMenu(new MenuConfiguration { Title = "CSRoll Configuration" }, new MenuKeybindOverrides());
+        var menu = CreateThemedMenu(new MenuConfiguration { Title = "CSRoll Configuration" });
 
         // Random rounds on/off. Reads the CURRENT state as the toggle's default so the menu always
         // opens reflecting reality rather than a stale value, and routes the change through
@@ -74,10 +110,10 @@ public partial class CSRoll
         };
         menu.AddOption(randomRounds);
 
-        menu.AddOption(new SubmenuMenuOption("Modifiers per player", BuildCountMenu));
-        menu.AddOption(new SubmenuMenuOption("Enable / disable modifiers", BuildModifierToggleMenu));
+        menu.AddOption(new SubmenuMenuOption("Modifiers Per Player", BuildCountMenu));
+        menu.AddOption(new SubmenuMenuOption("Enable/Disable Rolling", BuildModifierToggleMenu));
 
-        var reroll = new ButtonMenuOption("Re-roll this round's modifiers") { CloseAfterClick = true };
+        var reroll = new ButtonMenuOption("Re-roll Modifiers") { CloseAfterClick = true };
         reroll.Click += (_, args) =>
         {
             if (!Runtime.RandomRoundsEnabled || Runtime.RegisteredModifiers.Count == 0)
@@ -92,7 +128,7 @@ public partial class CSRoll
         };
         menu.AddOption(reroll);
 
-        var clear = new ButtonMenuOption("Remove all active modifiers") { CloseAfterClick = true };
+        var clear = new ButtonMenuOption("Remove All Active") { CloseAfterClick = true };
         clear.Click += (_, args) =>
         {
             Runtime.RemoveAllModifiers();
@@ -118,11 +154,11 @@ public partial class CSRoll
     /// </summary>
     private IMenuAPI BuildCountMenu()
     {
-        var menu = Core.MenusAPI.CreateMenu(new MenuConfiguration
+        var menu = CreateThemedMenu(new MenuConfiguration
         {
-            Title = "Modifiers per player",
-            DefaultComment = "Runtime only - reverts to config.jsonc on map change",
-        }, new MenuKeybindOverrides());
+            Title = "Modifiers Per Player",
+            DefaultComment = "Runtime only (resets on map change)",
+        });
 
         var min = new SliderMenuOption("Minimum", 1f, MenuMaxRandomRounds, Runtime.MinRandomRounds, 1f);
         var max = new SliderMenuOption("Maximum", 1f, MenuMaxRandomRounds, Runtime.MaxRandomRounds, 1f);
@@ -159,40 +195,48 @@ public partial class CSRoll
     }
 
     /// <summary>
-    /// One toggle per registered modifier, reflecting and controlling whether it's currently ACTIVE
-    /// (not whether it's registered) - i.e. the same thing !rolltoggle does, just browsable.
+    /// One toggle per modifier CSRoll knows about (Runtime.GetAllKnownModifiers() - not just the
+    /// currently-registered ones), controlling whether it's REGISTERED and therefore eligible to be
+    /// rolled/added at all - the same thing !disablemodifier/EnableModifierByName do, not whether it's
+    /// currently ACTIVE. An earlier version of this menu wired the toggle to live active state (the
+    /// same thing !rolltoggle does); that was wrong - this list exists to curate the rollable pool
+    /// (e.g. "never roll Jetpack on this server"), not to hand-activate/deactivate individual
+    /// modifiers, which !rolltoggle/!memodifier already do.
     ///
-    /// Toggling a modifier on from here activates it GLOBALLY (empty AssignedSlots = everyone), which
-    /// is what !rolltoggle does too. Per-player scoping stays with !memodifier and the automatic
-    /// per-round roll; expressing "activate for just player X" would need a player-picker submenu per
-    /// modifier, which is a much bigger UI and not what was asked for.
-    ///
-    /// Modifiers already active for SPECIFIC players (from a per-player roll) show as on, and
-    /// toggling them off removes them from everyone currently assigned - again matching !rolltoggle's
-    /// documented whole-instance behaviour rather than inventing a different rule here.
+    /// Toggling off a modifier that's currently active deactivates it too (DisableModifierByName's
+    /// existing behavior - a disabled modifier has no business staying active for whoever already
+    /// rolled it). Toggling on a previously-disabled modifier only makes it eligible again; it does
+    /// not itself activate anything.
     /// </summary>
     private IMenuAPI BuildModifierToggleMenu()
     {
-        var menu = Core.MenusAPI.CreateMenu(new MenuConfiguration
+        var menu = CreateThemedMenu(new MenuConfiguration
         {
-            Title = "Enable / disable modifiers",
-            DefaultComment = "Toggling on activates globally (everyone)",
-        }, new MenuKeybindOverrides());
+            Title = "Enable/Disable Rolling",
+            DefaultComment = "On = can be rolled/added",
+        });
 
-        foreach (var modifier in Runtime.RegisteredModifiers.OrderBy(m => CSRollUtils.GetModifierDisplayName(Core, m), StringComparer.OrdinalIgnoreCase))
+        var known = Runtime.GetAllKnownModifiers().OrderBy(m => CSRollUtils.GetModifierDisplayName(Core, m), StringComparer.OrdinalIgnoreCase).ToList();
+
+        foreach (var modifier in known)
         {
             // Captured per-iteration so each closure refers to its own modifier, not the loop's last.
-            var captured = modifier;
-            var option = new ToggleMenuOption(CSRollUtils.GetModifierDisplayName(Core, captured), Runtime.IsModifierActive(captured));
+            var name = modifier.Name;
+            var label = $"<span color=\"gold\">{CSRollUtils.GetModifierDisplayName(Core, modifier)}</span>";
+            var option = new ToggleMenuOption(label, Runtime.IsModifierRegisteredByName(name));
 
             option.Click += (_, args) =>
             {
-                if (!Runtime.ToggleModifier(captured, out var message))
+                var wantsEnabled = option.GetToggleState(args.Player);
+                var ok = wantsEnabled
+                    ? Runtime.EnableModifierByName(name, out var message)
+                    : Runtime.DisableModifierByName(name, out message);
+
+                if (!ok)
                 {
-                    // Blocked (e.g. incompatible with something already active) - put the toggle back
-                    // to the real state so the menu doesn't show an "on" switch for something that
-                    // never actually activated, and tell the admin why.
-                    option.SetToggleState(args.Player, Runtime.IsModifierActive(captured));
+                    // Snap the toggle back to reality and explain why (e.g. asked to enable something
+                    // already enabled from a stale menu view after another admin changed it first).
+                    option.SetToggleState(args.Player, Runtime.IsModifierRegisteredByName(name));
                     CSRollUtils.PrintTitleToChat(Core, args.Player, message);
                 }
 
@@ -202,7 +246,7 @@ public partial class CSRoll
             menu.AddOption(option);
         }
 
-        if (Runtime.RegisteredModifiers.Count == 0)
+        if (known.Count == 0)
         {
             menu.AddOption(new TextMenuOption("No modifiers registered"));
         }
