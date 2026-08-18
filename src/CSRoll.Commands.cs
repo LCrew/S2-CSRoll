@@ -45,6 +45,8 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollhelp", Debounce("rollhelp", OnRollHelp), registerRaw: true, helpText: "Prints every available CSRoll command."));
 
+        InitializeMenu();
+
         // SwiftlyS2 has no built-in "!chat command" mirroring (unlike CounterStrikeSharp's css_
         // commands), so bridge "!name args" chat messages to the matching console command ourselves.
         _chatHookId = Core.Command.HookClientChat(OnClientChat);

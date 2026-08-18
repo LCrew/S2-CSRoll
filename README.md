@@ -69,6 +69,7 @@ All commands are chat commands (prefix with `!`).
 | `!rolllist` | Everyone | Prints the name and description for each registered modifier. |
 | `!rollactive` | Everyone | Prints the name, scope (Global or which player(s)), and description for each active modifier. |
 | `!rollhelp` | Everyone | Prints every available CSRoll command. |
+| `!rollmenu` | Admin | Opens the CSRoll configuration menu (random rounds, modifiers-per-player, per-modifier enable/disable). |
 | `!memodifier <name>` | Admin | Apply a modifier scoped to just yourself, without affecting anyone else. |
 | `!rolltoggle <name>` | Admin | Adds the modifier globally if inactive, removes it (from everyone currently assigned) if active. |
 | `!removemodifier <name>` | Admin | Remove an active modifier. |
@@ -80,7 +81,7 @@ All commands are chat commands (prefix with `!`).
 | `!rollreload` | Admin | Reload `config.jsonc` from disk without restarting the plugin or resetting active modifiers. |
 | `!rolldebug` | Admin | Toggle whether per-player random-round assignments are reported to admins in chat. |
 
-`MinRandomRounds`/`MaxRandomRounds` are config-only now (`config.jsonc`) - no chat command sets them at runtime. `Surf`/`Wallhack` are regular modifiers (manage them like any other via `!rolltoggle Surf` / `!rolltoggle Wallhack` or `!memodifier`), not dedicated commands.
+`MinRandomRounds`/`MaxRandomRounds` have no dedicated chat command - set them in `config.jsonc`, or adjust them at runtime via `!rollmenu` (menu changes are runtime-only and revert to the config file on the next full plugin reload). `Surf`/`Wallhack` are regular modifiers (manage them like any other via `!rolltoggle Surf` / `!rolltoggle Wallhack` or `!memodifier`), not dedicated commands.
 
 ## Installation
 
