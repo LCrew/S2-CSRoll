@@ -245,14 +245,31 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             var interval = Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
             _nextRerollTime = _nextRerollTime + interval < now ? now + interval : _nextRerollTime + interval;
 
-            foreach (var player in GetAssignedPlayers())
+            // Reverted from GetAssignedPlayers() (a provably identical expansion of this same
+            // GetAllValidPlayers()+IsAssignedTo filter - compared line-for-line, there is no logic
+            // difference) back to the manual loop, per an explicit live report that the rolling
+            // animation/landing text stopped rendering specifically after that conversion, isolated
+            // to this file alone despite the same conversion being applied identically to 13 other
+            // modifiers with no reported issue. The cause was not identified through code review; this
+            // reverts the one change pinpointed by testing, on the reasoning that it costs nothing to
+            // revert something provably equivalent, while leaving the actual root cause (if this
+            // wasn't it) still to be found.
+            foreach (var player in Core.PlayerManager.GetAllValidPlayers())
             {
-                StartSpin(player);
+                if (IsAssignedTo(player.Slot))
+                {
+                    StartSpin(player);
+                }
             }
         }
 
-        foreach (var player in GetAssignedPlayers())
+        foreach (var player in Core.PlayerManager.GetAllValidPlayers())
         {
+            if (!IsAssignedTo(player.Slot))
+            {
+                continue;
+            }
+
             if (_spins.TryGetValue(player.Slot, out var spin))
             {
                 if (now >= spin.NextFrameTime)
