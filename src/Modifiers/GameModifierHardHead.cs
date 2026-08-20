@@ -19,7 +19,7 @@ public sealed class GameModifierHardHead : GameModifierBase
         Description = "Cannot be damaged by headshots - body damage only";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["IronBody"];
+        IncompatibleModifiers = ["SteelBody"];
     }
 
     protected override void OnEnabled()

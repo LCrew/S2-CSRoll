@@ -28,6 +28,15 @@ public abstract class GameModifierVelocity : GameModifierBase
 
     protected abstract float GetSpeedMultiplier();
 
+    /// <summary>
+    /// Whether to zero CCSPlayer_MovementServices.Stamina every tick. Opt-in per subclass rather than
+    /// on by default: Stamina is CS2's jump/land fatigue value (rises on jump and landing, reduces
+    /// max speed until it decays), so clearing it removes the "jumping strips the speed bonus away"
+    /// effect - desirable for Speedhack, but it would quietly buff HeavyBoots, whose whole point is
+    /// being slow. Same mechanism GameModifierBunnyHop already uses to defeat CS2's anti-bhop slowdown.
+    /// </summary>
+    protected virtual bool ShouldRemoveJumpStaminaPenalty() => false;
+
     protected override void OnEnabled()
     {
         Core.Event.OnTick += ApplyToAllPlayers;
@@ -46,6 +55,7 @@ public abstract class GameModifierVelocity : GameModifierBase
     private void ApplyToAllPlayers()
     {
         var runMultiplier = GetSpeedMultiplier();
+        var removeStaminaPenalty = ShouldRemoveJumpStaminaPenalty();
         foreach (var player in GetAssignedPlayers())
         {
             if (player.PlayerPawn is { } pawn)
@@ -69,6 +79,17 @@ public abstract class GameModifierVelocity : GameModifierBase
                 }
 
                 SetSpeedMultiplier(player, multiplier);
+
+                // Jumping otherwise strips the speed bonus away: Stamina rises on every jump and
+                // landing and reduces max speed until it decays. Zeroed per tick so it can never
+                // accumulate - the same fix GameModifierBunnyHop already uses against the identical
+                // mechanic. Skipped while walking, so shift-walking keeps vanilla fatigue for the
+                // same reason the multiplier itself is skipped there.
+                if (removeStaminaPenalty && multiplier != 1.0f && pawn.MovementServices is { } movementServices)
+                {
+                    movementServices.Stamina = 0f;
+                    movementServices.StaminaUpdated();
+                }
             }
         }
     }
@@ -97,14 +118,16 @@ public sealed class GameModifierSpeedhack : GameModifierVelocity
         Description = "Max movement speed is much faster";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["LeadBoots"];
+        IncompatibleModifiers = ["HeavyBoots"];
     }
 
     protected override float GetSpeedMultiplier() => Runtime.Config.Speedhack.SpeedMultiplier;
+
+    protected override bool ShouldRemoveJumpStaminaPenalty() => Runtime.Config.Speedhack.RemoveJumpStaminaPenalty;
 }
 
 /// <summary>
-/// Bug fix: this used to be a resources/ConVarModifiers/LeadBootsModifier.cfg entry driving
+/// Bug fix: this used to be a resources/ConVarModifiers/HeavyBootsModifier.cfg entry driving
 /// sv_maxspeed/sv_jump_impulse - both server-wide cvars, so it slowed down every player instead of
 /// just whoever rolled it. Rewritten as a proper per-player modifier using the same VelocityModifier
 /// mechanism as Speedhack (just a fraction instead of a multiple) so it now only affects the
@@ -118,29 +141,29 @@ public sealed class GameModifierSpeedhack : GameModifierVelocity
 /// methods) plus a flat health bonus on top of the normal spawn health.
 ///
 /// Bug fix: OnDisabled used to only reset the speed multiplier (via base.OnDisabled()) - the armor,
-/// helmet, and bonus health were never reverted, so a player whose LeadBoots wore off mid-round kept
+/// helmet, and bonus health were never reverted, so a player whose HeavyBoots wore off mid-round kept
 /// all three permanently for that life with none of the compensating slowdown anymore. Now caches
 /// the pre-grant armor/helmet state per slot (freshly on every grant, since a fresh spawn naturally
 /// resets both anyway) and reverts it on disable; the bonus health is subtracted back out rather
 /// than reset to a stale cached value, clamped to a minimum of 1 so removing the bonus can never
 /// itself be a death sentence.
 /// </summary>
-public sealed class GameModifierLeadBoots : GameModifierVelocity
+public sealed class GameModifierHeavyBoots : GameModifierVelocity
 {
     private readonly Dictionary<int, int> _cachedOriginalArmor = [];
     private readonly Dictionary<int, bool> _cachedOriginalHasHelmet = [];
     private Guid _spawnHookId;
 
-    public GameModifierLeadBoots()
+    public GameModifierHeavyBoots()
     {
-        Name = "LeadBoots";
+        Name = "HeavyBoots";
         Description = "Movement speed is much slower - grants armor, a helmet and bonus health to compensate";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = ["Speedhack"];
     }
 
-    protected override float GetSpeedMultiplier() => Runtime.Config.LeadBoots.SpeedMultiplier;
+    protected override float GetSpeedMultiplier() => Runtime.Config.HeavyBoots.SpeedMultiplier;
 
     protected override void OnRegistered()
     {
@@ -205,7 +228,7 @@ public sealed class GameModifierLeadBoots : GameModifierVelocity
         _cachedOriginalArmor[player.Slot] = pawn.ArmorValue;
         _cachedOriginalHasHelmet[player.Slot] = pawn.ItemServices?.HasHelmet ?? false;
 
-        pawn.ArmorValue = Runtime.Config.LeadBoots.ArmorValue;
+        pawn.ArmorValue = Runtime.Config.HeavyBoots.ArmorValue;
         pawn.ArmorValueUpdated();
 
         if (pawn.ItemServices is { } itemServices)
@@ -214,7 +237,7 @@ public sealed class GameModifierLeadBoots : GameModifierVelocity
             itemServices.HasHelmetUpdated();
         }
 
-        pawn.Health += Runtime.Config.LeadBoots.BonusHealth;
+        pawn.Health += Runtime.Config.HeavyBoots.BonusHealth;
         pawn.HealthUpdated();
     }
 
@@ -234,7 +257,7 @@ public sealed class GameModifierLeadBoots : GameModifierVelocity
             itemServices.HasHelmetUpdated();
         }
 
-        pawn.Health = Math.Max(1, pawn.Health - Runtime.Config.LeadBoots.BonusHealth);
+        pawn.Health = Math.Max(1, pawn.Health - Runtime.Config.HeavyBoots.BonusHealth);
         pawn.HealthUpdated();
     }
 

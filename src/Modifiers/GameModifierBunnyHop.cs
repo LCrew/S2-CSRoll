@@ -12,7 +12,7 @@ using CSRoll.Core;
 namespace CSRoll.Modifiers;
 
 /// <summary>
-/// EXPERIMENTAL: a previous Bhop attempt was removed entirely per explicit request - the
+/// EXPERIMENTAL: a previous BunnyHop attempt was removed entirely per explicit request - the
 /// landing-penalty-removal half worked, but the auto-jump-without-repressing half was attempted via
 /// ProcessMovement.Pre velocity injection and never worked reliably.
 ///
@@ -46,7 +46,7 @@ namespace CSRoll.Modifiers;
 ///
 /// Speed cap history: removing the timing skill (auto-relaunch) and the stamina penalty still wasn't
 /// enough to let bhop-gained speed actually show up - CS2's normal speed cap silently clamped it
-/// away. First attempt used CCSPlayerPawn.VelocityModifier (the same mechanism Speedhack/LeadBoots
+/// away. First attempt used CCSPlayerPawn.VelocityModifier (the same mechanism Speedhack/HeavyBoots
 /// use) - reported wrong, since that's a flat multiplier on ALL movement, including normal ground
 /// running, not just bhop-gained air speed. Second attempt raised IMoveData.MaxSpeed/ClientMaxSpeed
 /// from inside AirAccelerate.Pre instead (that hook only ever fires while air-strafing, so it
@@ -73,7 +73,7 @@ namespace CSRoll.Modifiers;
 /// client, never actually written to the real server-wide convar, so other players' movement (and
 /// this player's movement once the modifier ends) is unaffected.
 /// </summary>
-public sealed class GameModifierBhop : GameModifierBase
+public sealed class GameModifierBunnyHop : GameModifierBase
 {
     /// <summary>Every convar this modifier overrides per-player, and the value it's set to while active. Reverted to each convar's real (captured) server value in OnDisabled.</summary>
     private static readonly (string Name, string OnValue)[] BunnyhopConVars =
@@ -96,9 +96,9 @@ public sealed class GameModifierBhop : GameModifierBase
 
     private Guid _spawnHookId;
 
-    public GameModifierBhop()
+    public GameModifierBunnyHop()
     {
-        Name = "Bhop";
+        Name = "BunnyHop";
         Description = "Hold jump to bunny-hop automatically, with no landing speed penalty";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
@@ -144,7 +144,7 @@ public sealed class GameModifierBhop : GameModifierBase
         var convar = Core.ConVar.FindAsString(name);
         if (convar is null)
         {
-            Core.Logger.LogError("[CSRoll] Bhop: {ConVar} convar not found - cannot override it per-player.", name);
+            Core.Logger.LogError("[CSRoll] BunnyHop: {ConVar} convar not found - cannot override it per-player.", name);
             return null;
         }
 
@@ -226,11 +226,11 @@ public sealed class GameModifierBhop : GameModifierBase
         }
 
         var velocity = pawn.AbsVelocity;
-        player.Teleport(velocity: new Vector(velocity.X, velocity.Y, Runtime.Config.Bhop.JumpVelocityZ));
+        player.Teleport(velocity: new Vector(velocity.X, velocity.Y, Runtime.Config.BunnyHop.JumpVelocityZ));
 
         if (Runtime.DebugMode)
         {
-            Core.Logger.LogInformation("[CSRoll] Bhop ({Slot}): auto-jumped, set VelocityZ={VelZ}", player.Slot, Runtime.Config.Bhop.JumpVelocityZ);
+            Core.Logger.LogInformation("[CSRoll] BunnyHop ({Slot}): auto-jumped, set VelocityZ={VelZ}", player.Slot, Runtime.Config.BunnyHop.JumpVelocityZ);
         }
     }
 

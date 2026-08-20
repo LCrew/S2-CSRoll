@@ -7,7 +7,7 @@ namespace CSRoll.Modifiers;
 
 /// <summary>
 /// Each bullet hit has a chance to disarm the player that was hit - same weapon-drop mechanism as
-/// GameModifierDropOnMiss (WeaponServices.DropWeapon), just triggered on landing a hit rather than
+/// GameModifierButterfingers (WeaponServices.DropWeapon), just triggered on landing a hit rather than
 /// missing one. Gated/excludes self/team damage the same way GameModifierFlashingBullets does, and
 /// only triggers for genuine gunfire (DMG_BULLET/DMG_BUCKSHOT).
 ///

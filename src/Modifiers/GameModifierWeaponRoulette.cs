@@ -12,12 +12,12 @@ namespace CSRoll.Modifiers;
 /// Forces the assigned player onto a single random gun (grenades untouched - buy/pickup of grenades
 /// stays completely normal), re-rolled to a fresh weapon on a timer (Config.WeaponRoulette.
 /// RerollIntervalSeconds). Reuses GameModifierRemoveWeapons for the strip/restore-on-disable and
-/// CanAcquire.Pre buy-and-pickup block (same base RandomLoadout/GrenadesOnly already use), scoped to
+/// CanAcquire.Pre buy-and-pickup block (same base RandomLoadout/WalkingGrenadier already use), scoped to
 /// CSRollUtils.AllGunWeaponTypes so grenades are explicitly excluded from the block.
 ///
 /// Bug fix (structural rewrite): the spin used to be driven by a self-rescheduling chain of
 /// Core.Scheduler.DelayBySeconds calls - a mechanism no other modifier in this codebase uses. Every
-/// other tick-based modifier (FlankTeleport, Regeneration, etc.) drives 100% of its logic from
+/// other tick-based modifier (Flanker, Regeneration, etc.) drives 100% of its logic from
 /// Core.Event.OnTick, so the instant OnDisabled() unsubscribes it, there is no code path left that
 /// can still run - full stop, by construction. The DelayBySeconds chain lived entirely outside that
 /// subscription and depended on manually re-checking generation/IsActive/IsAssignedTo on every single
@@ -51,7 +51,7 @@ namespace CSRoll.Modifiers;
 /// Bug fix: "Rolling" used to render via HtmlGradient.GenerateGradientText - after repeated reports
 /// that no spin animation was ever visible (just static "Rolling" text) even once the underlying
 /// state-machine bug above was fixed, the gradient helper itself is dropped in favor of a plain
-/// colored span, matching how every other HUD in this codebase (e.g. FlankTeleport's own cooldown
+/// colored span, matching how every other HUD in this codebase (e.g. Flanker's own cooldown
 /// text) already renders colored status text with no issues.
 /// </summary>
 public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
@@ -127,7 +127,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
             "RandomLoadout",
-            "GrenadesOnly",
+            "WalkingGrenadier",
         ];
     }
 
@@ -359,6 +359,16 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     private void RefreshCountdownHtml(IPlayer player, float now)
     {
         if (_lastHtmlUpdateTime.TryGetValue(player.Slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
+        {
+            return;
+        }
+
+        // Stay off the center-HTML surface while the roll's own reveal owns it - see
+        // ModifierRuntime.IsModifierHudSuppressed. Only this persistent countdown is gated, not the
+        // spin frames in AdvanceSpin: the spin is a short one-off tied to real gameplay timing (the
+        // weapon actually changes when it lands), and half-suppressing it would leave the animation
+        // visibly truncated. This idle HUD is the one that would genuinely fight the reveal.
+        if (Runtime.IsModifierHudSuppressed)
         {
             return;
         }

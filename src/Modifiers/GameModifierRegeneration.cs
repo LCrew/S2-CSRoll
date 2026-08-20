@@ -127,6 +127,13 @@ public sealed class GameModifierRegeneration : GameModifierBase
             return;
         }
 
+        // Stay off the center-HTML surface while the roll's own reveal owns it - see
+        // ModifierRuntime.IsModifierHudSuppressed.
+        if (Runtime.IsModifierHudSuppressed)
+        {
+            return;
+        }
+
         _lastHtmlUpdateTime[slot] = now;
 
         var color = displayedRate >= Runtime.Config.Regeneration.StationaryRatePerSecond ? "gold" : "lime";

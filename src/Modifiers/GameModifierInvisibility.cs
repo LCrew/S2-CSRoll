@@ -161,7 +161,19 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
 
     protected void UnhidePlayer(IPlayer target)
     {
-        if (!CachedHiddenSlots.Remove(target.Slot) || target.PlayerPawn is not { } pawn)
+        // Bug fix: this used to short-circuit on `!CachedHiddenSlots.Remove(slot) || pawn is null`,
+        // and || evaluates left to right - so when the pawn couldn't be resolved (the normal state
+        // for a moment after death, which is exactly when Vanish unhides on the death path) the slot
+        // was dropped from the cache and the function returned WITHOUT ever issuing
+        // ShouldBlockTransmitEntity(id, false). The per-viewer block on that entity index was then
+        // never lifted, and CS2 recycles entity indices. Checking the pawn first and leaving the slot
+        // cached when it can't be resolved means a later call can still complete the unhide.
+        if (target.PlayerPawn is not { } pawn)
+        {
+            return;
+        }
+
+        if (!CachedHiddenSlots.Remove(target.Slot))
         {
             return;
         }

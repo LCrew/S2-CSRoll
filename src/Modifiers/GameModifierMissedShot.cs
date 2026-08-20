@@ -102,15 +102,15 @@ public abstract class GameModifierMissedShot : GameModifierBase
     }
 }
 
-public sealed class GameModifierDropOnMiss : GameModifierMissedShot
+public sealed class GameModifierButterfingers : GameModifierMissedShot
 {
-    public GameModifierDropOnMiss()
+    public GameModifierButterfingers()
     {
-        Name = "DropOnMiss";
+        Name = "Butterfingers";
         Description = "Weapons are dropped on missed shots";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["DontMiss"];
+        IncompatibleModifiers = ["BoomerangBullets"];
     }
 
     protected override void OnMissedShot(IPlayer player)
@@ -128,21 +128,21 @@ public sealed class GameModifierDropOnMiss : GameModifierMissedShot
 /// Bug fix: a missed shot deals the weapon's full listed damage to the shooter themselves - fine for
 /// something like a pistol, but a single missed AWP/auto-sniper shot could one-shot the player
 /// outright at the base 100 HP, reported as dying far too quickly to meaningfully play the modifier.
-/// Config.DontMiss.BonusHealth (default 250) is granted on activation and every spawn, restored to
+/// Config.BoomerangBullets.BonusHealth (default 250) is granted on activation and every spawn, restored to
 /// normal on disable, giving enough of a buffer to survive a miss or two with a heavy weapon.
 /// </summary>
-public sealed class GameModifierDontMiss : GameModifierMissedShot
+public sealed class GameModifierBoomerangBullets : GameModifierMissedShot
 {
     private readonly Dictionary<int, int> _cachedOriginalMaxHealth = [];
     private Guid _spawnHookId;
 
-    public GameModifierDontMiss()
+    public GameModifierBoomerangBullets()
     {
-        Name = "DontMiss";
+        Name = "BoomerangBullets";
         Description = "You take the damage from your missed shots - extra health to compensate";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["DropOnMiss"];
+        IncompatibleModifiers = ["Butterfingers"];
     }
 
     protected override void OnRegistered()
@@ -205,7 +205,7 @@ public sealed class GameModifierDontMiss : GameModifierMissedShot
 
         _cachedOriginalMaxHealth[player.Slot] = pawn.MaxHealth;
 
-        var health = Runtime.Config.DontMiss.BonusHealth;
+        var health = Runtime.Config.BoomerangBullets.BonusHealth;
         pawn.MaxHealth = health;
         pawn.MaxHealthUpdated();
         pawn.Health = health;

@@ -6,3 +6,4 @@ build/
 *.DotSettings.user
 .DS_Store
 *.bak
+CLAUDE.md

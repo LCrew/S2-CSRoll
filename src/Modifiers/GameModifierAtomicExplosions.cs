@@ -6,10 +6,10 @@ using CSRoll.Core;
 namespace CSRoll.Modifiers;
 
 /// <summary>
-/// Bug fix: this used to be resources/ConVarModifiers/BiggerExplosionsModifier.cfg, driving
+/// Bug fix: this used to be resources/ConVarModifiers/AtomicExplosionsModifier.cfg, driving
 /// sv_hegrenade_damage_multiplier/sv_hegrenade_radius_multiplier - both server-wide, so every
 /// player's HE grenades hit harder and wider instead of just whoever rolled it. Rewritten per-player
-/// via Core.GameHooks.Entities.TakeDamage.Pre (the same hook HardHead/IronBody/Revive/Jetpack use
+/// via Core.GameHooks.Entities.TakeDamage.Pre (the same hook HardHead/SteelBody/Revive/Jetpack use
 /// for other per-player damage exceptions): DMG_BLAST damage dealt by an assigned player's HE gets
 /// multiplied.
 ///
@@ -21,11 +21,11 @@ namespace CSRoll.Modifiers;
 /// only to players the native explosion didn't already reach) rather than adjusting an existing
 /// damage number - out of scope for this pass. Bigger damage on an unchanged radius is what's here.
 /// </summary>
-public sealed class GameModifierBiggerExplosions : GameModifierBase
+public sealed class GameModifierAtomicExplosions : GameModifierBase
 {
-    public GameModifierBiggerExplosions()
+    public GameModifierAtomicExplosions()
     {
-        Name = "BiggerExplosions";
+        Name = "AtomicExplosions";
         Description = "HE Grenades deal much more damage";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
@@ -54,6 +54,6 @@ public sealed class GameModifierBiggerExplosions : GameModifierBase
             return;
         }
 
-        ctx.Params.Info.Damage *= Runtime.Config.BiggerExplosions.DamageMultiplier;
+        ctx.Params.Info.Damage *= Runtime.Config.AtomicExplosions.DamageMultiplier;
     }
 }

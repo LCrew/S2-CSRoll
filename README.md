@@ -2,61 +2,59 @@
 
 <div align="center">
   <h1><strong>CSRoll</strong></h1>
-  <p>A chaos-mod style "game modifiers" plugin for CS2, built on <a href="https://swiftlys2.net">SwiftlyS2</a>.</p>
+  <p>A chaos-mod style plugin for CS2, built on <a href="https://swiftlys2.net">SwiftlyS2</a>.</p>
 </div>
 
-Players (or admins) roll random gameplay-altering modifiers - like Jetpack, Speedhack, MasterZeus, or Kamikaze - that apply for a round, a set number of rounds, or the whole match, either server-wide or scoped to individual players.
+Players roll random modifiers - like Jetpack, Speedhack, MasterZeus, or SuicideBomber - that apply for a round.
 
 ## Modifier List
 
 | Modifier | Description |
 | --- | --- |
-| Cluster Grenades | Grenades spawn 1-4 mini grenades when they detonate (configurable) |
-| Kamikaze | On death, drops 3 (configurable) grenades near your body that explode for 1.25x (configurable) HE damage |
-| Conditional Invisibility | You are invisible while silent - any sound briefly reveals you |
-| Full Invisibility | You are always invisible, knife only, can't buy or pick up weapons |
-| Drunk | Left and right movement (A/D) is mirrored |
-| Juggernaut | Max health is set to 300 |
-| Random Health | Health is set to a random number |
-| Flashing Bullets | Random chance for a bullet hit to blind the enemy |
-| Disarming Bullets | Random chance to disarm an enemy hit by your bullets |
-| Hard Head | Cannot be damaged by headshots - body damage only |
-| Butterfingers | Weapons are dropped on missed shots |
-| Boomerang Bullets | You take the damage from your missed shots - extra health to compensate |
-| Steel Body | Can only be damaged by headshots or utility (HE/molotov) |
-| More Damage | Damage dealt is increased by 33% |
-| Revive | Random chance to survive lethal damage, shrinking with each revive |
-| Small Players | You are 2x smaller, with 50 HP |
-| Poisonous Smoke | Your thrown smokes deal damage to enemies standing in them, and grants a smoke grenade |
-| Longer Flashes | Flash bang effect lasts 3x longer (configurable) |
-| Chinese Grenades | Timers on flashes, HE's and smokes are randomized |
-| Gay Smokes | Smoke colors are randomized |
-| Swap On Death | You will swap places on kill |
-| Swap On Hit | You will swap places on hit |
-| Master Zeus | Zeus recharges much faster and hits at very long range, granted automatically on spawn |
-| Smoke Immunity | Smokes are invisible |
-| Vampire | You steal the damage you deal |
-| Saint | Random chance for a kill to revive a dead teammate |
+| Cluster Grenades | Grenades spawn mini grenades (configurable) |
+| Suicide Bomber | On death, drop grenades dealing bonus HE damage (configurable) |
+| Conditional Invisibility | Invisible while silent - sound reveals you |
+| Vanish | Press Inspect Weapon to vanish briefly - on a cooldown |
+| Drunk | A/D movement is mirrored |
+| Juggernaut | Max health set to 300 |
+| Random Health | Random health |
+| Flashing Bullets | Chance to blind an enemy you hit |
+| Disarming Bullets | Chance to disarm an enemy you hit |
+| Hard Head | Immune to headshots |
+| Butterfingers | Miss a shot, drop your weapon |
+| Boomerang Bullets | Missed shots damage you - bonus health |
+| Steel Body | Only headshots and utility hurt you |
+| More Damage | Deal 33% more damage |
+| Revive | Chance to survive lethal damage |
+| Small Players | 2x smaller, 50 HP |
+| Poisonous Smoke | Your smokes damage enemies inside them |
+| Longer Flashes | Flashes last longer (configurable) |
+| Chinese Grenades | Randomized grenade fuse timers |
+| Swap On Death | Swap places on kill |
+| Swap On Hit | Swap places on hit |
+| Master Zeus | Zeus recharges fast and hits at long range |
+| Smoke Immunity | Smokes are invisible - VAC SAFE |
+| Vampire | Heal for the damage you deal |
+| Saint | Chance for a kill to revive a dead teammate |
 | Speedhack | You are really fast |
-| Teleport On Reload | You are teleported to your spawn on reload |
-| Teleport On Hit | You are teleported to your spawn on hit |
+| Teleport On Reload | Reloading teleports you to spawn |
+| Teleport On Hit | Getting hit teleports you to spawn |
 | One Per Reload | 1 bullet per reload |
-| No Recoil | Weapons have no recoil |
+| No Recoil | No recoil |
 | Wallhack | Free cheats, for free - VAC SAFE |
-| Random Loadout | Buy menu is disabled - random main weapon, pistol and grenades (sometimes with armor) |
-| Walking Grenadier | You can't shoot, but you've got UNLIMITED HE grenades |
-| Heavy Boots | Movement speed is much slower, but grants armor+helmet and bonus health |
-| Jetpack | Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe |
-| Bunny Hop | Hold jump to bunny-hop automatically, with no landing speed penalty |
+| Random Loadout | Random loadout |
+| Walking Grenadier | No guns - unlimited HE grenades |
+| Heavy Boots | Much slower - armor, helmet and bonus health |
+| Jetpack | Hold jump in the air to thrust |
+| Bunny Hop | Hold jump to auto bunny-hop |
 | Infinite Ammo | All weapons go brrrrrr... |
-| Atomic Explosions | HE Grenades deal much more damage |
-| Increased Spread | Weapons have bad aim |
-| Plant Anywhere | Bomb can be planted anywhere after a delay, bomb timer extended (both configurable) |
-| Surf | Will config vars for surfing (server-wide) |
-| Flanker | After a cooldown, press Inspect Weapon to teleport behind a random enemy |
-| Regeneration | Slowly heals over time, up to your max health - faster while standing still |
-| Bounty | Damaging enemies grants bonus money |
-| Weapon Roulette | Forced onto a single random gun, re-rolled every so often |
+| Atomic Explosions | HE grenades deal much more damage |
+| Increased Spread | Your aim just got worse... |
+| Plant Anywhere | Plant anywhere after a delay (configurable) |
+| Flanker | Press Inspect Weapon to teleport behind an enemy |
+| Regeneration | Heals over time - faster standing still |
+| Bounty | Damage enemies for bonus money |
+| Weapon Roulette | Random weapon, re-rolled often |
 
 Display names and descriptions are fully customizable via `resources/translations/en.jsonc`.
 
@@ -81,7 +79,7 @@ All commands are chat commands (prefix with `!`).
 | `!rollreload` | Admin | Reload `config.jsonc` from disk without restarting the plugin or resetting active modifiers. |
 | `!rolldebug` | Admin | Toggle whether per-player random-round assignments are reported to admins in chat. |
 
-`MinRandomRounds`/`MaxRandomRounds` have no dedicated chat command - set them in `config.jsonc`, or adjust them at runtime via `!rollmenu` (menu changes are runtime-only and revert to the config file on the next full plugin reload). `Surf`/`Wallhack` are regular modifiers (manage them like any other via `!rolltoggle Surf` / `!rolltoggle Wallhack` or `!memodifier`), not dedicated commands.
+`MinRandomRounds`/`MaxRandomRounds` have no dedicated chat command - set them in `config.jsonc`, or adjust them at runtime via `!rollmenu` (menu changes are runtime-only and revert to the config file on the next full plugin reload). `Wallhack` is a regular modifier (manage it like any other via `!rolltoggle Wallhack` or `!memodifier`), not a dedicated command.
 
 ## Installation
 
@@ -101,7 +99,7 @@ Requires [SwiftlyS2](https://swiftlys2.net) to be installed on your CS2 server.
 
 ## Credits
 
-CSRoll is a from-scratch SwiftlyS2/C# reimplementation, inspired by and adapted from the original CounterStrikeSharp game modifiers concept:
+CSRoll is a SwiftlyS2/C# reimplementation, inspired by CounterStrikeSharp game modifiers plugin:
 
 - [CS2-GameModifiers-Plugin](https://github.com/vinicius-trev/CS2-GameModifiers-Plugin) by vinicius-trev
 

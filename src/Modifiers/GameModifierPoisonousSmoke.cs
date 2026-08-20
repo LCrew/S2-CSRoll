@@ -15,11 +15,11 @@ namespace CSRoll.Modifiers;
 /// stopped on expire/disable - same cancellation pattern used elsewhere for repeating timers.
 ///
 /// Also gives the assigned player a single smoke grenade automatically (on activation, and again on
-/// every spawn since it's used up/reset each life/round) - unlike GrenadesOnly's HE, this is a single
+/// every spawn since it's used up/reset each life/round) - unlike WalkingGrenadier's HE, this is a single
 /// grenade, not resupplied after each throw, since the point is "your smokes are dangerous", not
 /// "unlimited smokes".
 /// </summary>
-public sealed class GameModifierPoisonSmoke : GameModifierBase
+public sealed class GameModifierPoisonousSmoke : GameModifierBase
 {
     private const float SmokeRadius = 144f;
     private const float TickIntervalSeconds = 1f;
@@ -30,9 +30,9 @@ public sealed class GameModifierPoisonSmoke : GameModifierBase
     private Guid _expiredHookId;
     private Guid _spawnHookId;
 
-    public GameModifierPoisonSmoke()
+    public GameModifierPoisonousSmoke()
     {
-        Name = "PoisonSmoke";
+        Name = "PoisonousSmoke";
         Description = "Your thrown smokes deal damage to enemies standing in them, and grants a smoke grenade";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
@@ -124,7 +124,7 @@ public sealed class GameModifierPoisonSmoke : GameModifierBase
 
             if (smokeOrigin.Distance(playerOrigin) <= SmokeRadius)
             {
-                player.TakeDamage(Runtime.Config.PoisonSmoke.DamagePerTick, DamageTypes_t.DMG_POISON, smoke, smoke);
+                player.TakeDamage(Runtime.Config.PoisonousSmoke.DamagePerTick, DamageTypes_t.DMG_POISON, smoke, smoke);
             }
         }
     }

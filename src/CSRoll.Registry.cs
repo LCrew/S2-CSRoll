@@ -30,13 +30,12 @@ public partial class CSRoll
         () => new GameModifierMoreDamage(),
         () => new GameModifierOnePerMag(),
         () => new GameModifierNoRecoil(),
-        () => new GameModifierDropOnMiss(),
-        () => new GameModifierDontMiss(),
+        () => new GameModifierButterfingers(),
+        () => new GameModifierBoomerangBullets(),
         () => new GameModifierRandomLoadout(),
-        () => new GameModifierGrenadesOnly(),
+        () => new GameModifierWalkingGrenadier(),
         () => new GameModifierLongerFlashes(),
         () => new GameModifierRandomGrenadeTime(),
-        () => new GameModifierRainbowSmokes(),
 
         // Phase 1d
         () => new GameModifierXrayAll(),
@@ -57,36 +56,36 @@ public partial class CSRoll
         () => new GameModifierClusterGrenades(),
         () => new GameModifierMasterZeus(),
         () => new GameModifierHardHead(),
-        () => new GameModifierIronBody(),
-        () => new GameModifierPoisonSmoke(),
+        () => new GameModifierSteelBody(),
+        () => new GameModifierPoisonousSmoke(),
         () => new GameModifierSmokeImmunity(),
 
         // New modifiers: conditional/full invisibility, speedhack, flashing bullets, revive, saint
         () => new GameModifierConditionalInvisibility(),
-        () => new GameModifierFullInvisibility(),
+        () => new GameModifierVanish(),
         () => new GameModifierFlashingBullets(),
         () => new GameModifierRevive(),
         () => new GameModifierSaint(),
 
-        // Bug fix: LeadBoots/Jetpack/Bhop/InfiniteAmmo/BiggerExplosions/IncreasedSpread used to be
+        // Bug fix: HeavyBoots/Jetpack/BunnyHop/InfiniteAmmo/AtomicExplosions/IncreasedSpread used to be
         // resources/ConVarModifiers/*.cfg entries driving server-wide cvars (sv_maxspeed,
         // sv_jump_impulse, sv_infinite_ammo, sv_hegrenade_damage_multiplier,
         // weapon_accuracy_forcespread) - applied to the whole server instead of just whoever rolled
         // them. Rewritten as proper per-player C# modifiers.
-        // (Bhop was originally removed entirely after its auto-jump-without-repressing half proved
+        // (BunnyHop was originally removed entirely after its auto-jump-without-repressing half proved
         // unachievable via ProcessMovement.Pre velocity injection without risking corrupting CS2's
         // native jump physics - then reinstated via a different hook point once one was found (see
-        // GameModifierBhop.cs's own class doc comment). HighGravity/LowGravity went a similar route -
+        // GameModifierBunnyHop.cs's own class doc comment). HighGravity/LowGravity went a similar route -
         // GravityScale writes never actually affected physics live, see git history - but were removed
         // entirely per explicit request rather than left broken, with no working alternative found.
         // Jetpack's hold-to-thrust mechanic was likewise abandoned back to plain SuperJump after
         // failing several times, then reinstated once a working technique was found (see
         // GameModifierJetpack.cs's own class doc comment for the full history).)
-        () => new GameModifierLeadBoots(),
+        () => new GameModifierHeavyBoots(),
         () => new GameModifierJetpack(),
-        () => new GameModifierBhop(),
+        () => new GameModifierBunnyHop(),
         () => new GameModifierInfiniteAmmo(),
-        () => new GameModifierBiggerExplosions(),
+        () => new GameModifierAtomicExplosions(),
         () => new GameModifierIncreasedSpread(),
         () => new GameModifierDisarmingBullets(),
 
@@ -94,11 +93,11 @@ public partial class CSRoll
         // timing control (mp_plant_c4_anywhere on for the whole round, no bomb-timer change).
         () => new GameModifierPlantAnywhere(),
 
-        () => new GameModifierKamikaze(),
+        () => new GameModifierSuicideBomber(),
 
-        // New: FlankTeleport (Inspect-Weapon-triggered teleport behind a random enemy, on a
+        // New: Flanker (Inspect-Weapon-triggered teleport behind a random enemy, on a
         // cooldown - a from-scratch modifier, not a NavMesh-dependent bug fix).
-        () => new GameModifierFlankTeleport(),
+        () => new GameModifierFlanker(),
 
         // New: Regeneration, Bounty, WeaponRoulette.
         () => new GameModifierRegeneration(),

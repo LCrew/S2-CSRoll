@@ -16,13 +16,13 @@ namespace CSRoll.Modifiers;
 /// Bug fix: this used to be resources/ConVarModifiers/SuperJumpModifier.cfg, driving
 /// sv_jump_impulse/sv_falldamage_scale - both server-wide, so every player jumped higher and took no
 /// fall damage instead of just whoever rolled it. Core.GameHooks.Entities.TakeDamage.Pre zeroes
-/// DMG_FALL damage for this player specifically (the same hook mechanism HardHead/IronBody/Revive
+/// DMG_FALL damage for this player specifically (the same hook mechanism HardHead/SteelBody/Revive
 /// already use for other per-player damage exceptions) - that part was fine from the start.
 ///
 /// Bug fix 2 (the jump-height half): this went through two failed designs. First it tried to detect
 /// "a jump is already in progress" via moveData.Velocity.Z &gt; 0 in ProcessMovement.Pre, but Pre fires
 /// before native jump code runs, so that was never true on the tick that mattered. Second, it copied
-/// Bhop's Pre-hook velocity injection - live testing ("couldn't tell, nothing seemed to change")
+/// BunnyHop's Pre-hook velocity injection - live testing ("couldn't tell, nothing seemed to change")
 /// suggests a directly-injected Pre-hook velocity for a discrete event like a jump doesn't reliably
 /// survive the native code that runs right after it, unlike a passively-respected cap (MaxSpeed).
 /// Switched to IGameHookMovement.OnJumpLegacy/OnJumpModern (Post) instead - these fire AFTER the
@@ -35,7 +35,7 @@ namespace CSRoll.Modifiers;
 /// OnJumpLegacy/OnJumpModern while already airborne (nothing checked whether they'd landed yet), so
 /// mashing jump mid-air just re-launched them over and over. That was fixed with a
 /// BigBoostCooldownSeconds elapsed-time debounce (Core.Engine.GlobalVars.CurrentTime, the same
-/// mechanism already proven reliable for MasterZeus/FlankTeleport) - no dependency on any
+/// mechanism already proven reliable for MasterZeus/Flanker) - no dependency on any
 /// movement-hook-internal ground-state field.
 ///
 /// Bug fix (the hold-to-thrust half, previously abandoned back to plain SuperJump): the original
@@ -62,10 +62,10 @@ namespace CSRoll.Modifiers;
 ///
 /// Ground-state gating (only thrust while airborne) is kept via CBaseEntity.GroundEntity - a null
 /// Value means airborne, the same handle-nullness pattern already proven reliable elsewhere in this
-/// codebase (e.g. GameModifierKamikaze's Inflictor check) - unlike the reference implementation, which
+/// codebase (e.g. GameModifierSuicideBomber's Inflictor check) - unlike the reference implementation, which
 /// doesn't gate on ground state at all. AirAccelerate.Pre separately boosts in-flight steering by
 /// multiplying CS2's normal air-accelerate value. The gauge is shown continuously while the modifier
-/// is active, matching FlankTeleport/ConditionalInvisibility/FullInvisibility's persistent-HUD
+/// is active, matching Flanker/ConditionalInvisibility/Vanish's persistent-HUD
 /// convention.
 /// </summary>
 public sealed class GameModifierJetpack : GameModifierBase
@@ -293,12 +293,19 @@ public sealed class GameModifierJetpack : GameModifierBase
         player.Teleport(velocity: new Vector(velocity.X, velocity.Y, thrustSpeed));
     }
 
-    /// <summary>Always shown while the modifier is active (not hidden at full/idle) - matching FlankTeleport/ConditionalInvisibility/FullInvisibility's persistent-HUD convention, so there's no ambiguity about whether it's rendering.</summary>
+    /// <summary>Always shown while the modifier is active (not hidden at full/idle) - matching Flanker/ConditionalInvisibility/Vanish's persistent-HUD convention, so there's no ambiguity about whether it's rendering.</summary>
     private void UpdateFuelGauge(IPlayer player, float fuel, float maxFuel)
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
         var interval = Runtime.Config.Jetpack.GaugeUpdateIntervalSeconds;
         if (_nextGaugeUpdateTime.TryGetValue(player.Slot, out var nextUpdate) && now < nextUpdate)
+        {
+            return;
+        }
+
+        // Stay off the center-HTML surface while the roll's own reveal owns it - see
+        // ModifierRuntime.IsModifierHudSuppressed.
+        if (Runtime.IsModifierHudSuppressed)
         {
             return;
         }

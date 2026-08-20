@@ -25,7 +25,7 @@ namespace CSRoll.Modifiers;
 /// plugin had tried before. Requires in-game verification.
 ///
 /// Interaction with invisibility: reported live that x-ray-enabled viewers couldn't see
-/// ConditionalInvisibility/FullInvisibility targets at all - the glow prop's own FollowEntity
+/// ConditionalInvisibility/Vanish targets at all - the glow prop's own FollowEntity
 /// attachment to the real (now transmit-blocked) pawn appears to inherit that pawn's per-client
 /// transmission state. A test fork that dropped FollowEntity in favor of per-tick Teleport-based
 /// position tracking was tried and removed (didn't behave as wanted). Fixed instead at the source:

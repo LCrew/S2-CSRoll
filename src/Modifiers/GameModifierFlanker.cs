@@ -32,7 +32,7 @@ namespace CSRoll.Modifiers;
 /// anyone else nearby) at least a chance to react to something having just appeared behind them.
 ///
 /// Status HUD: a center-HTML popup is kept continuously visible (same re-send-before-it-expires
-/// pattern ConditionalInvisibility/FullInvisibility use) showing the trigger key and the current
+/// pattern ConditionalInvisibility/Vanish use) showing the trigger key and the current
 /// state - gold "Ready" or red "Cooldown: N,Ns" (comma decimal separator) counting down live.
 ///
 /// Wall check: the computed landing spot is validated with a zero-length TracePlayerBBox (see
@@ -40,7 +40,7 @@ namespace CSRoll.Modifiers;
 /// corner could put the assigned player stuck inside solid geometry. A blocked spot is treated the
 /// same as "no valid target": the attempt is skipped without consuming the cooldown.
 /// </summary>
-public sealed class GameModifierFlankTeleport : GameModifierBase
+public sealed class GameModifierFlanker : GameModifierBase
 {
     private const float HtmlRefreshIntervalSeconds = 0.1f;
     private const int HtmlDurationMs = 400;
@@ -56,9 +56,9 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
 
     private Guid _spawnHookId;
 
-    public GameModifierFlankTeleport()
+    public GameModifierFlanker()
     {
-        Name = "FlankTeleport";
+        Name = "Flanker";
         Description = "After a cooldown, press Inspect Weapon to teleport behind a random enemy";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
@@ -79,10 +79,25 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
         Core.Event.OnTick += OnTick;
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
-        var readyAt = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.FlankTeleport.RoundStartCooldownSeconds;
+        var readyAt = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.Flanker.RoundStartCooldownSeconds;
         foreach (var player in GetAssignedPlayers())
         {
             _nextAvailableTime[player.Slot] = readyAt;
+        }
+    }
+
+    /// <summary>
+    /// Seeds the cooldown for players handed this modifier while it's already active. AddAssignedSlots
+    /// deliberately doesn't re-run OnEnabled, so without this their _nextAvailableTime entry is simply
+    /// missing - and the readiness check defaults a missing entry to "ready now", letting them
+    /// teleport on the very next tick instead of waiting out RoundStartCooldownSeconds.
+    /// </summary>
+    protected override void OnSlotsAdded(IReadOnlyCollection<int> slots)
+    {
+        var readyAt = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.Flanker.RoundStartCooldownSeconds;
+        foreach (var slot in slots)
+        {
+            _nextAvailableTime[slot] = readyAt;
         }
     }
 
@@ -99,7 +114,7 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
     {
         if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot))
         {
-            _nextAvailableTime[player.Slot] = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.FlankTeleport.RoundStartCooldownSeconds;
+            _nextAvailableTime[player.Slot] = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.Flanker.RoundStartCooldownSeconds;
         }
 
         return HookResult.Continue;
@@ -155,8 +170,8 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
             }
 
             targetPawn.EyeAngles.ToDirectionVectors(out var forward, out _, out _);
-            var behind = targetOrigin - (forward * Runtime.Config.FlankTeleport.TeleportDistance);
-            var dropPosition = new Vector(behind.X, behind.Y, behind.Z + Runtime.Config.FlankTeleport.DropHeight);
+            var behind = targetOrigin - (forward * Runtime.Config.Flanker.TeleportDistance);
+            var dropPosition = new Vector(behind.X, behind.Y, behind.Z + Runtime.Config.Flanker.DropHeight);
 
             // Bug fix: the destination used to be teleported to unconditionally - a wall or other
             // solid geometry directly behind the target (or a target standing right against a corner)
@@ -170,7 +185,7 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
             }
 
             CSRollUtils.TeleportPlayer(Core, player, dropPosition, targetPawn.EyeAngles);
-            _nextAvailableTime[player.Slot] = now + Runtime.Config.FlankTeleport.CooldownSeconds;
+            _nextAvailableTime[player.Slot] = now + Runtime.Config.Flanker.CooldownSeconds;
 
             var targetName = target.Controller is { IsValid: true } targetController ? targetController.PlayerName : "an enemy";
             CSRollUtils.PrintTitleToChat(Core, player, $"Teleported behind {targetName}!");
@@ -206,6 +221,13 @@ public sealed class GameModifierFlankTeleport : GameModifierBase
     private void RefreshStatusHtml(IPlayer player, float now)
     {
         if (_lastHtmlUpdateTime.TryGetValue(player.Slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
+        {
+            return;
+        }
+
+        // Stay off the center-HTML surface while the roll's own reveal owns it - see
+        // ModifierRuntime.IsModifierHudSuppressed.
+        if (Runtime.IsModifierHudSuppressed)
         {
             return;
         }

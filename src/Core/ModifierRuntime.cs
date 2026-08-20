@@ -85,6 +85,74 @@ public sealed class ModifierRuntime
     /// <summary>Backs the spectator HUD's refresh throttle - keyed by the spectating player's own slot.</summary>
     private readonly Dictionary<int, float> _lastSpectatorHudUpdateTime = [];
 
+    private float _modifierHudSuppressedUntil;
+
+    /// <summary>
+    /// True while the roll's own center-HTML (spin, description wipe, and the reveal it lands on) owns
+    /// the screen. Every modifier that draws a persistent center-HTML HUD checks this and stays quiet
+    /// until it clears.
+    ///
+    /// Center-HTML is a single shared surface - the newest message simply replaces whatever was there.
+    /// So a modifier refreshing its own HUD several times a second (Vanish, Flanker, Jetpack,
+    /// ConditionalInvisibility, Regeneration, WeaponRoulette all do) will fight the reveal for it the
+    /// instant that modifier activates, which is exactly when the reveal is showing. The result is
+    /// both flickering. Suppressing the HUDs for the reveal's own lifetime is the fix.
+    /// </summary>
+    public bool IsModifierHudSuppressed => _core.Engine.GlobalVars.CurrentTime < _modifierHudSuppressedUntil;
+
+    /// <summary>
+    /// How long the fully-resolved reveal is held. When the description wipes in, the wipe is part of
+    /// the description's screen time rather than extra on top of it - so RevealDurationSeconds stays a
+    /// straight "how long the description is up for" budget and the whole popup keeps fitting inside
+    /// freeze time. Floored so a long scramble can never leave the resolved text with no hold at all.
+    /// </summary>
+    private int RevealHoldMs()
+    {
+        var seconds = Config.SpinReveal.RevealDurationSeconds;
+        if (Config.SpinReveal.ShowDescription && Config.SpinReveal.DescriptionScrambleEnabled)
+        {
+            seconds -= Config.SpinReveal.DescriptionScrambleDurationSeconds;
+        }
+
+        return (int)(Math.Max(1f, seconds) * 1000);
+    }
+
+    /// <summary>Extends the HUD blackout to at least <paramref name="seconds"/> from now - never shortens an existing one, so overlapping reveals can't cut each other short.</summary>
+    private void SuppressModifierHudFor(float seconds)
+    {
+        var until = _core.Engine.GlobalVars.CurrentTime + seconds;
+        if (until > _modifierHudSuppressedUntil)
+        {
+            _modifierHudSuppressedUntil = until;
+        }
+    }
+
+    /// <summary>
+    /// How long the whole animation runs before the reveal even lands - the eased spin frames plus the
+    /// description wipe. Summed rather than approximated because GetSpinFrameIntervalSeconds is
+    /// quadratically eased, so frame count times average interval would be well off.
+    /// </summary>
+    private float EstimateRevealAnimationSeconds()
+    {
+        if (!Config.SpinReveal.Enabled)
+        {
+            return 0f;
+        }
+
+        var total = 0f;
+        for (var i = 0; i < Config.SpinReveal.SpinCount; i++)
+        {
+            total += GetSpinFrameIntervalSeconds(i, Config.SpinReveal.SpinCount);
+        }
+
+        if (Config.SpinReveal.ShowDescription && Config.SpinReveal.DescriptionScrambleEnabled)
+        {
+            total += Config.SpinReveal.DescriptionScrambleDurationSeconds;
+        }
+
+        return total;
+    }
+
     public IReadOnlyList<GameModifierBase> RegisteredModifiers => _registeredModifiers;
     public IReadOnlyList<GameModifierBase> ActiveModifiers => _activeModifiers;
 
@@ -286,7 +354,7 @@ public sealed class ModifierRuntime
     /// ObserverServices/ObserverTarget - non-null only while actually in observer mode, e.g. dead or
     /// a true spectator, so this is a no-op for anyone currently alive and playing), listing that
     /// target's active modifiers. Re-sent on a short throttled interval (same persistent-HUD
-    /// convention as FullInvisibility/Jetpack/FlankTeleport) rather than once, so switching spectate
+    /// convention as Vanish/Jetpack/Flanker) rather than once, so switching spectate
     /// targets or the target's modifiers changing are both picked up promptly.
     /// </summary>
     private void RefreshSpectatorHud()
@@ -311,6 +379,16 @@ public sealed class ModifierRuntime
 
             var slot = player.Slot;
             if (_lastSpectatorHudUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < Config.SpectatorHud.RefreshIntervalSeconds)
+            {
+                continue;
+            }
+
+            // Bug fix: this was the one persistent HUD missing the suppression gate every modifier
+            // HUD has. Refreshing 5x a second by default, it overwrote the roll's own spin and reveal
+            // for anyone dead or spectating during freeze time - which is most of the server at round
+            // start - so they never saw what was rolled. Exactly the flicker-fight the gate exists to
+            // stop; it just never got applied here.
+            if (IsModifierHudSuppressed)
             {
                 continue;
             }
@@ -368,11 +446,11 @@ public sealed class ModifierRuntime
         _roundNumber++;
 
         // Bug fix: this used to also run a supplementary global-only roll every round, originally
-        // added so ConditionalInvisibility/FullInvisibility (which used to opt out of per-player
+        // added so ConditionalInvisibility/Vanish (which used to opt out of per-player
         // randomization, picking their own random target internally instead of using the runtime's
         // assignment) still got a chance while RandomizePlayers was on. That secondary global roll is
         // removed entirely per explicit instruction: no automatic global/shared activation happens
-        // alongside the per-player roll anymore. ConditionalInvisibility/FullInvisibility now support
+        // alongside the per-player roll anymore. ConditionalInvisibility/Vanish now support
         // per-player randomization directly instead (see their own files), so they lose nothing by
         // this removal - only modifiers that are still genuinely global-only (PlantAnywhere, etc.)
         // are excluded from the automatic rotation now; they're still fully usable via an explicit
@@ -415,7 +493,7 @@ public sealed class ModifierRuntime
     /// PickCompatibleRandomModifiers, called fresh per player from PickRandomModifiersForPlayer with
     /// its own local `picked` list) - it does not, and must not, prevent two DIFFERENT players from
     /// independently holding a mutually-incompatible pair. Player X having Speedhack never stops
-    /// player Y from getting LeadBoots in the same roll; incompatibility is a same-player constraint,
+    /// player Y from getting HeavyBoots in the same roll; incompatibility is a same-player constraint,
     /// not a whole-server one. The whole-server check in AddModifier/AddRandomModifiers below is
     /// correct there for a different reason: those activate with an EMPTY AssignedSlots (global/
     /// "everyone"), so a new global modifier genuinely does overlap every existing active modifier's
@@ -546,7 +624,10 @@ public sealed class ModifierRuntime
         CSRollUtils.PrintTitleToChatColored(_core, player, "[gold]Your modifiers:[default]");
         foreach (var modifier in modifiers)
         {
-            player.SendChat($"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - {CSRollUtils.GetModifierDescription(_core, modifier)}");
+            // Bug fix: the description was sent raw while only the display name went through
+            // Helper.Colored(), so any "[green]"/"[default]" token inside a description printed as
+            // literal text in chat instead of coloring it.
+            player.SendChat(SwiftlyS2.Shared.Helper.Colored($"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - {CSRollUtils.GetModifierDescription(_core, modifier)}"));
         }
     }
 
@@ -588,7 +669,7 @@ public sealed class ModifierRuntime
     /// Bug fix: the old approach pre-resolved every incompatible PAIR in the whole pool up front -
     /// for every two modifiers in eligiblePool that were incompatible with each other, it flipped a
     /// coin and permanently removed one, before selection even started. A modifier that happens to
-    /// be incompatible with many others (e.g. ConditionalInvisibility/FullInvisibility listing each
+    /// be incompatible with many others (e.g. ConditionalInvisibility/Vanish listing each
     /// other plus several weapon-restricting modifiers) accumulated many independent chances to get
     /// coin-flipped away
     /// - surviving all of them got exponentially less likely the more incompatibilities it had,
@@ -965,7 +1046,7 @@ public sealed class ModifierRuntime
         // Bug fix: this shared/global roll had no !rolldebug visibility at all, unlike the per-player
         // roll's admin listing - live testing found modifiers activated here (e.g. PlantAnywhere -
         // anything that doesn't support per-player randomization, including the
-        // ConditionalInvisibility/FullInvisibility supplementary roll) reported as "hidden": nobody
+        // ConditionalInvisibility/Vanish supplementary roll) reported as "hidden": nobody
         // showed up as having received them in the debug output because there simply wasn't any.
         if (DebugMode)
         {
@@ -1041,6 +1122,17 @@ public sealed class ModifierRuntime
         _pendingGlobalModifiers = null;
         _pendingAssignedSlotsByModifier = null;
         _pendingModifiersByPlayerSlot = null;
+
+        if (DebugMode)
+        {
+            _core.Logger.LogInformation(
+                "[CSRoll] Reveal: pendingGlobal={Global} pendingPerPlayer={PerPlayer} active={Active} showCentre={ShowCentre} spin={Spin}",
+                pendingGlobal?.Count ?? -1,
+                pendingModifiersByPlayerSlot?.Count ?? -1,
+                _activeModifiers.Count,
+                Config.ShowCentreMsg,
+                Config.SpinReveal.Enabled);
+        }
 
         if (pendingGlobal is { Count: > 0 })
         {
@@ -1118,6 +1210,17 @@ public sealed class ModifierRuntime
             {
                 foreach (var modifier in modifiers)
                 {
+                    // Bug fix: selection filters against _activeModifiers, but the commit happens
+                    // seconds later when the reveal lands - an admin !rolltoggle in between could
+                    // have activated the same instance already. Re-activating doubles every
+                    // OnEnabled subscription (OnTick fires twice, and the second HookPost overwrites
+                    // the stored Guid so the first hook can never be unhooked) while Deactivate only
+                    // ever runs once. The per-player twin below already guards this way.
+                    if (_activeModifiers.Contains(modifier))
+                    {
+                        continue;
+                    }
+
                     modifier.Activate();
                     _activeModifiers.Add(modifier);
                 }
@@ -1134,7 +1237,10 @@ public sealed class ModifierRuntime
 
         if (Config.ShowCentreMsg)
         {
-            PlaySpinThenRevealAll(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal), Reveal);
+            PlaySpinThenRevealAll(
+                () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal),
+                Reveal,
+                progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress));
         }
         else
         {
@@ -1196,7 +1302,11 @@ public sealed class ModifierRuntime
 
             if (Config.ShowCentreMsg)
             {
-                PlaySpinThenReveal(slot, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal), Reveal);
+                PlaySpinThenReveal(
+                    slot,
+                    () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal),
+                    Reveal,
+                    progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress));
             }
             else
             {
@@ -1220,7 +1330,7 @@ public sealed class ModifierRuntime
 
     /// <summary>
     /// Cycles a given player's center-HTML through SpinReveal.SpinCount random modifier names,
-    /// easing from a fast to a slow tick rate, then shows finalHtml for RevealDurationSeconds and
+    /// easing from a fast to a slow tick rate, then shows the built reveal for RevealDurationSeconds and
     /// invokes onRevealed. Implemented as a self-rescheduling chain of Core.Scheduler.DelayBySeconds
     /// calls (the same primitive ScheduleFreezeTimeBanner already uses successfully) rather than
     /// DelayAndRepeatBySeconds with a 0-second initial delay - that combination turned out not to
@@ -1228,19 +1338,23 @@ public sealed class ModifierRuntime
     /// working in this codebase. Re-fetches the player by slot every frame (not a captured IPlayer
     /// reference) since a delayed scheduler callback can easily outlive a disconnecting player.
     /// </summary>
-    private void PlaySpinThenReveal(int slot, string finalHtml, Action onRevealed)
+    private void PlaySpinThenReveal(int slot, Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null)
     {
+        // Claim the center-HTML surface for the whole animation plus the reveal it lands on, so
+        // modifier HUDs don't fight it - see IsModifierHudSuppressed.
+        SuppressModifierHudFor(EstimateRevealAnimationSeconds() + Config.SpinReveal.RevealDurationSeconds);
+
         if (!Config.SpinReveal.Enabled || _registeredModifiers.Count == 0)
         {
-            _core.PlayerManager.GetPlayer(slot)?.SendCenterHTML(finalHtml, (int)(Config.SpinReveal.RevealDurationSeconds * 1000));
+            _core.PlayerManager.GetPlayer(slot)?.SendCenterHTML(buildFinalHtml(), RevealHoldMs());
             onRevealed();
             return;
         }
 
-        PlayNextSpinFrame(slot, 0, Config.SpinReveal.SpinCount, finalHtml, onRevealed);
+        PlayNextSpinFrame(slot, 0, Config.SpinReveal.SpinCount, buildFinalHtml, onRevealed, buildDescriptionFrame);
     }
 
-    private void PlayNextSpinFrame(int slot, int frameIndex, int totalFrames, string finalHtml, Action onRevealed)
+    private void PlayNextSpinFrame(int slot, int frameIndex, int totalFrames, Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null)
     {
         var current = _core.PlayerManager.GetPlayer(slot);
         if (current is not { IsValid: true })
@@ -1250,8 +1364,30 @@ public sealed class ModifierRuntime
 
         if (frameIndex >= totalFrames)
         {
-            current.SendCenterHTML(finalHtml, (int)(Config.SpinReveal.RevealDurationSeconds * 1000));
+            // The name has landed, so the roll is over - commit here rather than after the
+            // description animation, keeping the mechanical effect simultaneous with the reveal
+            // (the whole point of the deferred-activation fix) instead of trailing it by ~0.8s.
             onRevealed();
+
+            if (TryGetDescriptionScrambleFrames(buildDescriptionFrame) is { } scrambleFrames)
+            {
+                PlayDescriptionScrambleFrame(slot, 0, scrambleFrames, buildDescriptionFrame!, buildFinalHtml);
+            }
+            else
+            {
+                // Re-armed at the exact moment the finished reveal goes up, so modifier HUDs
+                // return precisely when it disappears rather than on the up-front estimate.
+                SuppressModifierHudFor(RevealHoldMs() / 1000f);
+                current.SendCenterHTML(buildFinalHtml(), RevealHoldMs());
+            }
+
+            return;
+        }
+
+        // Emptiness is only checked once when the chain starts, but !disablemodifier can empty the
+        // list mid-spin - Random.Next(0) would then throw from inside a scheduler callback.
+        if (_registeredModifiers.Count == 0)
+        {
             return;
         }
 
@@ -1260,28 +1396,103 @@ public sealed class ModifierRuntime
         current.SendCenterHTML(CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
         CSRollUtils.PlaySoundToPlayer(_core, current, Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume, debugMode: DebugMode);
 
-        _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrame(slot, frameIndex + 1, totalFrames, finalHtml, onRevealed));
+        _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrame(slot, frameIndex + 1, totalFrames, buildFinalHtml, onRevealed, buildDescriptionFrame));
+    }
+
+    /// <summary>
+    /// The scramble's frame count, or null when it shouldn't run at all (no frame builder supplied,
+    /// disabled in config, or a nonsensical frame count) - in which case the caller just sends the
+    /// finished reveal directly, exactly as it did before the animation existed.
+    /// </summary>
+    private int? TryGetDescriptionScrambleFrames(Func<float, string>? buildDescriptionFrame)
+    {
+        if (buildDescriptionFrame is null || !Config.SpinReveal.ShowDescription || !Config.SpinReveal.DescriptionScrambleEnabled)
+        {
+            return null;
+        }
+
+        var frames = Config.SpinReveal.DescriptionScrambleFrames;
+        return frames > 0 && Config.SpinReveal.DescriptionScrambleDurationSeconds > 0f ? frames : null;
+    }
+
+    /// <summary>
+    /// Wipes the description in one frame at a time once the name has already landed.
+    ///
+    /// Each frame's on-screen duration deliberately outlives the gap to the next one (interval +
+    /// DescriptionHoldMs). Center-HTML frames can be silently swallowed when they arrive faster than
+    /// the panel rebuilds, so the overlap means a dropped frame just leaves the previous one showing
+    /// for a moment rather than blanking the popup - and the final resolved line is sent with the
+    /// full reveal duration, so it can never be the frame that gets lost.
+    /// </summary>
+    private void PlayDescriptionScrambleFrame(int slot, int frameIndex, int totalFrames, Func<float, string> buildDescriptionFrame, Func<string> buildFinalHtml)
+    {
+        var current = _core.PlayerManager.GetPlayer(slot);
+        if (current is not { IsValid: true })
+        {
+            return;
+        }
+
+        if (frameIndex >= totalFrames)
+        {
+            // Re-armed at the exact moment the finished reveal goes up, so modifier HUDs
+            // return precisely when it disappears rather than on the up-front estimate.
+            SuppressModifierHudFor(RevealHoldMs() / 1000f);
+            current.SendCenterHTML(buildFinalHtml(), RevealHoldMs());
+            return;
+        }
+
+        var interval = Config.SpinReveal.DescriptionScrambleDurationSeconds / totalFrames;
+        current.SendCenterHTML(buildDescriptionFrame((float)frameIndex / totalFrames), (int)(interval * 1000) + Config.SpinReveal.DescriptionHoldMs);
+
+        _core.Scheduler.DelayBySeconds(interval, () => PlayDescriptionScrambleFrame(slot, frameIndex + 1, totalFrames, buildDescriptionFrame, buildFinalHtml));
     }
 
     /// <summary>Broadcast counterpart to PlaySpinThenReveal, used for the shared/global (non-RandomizePlayers) activation path where every player sees the same spin land on the same result.</summary>
-    private void PlaySpinThenRevealAll(string finalHtml, Action onRevealed)
+    private void PlaySpinThenRevealAll(Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null)
     {
+        // Claim the center-HTML surface for the whole animation plus the reveal it lands on, so
+        // modifier HUDs don't fight it - see IsModifierHudSuppressed.
+        SuppressModifierHudFor(EstimateRevealAnimationSeconds() + Config.SpinReveal.RevealDurationSeconds);
+
         if (!Config.SpinReveal.Enabled || _registeredModifiers.Count == 0)
         {
-            CSRollUtils.ShowMessageCentreAll(_core, finalHtml, (int)(Config.SpinReveal.RevealDurationSeconds * 1000));
+            // Re-armed at the exact moment the finished reveal goes up, so modifier HUDs
+            // return precisely when it disappears rather than on the up-front estimate.
+            SuppressModifierHudFor(RevealHoldMs() / 1000f);
+            CSRollUtils.ShowMessageCentreAll(_core, buildFinalHtml(), RevealHoldMs());
             onRevealed();
             return;
         }
 
-        PlayNextSpinFrameAll(0, Config.SpinReveal.SpinCount, finalHtml, onRevealed);
+        PlayNextSpinFrameAll(0, Config.SpinReveal.SpinCount, buildFinalHtml, onRevealed, buildDescriptionFrame);
     }
 
-    private void PlayNextSpinFrameAll(int frameIndex, int totalFrames, string finalHtml, Action onRevealed)
+    private void PlayNextSpinFrameAll(int frameIndex, int totalFrames, Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null)
     {
         if (frameIndex >= totalFrames)
         {
-            CSRollUtils.ShowMessageCentreAll(_core, finalHtml, (int)(Config.SpinReveal.RevealDurationSeconds * 1000));
+            // See PlayNextSpinFrame: commit on the name landing, not after the description wipe.
             onRevealed();
+
+            if (TryGetDescriptionScrambleFrames(buildDescriptionFrame) is { } scrambleFrames)
+            {
+                PlayDescriptionScrambleFrameAll(0, scrambleFrames, buildDescriptionFrame!, buildFinalHtml);
+            }
+            else
+            {
+                // Re-armed at the exact moment the finished reveal goes up, so modifier HUDs
+                // return precisely when it disappears rather than on the up-front estimate.
+                SuppressModifierHudFor(RevealHoldMs() / 1000f);
+                CSRollUtils.ShowMessageCentreAll(_core, buildFinalHtml(), RevealHoldMs());
+            }
+
+            return;
+        }
+
+        // Emptiness is only checked once when the chain starts, but !disablemodifier can empty the
+        // list mid-spin - Random.Next(0) would then throw from inside a scheduler callback.
+        if (_registeredModifiers.Count == 0)
+        {
             return;
         }
 
@@ -1290,6 +1501,24 @@ public sealed class ModifierRuntime
         CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
         CSRollUtils.PlaySoundToAll(_core, Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume, debugMode: DebugMode);
 
-        _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrameAll(frameIndex + 1, totalFrames, finalHtml, onRevealed));
+        _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrameAll(frameIndex + 1, totalFrames, buildFinalHtml, onRevealed, buildDescriptionFrame));
+    }
+
+    /// <summary>Broadcast counterpart to PlayDescriptionScrambleFrame - see there for the frame-overlap reasoning.</summary>
+    private void PlayDescriptionScrambleFrameAll(int frameIndex, int totalFrames, Func<float, string> buildDescriptionFrame, Func<string> buildFinalHtml)
+    {
+        if (frameIndex >= totalFrames)
+        {
+            // Re-armed at the exact moment the finished reveal goes up, so modifier HUDs
+            // return precisely when it disappears rather than on the up-front estimate.
+            SuppressModifierHudFor(RevealHoldMs() / 1000f);
+            CSRollUtils.ShowMessageCentreAll(_core, buildFinalHtml(), RevealHoldMs());
+            return;
+        }
+
+        var interval = Config.SpinReveal.DescriptionScrambleDurationSeconds / totalFrames;
+        CSRollUtils.ShowMessageCentreAll(_core, buildDescriptionFrame((float)frameIndex / totalFrames), (int)(interval * 1000) + Config.SpinReveal.DescriptionHoldMs);
+
+        _core.Scheduler.DelayBySeconds(interval, () => PlayDescriptionScrambleFrameAll(frameIndex + 1, totalFrames, buildDescriptionFrame, buildFinalHtml));
     }
 }

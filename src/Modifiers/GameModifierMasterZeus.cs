@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using SwiftlyS2.Shared.EntitySystem;
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
 using SwiftlyS2.Shared.Misc;
@@ -73,6 +74,7 @@ public sealed class GameModifierMasterZeus : GameModifierBase
 
     private readonly HashSet<int> _attackButtonWasDown = [];
     private readonly Dictionary<int, float> _lastZapTime = [];
+    private readonly Dictionary<int, float> _lastLightningTime = [];
     private Guid _fireHookId;
     private Guid _spawnHookId;
     private bool _loggedCvarReadFailure;
@@ -88,11 +90,13 @@ public sealed class GameModifierMasterZeus : GameModifierBase
     protected override void OnRegistered()
     {
         Core.Event.OnClientDisconnected += OnClientDisconnected;
+        Core.Event.OnPrecacheResource += OnPrecacheResource;
     }
 
     protected override void OnUnregistered()
     {
         Core.Event.OnClientDisconnected -= OnClientDisconnected;
+        Core.Event.OnPrecacheResource -= OnPrecacheResource;
     }
 
     protected override void OnEnabled()
@@ -117,6 +121,31 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         Core.GameEvent.Unhook(_spawnHookId);
         _attackButtonWasDown.Clear();
         _lastZapTime.Clear();
+        _lastLightningTime.Clear();
+    }
+
+    /// <summary>
+    /// Bug fix history: the real native zap particle (particles/unified_weapon_fx/weapon_tracers_taser.vpcf,
+    /// and its legacy pre-unified counterpart particles/weapons/cs_weapon_fx/weapon_tracers_taser.vpcf)
+    /// is a composite CParticleSystemDefinition with an m_Children list and an m_hFallback chain -
+    /// confirmed live, even after precaching every child/fallback path in that chain, that it never
+    /// renders through ANY dispatch mechanism: not a manual info_particle_system spawn, and not
+    /// IEngineService.DispatchParticleEffect either (which otherwise works fine for simple particles).
+    /// Composite/wrapper particle definitions apparently can't be dispatched by name through either
+    /// public API - likely only usable as an internal reference the native weapon-fire code expands
+    /// at a lower level than plugins can reach. So LightningParticlePath must stay a simple,
+    /// standalone particle, and only that one path needs precaching.
+    /// </summary>
+    private void OnPrecacheResource(IOnPrecacheResourceEvent @event)
+    {
+        @event.AddItem(Runtime.Config.MasterZeus.LightningParticlePath);
+        if (!string.IsNullOrEmpty(Runtime.Config.MasterZeus.LightningSecondaryParticlePath))
+        {
+            @event.AddItem(Runtime.Config.MasterZeus.LightningSecondaryParticlePath);
+        }
+        // Unconditional (not gated behind Runtime.DebugMode) - this fires at map load, before there's
+        // necessarily been a chance to !rolldebug for that particular load.
+        Core.Logger.LogInformation("[CSRoll] MasterZeus precache-debug: AddItem({Path}) + secondary={Secondary}", Runtime.Config.MasterZeus.LightningParticlePath, Runtime.Config.MasterZeus.LightningSecondaryParticlePath);
     }
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
@@ -147,7 +176,7 @@ public sealed class GameModifierMasterZeus : GameModifierBase
 
             var isDown = (player.PressedButtons & GameButtonFlags.Mouse1) != 0;
 
-            if (isDown && _attackButtonWasDown.Add(player.Slot))
+            if (isDown && _attackButtonWasDown.Add(player.Slot) && IsWeaponReadyToFire(weapon))
             {
                 TryZapDebounced(player, pawn);
             }
@@ -158,16 +187,71 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         }
     }
 
+    /// <summary>
+    /// Bug fix: the Mouse1 rising-edge path fires purely on button state, with no notion of whether
+    /// the weapon can actually shoot - so swapping to the Zeus and clicking during its deploy
+    /// ("pullout") animation produced a full zap, lightning and all, while the real weapon hadn't
+    /// fired at all. NextPrimaryAttackTick is the tick the engine will next allow a primary attack,
+    /// pushed into the future during deploy and between shots, so anything at or before the current
+    /// tick means genuinely ready. The weapon_fire event path doesn't need this check - the engine
+    /// only raises that event for shots it actually accepted.
+    /// </summary>
+    private bool IsWeaponReadyToFire(CBasePlayerWeapon weapon)
+        => weapon.NextPrimaryAttackTick.Value <= Core.Engine.GlobalVars.TickCount;
+
     private HookResult OnWeaponFire(EventWeaponFire @event)
     {
-        if (@event.UserIdPlayer is { IsValid: true } shooter && IsAssignedTo(shooter.Slot) &&
-            @event.UserIdPawn is { } pawn && pawn.WeaponServices?.ActiveWeapon.Value is { } weapon &&
-            weapon.DesignerName == TaserDesignerName)
+        if (@event.UserIdPlayer is { IsValid: true } shooter && @event.UserIdPawn is { } pawn &&
+            pawn.WeaponServices?.ActiveWeapon.Value is { } weapon)
         {
-            TryZapDebounced(shooter, pawn);
+            if (IsAssignedTo(shooter.Slot) && weapon.DesignerName == TaserDesignerName)
+            {
+                TryZapDebounced(shooter, pawn);
+            }
+
+            OnGlockFireLightningDebug(shooter.Slot, pawn, weapon);
         }
 
         return HookResult.Continue;
+    }
+
+    /// <summary>
+    /// TEMPORARY debug aid (not a real feature): fires the real lightning chain on every Glock shot -
+    /// no damage, no targeting/cooldown/assignment gating - so it can be visually confirmed
+    /// independent of MasterZeus's own zap cooldown/targeting. Remove once the chain is confirmed
+    /// looking right in-game and this is no longer needed as a separate test path.
+    /// </summary>
+    private void OnGlockFireLightningDebug(int shooterSlot, CCSPlayerPawn pawn, CBasePlayerWeapon weapon)
+    {
+        if (!Runtime.DebugMode || weapon.DesignerName != "weapon_glock" || pawn.EyePosition is not { } eyePosition)
+        {
+            return;
+        }
+
+        pawn.EyeAngles.ToDirectionVectors(out var forward, out _, out _);
+        var origin = eyePosition + (forward * Runtime.Config.MasterZeus.MuzzleOffsetDistance);
+
+        // Same buyzone/trigger exclusion TryExtendedRangeZap's LOS trace needs (func_buyzone etc.
+        // register as an immediate hit despite being non-solid) - without it, testing near spawn
+        // (where players usually are when firing a starting Glock) reported DidHit=true at fraction
+        // ~0, i.e. Origin==Endpoint, self-blocking on the buyzone volume instead of tracing out.
+        var traceParams = TraceParams.Builder(TraceParams.DefaultLine())
+            .InteractWith(MaskTrace.Solid)
+            .HitTrigger(false)
+            .WithShouldHitEntity(entity => entity.DesignerName is not ("func_buyzone" or "func_bomb_target" or "func_hostage_rescue"))
+            .IgnoreEntity(pawn)
+            .Build();
+        var traceEnd = origin + (forward * Runtime.Config.MasterZeus.RangeDistance);
+        var result = Core.Trace.TraceShapeLine(origin, traceEnd, traceParams);
+        // Bug fix: TraceResult.HitPoint is only populated when TraceResult.ExactHitPoint is true -
+        // otherwise it reads as a zero Vector (world origin), which is exactly what showed up as the
+        // chain's endpoint live. Fraction is always reliably computed as part of DidHit itself, so
+        // interpolating along the trace segment with it is the reliable way to get the actual hit
+        // position regardless of whether the exact hit point was separately calculated.
+        var endpoint = origin + ((traceEnd - origin) * Math.Min(result.Fraction, 1f));
+
+        SpawnLightningEffect(shooterSlot, GetLightningMuzzlePosition(eyePosition, pawn.EyeAngles), endpoint);
+        Core.Logger.LogInformation("[CSRoll] MasterZeus glock-debug: fired lightning, Origin={Origin} Endpoint={Endpoint} DidHit={DidHit}", origin, endpoint, result.DidHit);
     }
 
     private void TryZapDebounced(IPlayer shooter, CCSPlayerPawn shooterPawn)
@@ -251,6 +335,7 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         var traceOrigin = eyePosition + (forward * Runtime.Config.MasterZeus.MuzzleOffsetDistance);
 
         IPlayer? bestTarget = null;
+        var bestTargetPosition = default(Vector);
         var bestDistanceSquared = float.MaxValue;
         var candidatesConsidered = 0;
         var rejectedOutOfRange = 0;
@@ -315,8 +400,33 @@ public sealed class GameModifierMasterZeus : GameModifierBase
             }
 
             bestTarget = candidate;
+            bestTargetPosition = candidatePosition;
             bestDistanceSquared = distanceSquared;
         }
+
+        // Play the lightning visual on every zap, hit or miss - not gated on bestTarget - so a whiff
+        // still visibly reaches exactly as far as it looked like it should. On a miss there's no
+        // target position to aim at, so this traces straight along the aim direction out to
+        // RangeDistance and uses wherever that trace actually stops.
+        var lightningEndpoint = bestTargetPosition;
+        if (bestTarget is null)
+        {
+            var missParams = TraceParams.Builder(TraceParams.DefaultLine())
+                .InteractWith(MaskTrace.Solid)
+                .IgnoreEntity(shooterPawn)
+                .Build();
+            var missTraceEnd = traceOrigin + (forward * Runtime.Config.MasterZeus.RangeDistance);
+            var missResult = Core.Trace.TraceShapeLine(traceOrigin, missTraceEnd, missParams);
+            // Bug fix: TraceResult.HitPoint is only populated when ExactHitPoint is true - otherwise
+            // it reads as a zero Vector (world origin), which showed up live as the chain's endpoint
+            // landing at a fixed "null" spot on the map. Fraction is always reliably computed as part
+            // of DidHit itself, so interpolating along the trace segment with it (clamped to <=1,
+            // since a no-hit trace reports Fraction >1) is the reliable way to get the actual stop
+            // position.
+            lightningEndpoint = traceOrigin + ((missTraceEnd - traceOrigin) * Math.Min(missResult.Fraction, 1f));
+        }
+
+        SpawnLightningEffect(shooter.Slot, GetLightningMuzzlePosition(eyePosition, shooterPawn.EyeAngles), lightningEndpoint);
 
         if (bestTarget is null)
         {
@@ -329,10 +439,194 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         LogZapDebug(shooter, $"dealt {damage} damage to {(bestTarget.Controller is { IsValid: true } tc ? tc.PlayerName : bestTarget.Slot.ToString())}");
     }
 
+    /// <summary>
+    /// Renders a muzzle-to-target lightning visual on every extended-range zap, hit or miss.
+    ///
+    /// Bug fix history: IEngineService.DispatchParticleEffect looked like the right tool (it's the
+    /// SDK's own documented particle API) but a live side-by-side isolation test (four variants fired
+    /// off the same Glock shot) showed only a manually spawned info_particle_system entity actually
+    /// rendering - not DispatchParticleEffect attached to a pawn, a weapon's muzzle_flash attachment,
+    /// or a fresh helper entity. So this spawns a real info_particle_system entity: EffectName set,
+    /// StartActive true, DispatchSpawn, Teleport, AcceptInput("Start") - this exact combination is
+    /// what's confirmed live to render, contrary to the EffectIndex.IsValid diagnostic (which read
+    /// false even on a working spawn - not a reliable render-readiness signal in this SDK build).
+    ///
+    /// Only simple, non-composite particles work this way - the real native zap particle
+    /// (particles/unified_weapon_fx/weapon_tracers_taser.vpcf) is a composite CParticleSystemDefinition
+    /// with an m_Children/m_hFallback chain and was confirmed live to never render through any
+    /// dispatch mechanism, so LightningParticlePath must be one of its standalone children instead -
+    /// weapon_tracers_taser_wire1a.vpcf (the actual wire/bolt visual) is what's currently configured.
+    ///
+    /// Originally approximated a two-point beam as a chain of individually-spawned points, since
+    /// DispatchParticleEffect (which can't express a raw two-point stretch, only attach-to-entity) was
+    /// believed to be the only working mechanism - once manual entity spawn was confirmed working
+    /// instead, that chain was unnecessary complexity: wire1a's own C_INIT_CreateSequentialPathV2
+    /// initializer already distributes its emitted particles along a path from control point 0 to
+    /// control point 1 in a single spawn. So this now spawns one real muzzle-to-target line per
+    /// strand: Teleport sets CP0 (the entity's own position), and data_cp=1/data_cp_value (passed
+    /// through DispatchSpawn's keyvalues, the same CS2Fixes-proven mechanism) sets CP1 to the target -
+    /// bug fix, confirmed live: CP1 defaults to raw world origin (0,0,0) on a freshly spawned entity
+    /// if left unset (the .vpcf's own m_controlPointConfigurations showing CP1 defaulting to "self" is
+    /// Source2Viewer/Hammer editor-preview-only, not applied at runtime), so leaving it unset made the
+    /// wire's far end jump to the map's true origin instead of the intended target.
+    ///
+    /// LightningStrandCount spawns multiple copies of the same full muzzle-to-target line for a
+    /// denser/more intense look. Live testing showed identical overlapping copies just look like one
+    /// weak strand, so strands beyond the first get a small random perpendicular jitter
+    /// (LightningStrandJitterDistance) so they read as a bundle of distinct bolts instead. Also
+    /// layers LightningSecondaryParticlePath (wire1b, a sibling of wire1a in the real taser tracer's
+    /// m_Children list) on every strand for a denser combined visual, and passes tint_cp/tint_cp_color
+    /// keyvalues (the same mechanism CS2Fixes uses for tracer color) with a bright value as a
+    /// brightness experiment - not confirmed to affect this specific particle's rendering, but a
+    /// harmless one to try since wire1a's own C_INIT_RandomColor uses a fairly dim base tint range.
+    ///
+    /// Bug fix (arc/rotation): Teleport was passing null for angles, leaving the entity at world
+    /// (0,0,0) orientation regardless of shot direction - wire1a's C_INIT_CreateSequentialPathV2 has
+    /// a nonzero m_flBulge, and if its perpendicular bulge offset is computed relative to the
+    /// entity's own local axes rather than purely from CP0/CP1 world positions, a fixed world
+    /// orientation would produce a consistent visual arc that gets more pronounced the more the shot
+    /// direction diverges from world-forward - exactly the "always arcing right" symptom reported.
+    /// Orienting the entity to face the target instead is a reasonable fix to try, though not fully
+    /// certain without deeper visibility into the operator's internal bulge-axis calculation.
+    ///
+    /// All strand/secondary entities are despawned on a timer shortly after so repeated zaps don't
+    /// leak entities.
+    /// </summary>
+    /// <summary>
+    /// Visual start point for the bolt - offset from the eye along the shooter's own axes to sit
+    /// roughly where the weapon's barrel is, rather than dead centre of their view at eye height.
+    /// Kept separate from the gameplay trace origin (MuzzleOffsetDistance) so tuning the look can't
+    /// affect targeting. Necessarily an approximation: the SDK exposes no attachment/bone position
+    /// query, so the model's real muzzle_flash point can't be read.
+    /// </summary>
+    private Vector GetLightningMuzzlePosition(Vector eyePosition, QAngle eyeAngles)
+    {
+        eyeAngles.ToDirectionVectors(out var forward, out var right, out var up);
+
+        return eyePosition
+            + (forward * Runtime.Config.MasterZeus.LightningMuzzleForwardOffset)
+            + (right * Runtime.Config.MasterZeus.LightningMuzzleRightOffset)
+            + (up * Runtime.Config.MasterZeus.LightningMuzzleUpOffset);
+    }
+
+    private void SpawnLightningEffect(int shooterSlot, Vector origin, Vector target)
+    {
+        // Spam backstop, deliberately enforced here rather than at any single call site so every
+        // trigger path is covered - the real zap is already gated well above this by
+        // mp_taser_recharge_time, but an ungated caller firing at weapon rate would otherwise spawn
+        // (segments x strands x 2) entities per shot and flood the entity list.
+        var cooldown = Runtime.Config.MasterZeus.LightningCooldownSeconds;
+        var now = Core.Engine.GlobalVars.CurrentTime;
+        if (cooldown > 0f && _lastLightningTime.TryGetValue(shooterSlot, out var lastTime) && now - lastTime < cooldown)
+        {
+            return;
+        }
+
+        _lastLightningTime[shooterSlot] = now;
+
+        var direction = (target - origin).Normalized();
+        var angles = direction.ToQAngles();
+        angles.ToDirectionVectors(out _, out var right, out var up);
+
+        var strandCount = Math.Max(1, Runtime.Config.MasterZeus.LightningStrandCount);
+        var segments = Math.Max(1, Runtime.Config.MasterZeus.LightningChainSegments);
+        var jitterDistance = Runtime.Config.MasterZeus.LightningStrandJitterDistance;
+        var secondaryPath = Runtime.Config.MasterZeus.LightningSecondaryParticlePath;
+        var entityIndexes = new List<uint>(strandCount * segments * 2);
+
+        for (var strand = 0; strand < strandCount; strand++)
+        {
+            var jitter = strand == 0
+                ? default(Vector)
+                : (right * ((float)(Random.Shared.NextDouble() * 2 - 1) * jitterDistance)) +
+                  (up * ((float)(Random.Shared.NextDouble() * 2 - 1) * jitterDistance));
+
+            var strandOrigin = origin + jitter;
+            var strandTarget = target + jitter;
+            var strandDelta = strandTarget - strandOrigin;
+
+            // Split into segments so each particle's own path bulge (a fraction of ITS path length,
+            // not an absolute distance) stays small - see LightningChainSegments for the full reason.
+            for (var i = 0; i < segments; i++)
+            {
+                var segmentStart = strandOrigin + (strandDelta * ((float)i / segments));
+                var segmentEnd = strandOrigin + (strandDelta * ((float)(i + 1) / segments));
+
+                SpawnLightningParticle(Runtime.Config.MasterZeus.LightningParticlePath, segmentStart, segmentEnd, entityIndexes);
+
+                if (!string.IsNullOrEmpty(secondaryPath))
+                {
+                    SpawnLightningParticle(secondaryPath, segmentStart, segmentEnd, entityIndexes);
+                }
+            }
+        }
+
+        Core.Scheduler.DelayBySeconds(Runtime.Config.MasterZeus.LightningLifetimeSeconds, () =>
+        {
+            foreach (var entityIndex in entityIndexes)
+            {
+                if (Core.EntitySystem.GetEntityByIndex(entityIndex) is { IsValid: true } spawned)
+                {
+                    spawned.Despawn();
+                }
+            }
+        });
+    }
+
+    private void SpawnLightningParticle(string particlePath, Vector origin, Vector target, List<uint> entityIndexes)
+    {
+        var particle = Core.EntitySystem.CreateEntityByDesignerName<CParticleSystem>("info_particle_system");
+        particle.EffectName = particlePath;
+        particle.StartActive = true;
+
+        // Empty but deliberately non-null - this is the exact spawn recipe confirmed to render, and
+        // the tint_cp/tint_cp_color keyvalues that used to live here were removed after live testing
+        // showed no colour combination had any effect (the bolt's colour comes from the particle's
+        // material, not its colour initializer, so it isn't changeable server-side).
+        using (var keyValues = new CEntityKeyValues())
+        {
+            particle.DispatchSpawn(keyValues);
+        }
+
+        // Angle left as null (leave the entity's own spawn angle) - both this and an explicit
+        // default(QAngle) were tested live and null looked better.
+        particle.Teleport(origin, null, null);
+
+        // Bug fix (endpoint): DataCP/DataCPValue is NOT the mechanism that drives this particle's
+        // control point 1. Both the absolute world target and the origin-relative delta were tested
+        // live and produced the same wrong result (endpoint stranded far away in the sky), which rules
+        // out a coordinate-space mismatch as the explanation and points at the mechanism itself -
+        // that pair is a generic "data" channel a particle definition has to explicitly opt into
+        // reading, and wire1a simply doesn't. Its C_INIT_CreateSequentialPathV2 reads real control
+        // point 1 instead, whose server-side override channel is ServerControlPoints -
+        // ISchemaFixedArray<Vector> with a ref indexer, so writes land in the entity - paired with
+        // ServerControlPointAssignments, which maps each of the 4 slots to a control point index
+        // (255 = unassigned) rather than slot index implying CP index. All four slots are written
+        // explicitly here (slot 0 -> CP0 = muzzle, slot 1 -> CP1 = target, slots 2/3 -> unassigned)
+        // so nothing is left to an unknown default, then both Updated() calls propagate to clients.
+        //
+        // This mechanism was tried once very early on and dismissed, but that judgement was made
+        // while the composite parent particle meant NOTHING rendered at all, so it was never actually
+        // ruled out - the dismissal was based on bad evidence.
+        particle.ServerControlPointAssignments[0] = 0;
+        particle.ServerControlPoints[0] = origin;
+        particle.ServerControlPointAssignments[1] = 1;
+        particle.ServerControlPoints[1] = target;
+        particle.ServerControlPointAssignments[2] = 255;
+        particle.ServerControlPointAssignments[3] = 255;
+        particle.ServerControlPointsUpdated();
+        particle.ServerControlPointAssignmentsUpdated();
+
+        particle.AcceptInput("Start", "", null, null, 0);
+
+        entityIndexes.Add(particle.Index);
+    }
+
     /// <summary>Bug fix: _attackButtonWasDown/_lastZapTime were only ever cleared in OnDisabled - a mid-round disconnect left stale entries a reconnecting player into the same slot could briefly inherit.</summary>
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         _attackButtonWasDown.Remove(@event.PlayerId);
         _lastZapTime.Remove(@event.PlayerId);
+        _lastLightningTime.Remove(@event.PlayerId);
     }
 }

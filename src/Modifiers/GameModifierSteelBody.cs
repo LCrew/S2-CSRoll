@@ -12,19 +12,19 @@ namespace CSRoll.Modifiers;
 /// flags (DMG_HEADSHOT/DMG_BLAST/DMG_BURN) aren't reliably populated yet at the point
 /// TakeDamage.Pre fires - the AllowedDamageTypes bitmask never matched anything, so every hit
 /// (headshots and molotovs included) fell through to the "block it" branch. ActualHitGroup and
-/// designer-name checks (the same technique GameModifierRandomGrenadeTime/ClusterGrenades/
-/// RainbowSmokes already use successfully) sidestep DamageType entirely.
+/// designer-name checks (the same technique GameModifierRandomGrenadeTime/ClusterGrenades
+/// already use successfully) sidestep DamageType entirely.
 /// </summary>
-public sealed class GameModifierIronBody : GameModifierBase
+public sealed class GameModifierSteelBody : GameModifierBase
 {
     private static readonly HashSet<string> AllowedInflictorDesignerNames =
     [
         "hegrenade_projectile", "molotov_projectile", "incgrenade_projectile", "inferno",
     ];
 
-    public GameModifierIronBody()
+    public GameModifierSteelBody()
     {
-        Name = "IronBody";
+        Name = "SteelBody";
         Description = "Can only be damaged by headshots or utility (HE/molotov)";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;

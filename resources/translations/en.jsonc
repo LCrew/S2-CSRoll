@@ -1,7 +1,7 @@
 {
   // Every modifier's chat/HTML-facing text lives here - two keys per modifier:
   //   "<ModifierName>.DisplayName"  - what players see instead of the internal name (e.g. rename
-  //                                    the confusing "DontMiss"/"DropOnMiss" pair to something clearer)
+  //                                    the confusing "BoomerangBullets"/"Butterfingers" pair to something clearer)
   //   "<ModifierName>.Description"  - the "explanation" text shown next to it in chat
   // <ModifierName> must exactly match the modifier's internal Name (case-sensitive) - that internal
   // name itself is NOT renamed by editing this file; it's still what IncompatibleModifiers lists,
@@ -14,28 +14,33 @@
   // safe to leave any of these as-is or delete a line entirely.
 
   "ClusterGrenades.DisplayName": "Cluster Grenades",
-  "ClusterGrenades.Description": "Grenades spawn [green]{count}[default] mini grenades when they detonate",
+  "ClusterGrenades.Description": "Grenades spawn [green]{count}[default] mini grenades",
 
-  // Kamikaze's grenade count and damage multiplier are config-driven (Kamikaze.GrenadeCount/
+  // SuicideBomber's grenade count and damage multiplier are config-driven (SuicideBomber.GrenadeCount/
   // DamageMultiplier in config.jsonc) - tokens "{count}"/"{mult}" get substituted with the live
   // values (e.g. "3"/"1.25x") every time this is displayed.
-  "Kamikaze.DisplayName": "Kamikaze",
-  "Kamikaze.Description": "On death, drops {count} grenades near your body that explode for {mult} HE damage",
+  "SuicideBomber.DisplayName": "Suicide Bomber",
+  "SuicideBomber.Description": "On death, drop {count} grenades dealing {mult} damage",
 
   "ConditionalInvisibility.DisplayName": "Conditional Invisibility",
-  "ConditionalInvisibility.Description": "You are invisible while silent - any sound briefly reveals you",
+  "ConditionalInvisibility.Description": "Invisible while silent - sound reveals you",
 
-  "FullInvisibility.DisplayName": "Full Invisibility",
-  "FullInvisibility.Description": "You are always invisible, knife only, can't buy or pick up weapons",
+  // Renamed from FullInvisibility (both the display name AND the internal name) when it changed from
+  // a passive to an activated power - the old "FullInvisibility" no longer matches anything, so any
+  // config.jsonc DisabledModifiers entry or admin command still using it needs updating to "Vanish".
+  // The "{duration}" token below is substituted with the live configured value. The cooldown is
+  // deliberately not repeated here - the modifier's own HUD already shows it as a live meter.
+  "Vanish.DisplayName": "Vanish",
+  "Vanish.Description": "Press [green]Inspect[default] to vanish for {duration}",
 
   "Drunk.DisplayName": "Drunk",
-  "Drunk.Description": "Left and right movement (A/D) is mirrored",
+  "Drunk.Description": "A/D movement is mirrored",
 
   "Juggernaut.DisplayName": "Juggernaut",
-  "Juggernaut.Description": "Max health is set to 300",
+  "Juggernaut.Description": "Max health set to 300",
 
   "RandomHealth.DisplayName": "Random Health",
-  "RandomHealth.Description": "Health is set to a random number",
+  "RandomHealth.Description": "Random health",
 
   // FlashingBullets/DisarmingBullets/Revive/Saint each roll their chance fresh per activation (from
   // their own Min/Max config range) rather than using a fixed number - the literal token "{rand%}"
@@ -44,134 +49,128 @@
   // surrounding text however you like; just keep the "{rand%}" token somewhere in each line, or
   // remove the line entirely to fall back to the hardcoded default wording.
   "FlashingBullets.DisplayName": "Flashing Bullets",
-  "FlashingBullets.Description": "[green]{rand%}[default] chance for a bullet hit to blind the enemy",
+  "FlashingBullets.Description": "[green]{rand%}[default] chance to blind on hit",
 
   "DisarmingBullets.DisplayName": "Disarming Bullets",
-  "DisarmingBullets.Description": "[green]{rand%}[default] chance to disarm an enemy hit by your bullets",
+  "DisarmingBullets.Description": "[green]{rand%}[default] chance to disarm on hit",
 
   "HardHead.DisplayName": "Hard Head",
-  "HardHead.Description": "Cannot be damaged by headshots - body damage only",
+  "HardHead.Description": "Immune to headshots",
 
   // These two were called out live as hard to tell apart at a glance - renamed here as a starting
   // point; change these two lines to whatever reads clearest to you.
-  "DropOnMiss.DisplayName": "Butterfingers",
-  "DropOnMiss.Description": "Weapons are dropped on missed shots",
+  "Butterfingers.DisplayName": "Butterfingers",
+  "Butterfingers.Description": "Miss a shot, drop your weapon",
 
-  "DontMiss.DisplayName": "Boomerang Bullets",
-  "DontMiss.Description": "You take the damage from your missed shots - extra health to compensate",
+  "BoomerangBullets.DisplayName": "Boomerang Bullets",
+  "BoomerangBullets.Description": "Missed shots damage you - bonus health",
 
-  "IronBody.DisplayName": "Steel Body",
-  "IronBody.Description": "Can only be damaged by headshots or utility (HE/molotov)",
+  "SteelBody.DisplayName": "Steel Body",
+  "SteelBody.Description": "Only headshots and utility hurt you",
 
   "MoreDamage.DisplayName": "More Damage",
-  "MoreDamage.Description": "Damage dealt is increased by 33%",
+  "MoreDamage.Description": "Deal 33% more damage",
 
   "Revive.DisplayName": "Revive",
-  "Revive.Description": "[green]{rand%}[default] chance to survive lethal damage, shrinking with each revive",
+  "Revive.Description": "[green]{rand%}[default] chance to survive lethal damage",
 
   "SmallPlayers.DisplayName": "Small Players",
-  "SmallPlayers.Description": "You are 2X smaller, with 50 HP",
+  "SmallPlayers.Description": "2x smaller, 50 HP",
 
-  "PoisonSmoke.DisplayName": "Poisonous Smoke",
-  "PoisonSmoke.Description": "Your thrown smokes deal damage to enemies standing in them, and grants a smoke grenade",
+  "PoisonousSmoke.DisplayName": "Poisonous Smoke",
+  "PoisonousSmoke.Description": "Your smokes damage enemies inside them",
 
   "LongerFlashes.DisplayName": "Longer Flashes",
-  "LongerFlashes.Description": "Flash bang effect lasts [green]{mult}[default] longer",
+  "LongerFlashes.Description": "Flashes last [green]{mult}[default] longer",
 
-  "DodgyGrenades.DisplayName": "Chinese Grenades",
-  "DodgyGrenades.Description": "Timers on flashes, HE's and smokes are randomized",
-
-  "RainbowSmokes.DisplayName": "Gay Smokes",
-  "RainbowSmokes.Description": "Smoke colors are randomized",
+  "ChineseGrenades.DisplayName": "Chinese Grenades",
+  "ChineseGrenades.Description": "Randomized grenade fuse timers",
 
   "SwapOnDeath.DisplayName": "Swap On Death",
-  "SwapOnDeath.Description": "You will swap places on kill",
+  "SwapOnDeath.Description": "Swap places on kill",
 
   "SwapOnHit.DisplayName": "Swap On Hit",
-  "SwapOnHit.Description": "You will swap places on hit",
+  "SwapOnHit.Description": "Swap places on hit",
 
   "MasterZeus.DisplayName": "Master Zeus",
-  "MasterZeus.Description": "Zeus recharges much faster and hits at very long range",
+  "MasterZeus.Description": "Zeus recharges fast and hits at long range",
 
   "SmokeImmunity.DisplayName": "Smoke Immunity",
-  "SmokeImmunity.Description": "Smokes are invisible",
+  "SmokeImmunity.Description": "Smokes are invisible - [red]VAC SAFE[default]",
 
   "Vampire.DisplayName": "Vampire",
-  "Vampire.Description": "You steal the damage you deal",
+  "Vampire.Description": "Heal for the damage you deal",
 
   "Saint.DisplayName": "Saint",
-  "Saint.Description": "[green]{rand%}[default] chance for a kill to revive a dead teammate",
+  "Saint.Description": "[green]{rand%}[default] chance to revive a teammate on kill",
 
   "Speedhack.DisplayName": "Speedhack",
   "Speedhack.Description": "You are really fast",
 
   "TeleportOnReload.DisplayName": "Teleport On Reload",
-  "TeleportOnReload.Description": "You are teleported to your spawn on reload",
+  "TeleportOnReload.Description": "Reloading teleports you to spawn",
 
   "TeleportOnHit.DisplayName": "Teleport On Hit",
-  "TeleportOnHit.Description": "You are teleported to your spawn on hit",
+  "TeleportOnHit.Description": "Getting hit teleports you to spawn",
 
   "OnePerReload.DisplayName": "One Per Reload",
   "OnePerReload.Description": "1 bullet per reload",
 
   "NoRecoil.DisplayName": "No Recoil",
-  "NoRecoil.Description": "Weapons have no recoil",
+  "NoRecoil.Description": "No recoil",
 
   "Wallhack.DisplayName": "Wallhack",
   "Wallhack.Description": "Free cheats, for free - [red]VAC SAFE[default]",
 
   "RandomLoadout.DisplayName": "Random Loadout",
-  "RandomLoadout.Description": "Buy menu is disabled - random main weapon, pistol and grenades (sometimes with armor)",
+  "RandomLoadout.Description": "Random loadout",
 
-  "GrenadesOnly.DisplayName": "Walking Grenadier",
-  "GrenadesOnly.Description": "You can't shoot, but you've got UNLIMITED grenades",
+  "WalkingGrenadier.DisplayName": "Walking Grenadier",
+  "WalkingGrenadier.Description": "No guns - unlimited HE grenades",
 
   // Reworked to be per-player this round and last round (used to be server-wide cvars: sv_maxspeed,
   // sv_enablebunnyhopping/staminacost, sv_jump_impulse/sv_falldamage_scale, sv_infinite_ammo,
   // sv_hegrenade_damage_multiplier, weapon_accuracy_forcespread). HighGravity/LowGravity removed
   // entirely per explicit request - their GravityScale writes never actually affected physics live.
-  "LeadBoots.DisplayName": "Heavy Boots",
-  "LeadBoots.Description": "Movement speed is much slower - grants armor, a helmet and bonus health to compensate",
+  "HeavyBoots.DisplayName": "Heavy Boots",
+  "HeavyBoots.Description": "Much slower - armor, helmet and bonus health",
 
   "Jetpack.DisplayName": "Jetpack",
-  "Jetpack.Description": "Jumping is much higher, no fall damage - hold jump in the air to fire a fuel-limited jetpack thrust with boosted air-strafe",
+  "Jetpack.Description": "Hold [green]jump[default] in the air to thrust",
 
-  "Bhop.DisplayName": "Bunny Hop",
-  "Bhop.Description": "Hold jump to bunny-hop automatically, with no landing speed penalty",
+  "BunnyHop.DisplayName": "Bunny Hop",
+  "BunnyHop.Description": "Hold [green]jump[default] to auto bunny-hop",
 
   "InfiniteAmmo.DisplayName": "Infinite Ammo",
   "InfiniteAmmo.Description": "All weapons go brrrrrr...",
 
-  "BiggerExplosions.DisplayName": "Atomic Explosions",
-  "BiggerExplosions.Description": "HE Grenades deal much more damage",
+  "AtomicExplosions.DisplayName": "Atomic Explosions",
+  "AtomicExplosions.Description": "HE grenades deal much more damage",
 
   "IncreasedSpread.DisplayName": "Increased Spread",
-  "IncreasedSpread.Description": "Weapons have bad aim",
+  "IncreasedSpread.Description": "Your aim just got worse...",
 
-  // Surf is still a resources/ConVarModifiers/*.cfg-driven modifier (server-wide cvars, not a
-  // per-player C# class) - renaming/redescribing it here works exactly the same way.
   // Bug fix: HeadShotOnly removed - it's redundant with HardHead. Respawn/SlowMo/Speed removed per
-  // explicit request.
+  // explicit request. Surf removed per explicit request (it was the last remaining
+  // resources/ConVarModifiers/*.cfg-driven modifier, applying server-wide cvars rather than
+  // per-player state). RainbowSmokes/"Gay Smokes" removed per explicit request.
 
   // PlantAnywhere is a proper C# modifier (delayed anywhere-plant + extended bomb timer, both
   // configurable in config.jsonc's PlantAnywhere section) - the tokens "{delay}"/"{timer}" below get
   // substituted with the live configured values (e.g. "10s"/"75s") every time this is displayed.
   // Reword the surrounding text however you like; just keep both tokens somewhere in the line.
   "PlantAnywhere.DisplayName": "Plant Anywhere",
-  "PlantAnywhere.Description": "Bomb can be planted anywhere after {delay}, bomb timer set to {timer}",
+  "PlantAnywhere.Description": "Plant anywhere after {delay} - {timer} timer",
 
-  "Surf.DisplayName": "Surf",
-  "Surf.Description": "Will config vars for surfing",
-
-  "FlankTeleport.DisplayName": "Flanker",
-  "FlankTeleport.Description": "After a cooldown, press Inspect Weapon to teleport behind a random enemy",
+  "Flanker.DisplayName": "Flanker",
+  "Flanker.Description": "Press [green]Inspect[default] to teleport behind an enemy",
 
   "Regeneration.DisplayName": "Regeneration",
-  "Regeneration.Description": "Slowly heals over time, up to your max health - faster while standing still",
+  "Regeneration.Description": "Heals over time - faster standing still",
 
   "Bounty.DisplayName": "Bounty",
-  "Bounty.Description": "Damaging enemies grants bonus money",
+  "Bounty.Description": "Damage enemies for bonus money",
 
   "WeaponRoulette.DisplayName": "Weapon Roulette",
-  "WeaponRoulette.Description": "Forced onto a single random gun, re-rolled every so often"
+  "WeaponRoulette.Description": "Random weapon, re-rolled often"
 }

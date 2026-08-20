@@ -38,7 +38,7 @@ namespace CSRoll.Modifiers;
 /// with a duration slightly longer than that interval, so it never visibly expires) showing the
 /// player's CURRENT target state instantly (green INVISIBLE / red VISIBLE - based on the logical
 /// silence check, not the cosmetic fade progress, so feedback is immediate) as the same ASCII gauge
-/// format FullInvisibility uses (CSRollUtils.BuildGaugeHtml) - the bar fills as elapsed
+/// format Vanish uses (CSRollUtils.BuildGaugeHtml) - the bar fills as elapsed
 /// silence approaches SoundCooldownSeconds and hits 100%/green exactly when the player actually goes
 /// invisible, at the same plain text size as the spin-reveal's "Rolling..." frame rather than the
 /// larger fontSize-l this used before.
@@ -70,7 +70,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         Description = "One random player is invisible while silent - any sound briefly reveals them";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
-        IncompatibleModifiers = ["FullInvisibility"];
+        IncompatibleModifiers = ["Vanish"];
     }
 
     protected override bool CheckHidePlayer(IPlayer player) => IsAssignedTo(player.Slot) && IsSilent(player.Slot);
@@ -273,6 +273,13 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
     private void RefreshStatusHtml(IPlayer player, int slot, bool invisible, float now)
     {
         if (_lastHtmlUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
+        {
+            return;
+        }
+
+        // Stay off the center-HTML surface while the roll's own reveal owns it - see
+        // ModifierRuntime.IsModifierHudSuppressed.
+        if (Runtime.IsModifierHudSuppressed)
         {
             return;
         }

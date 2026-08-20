@@ -14,9 +14,9 @@ namespace CSRoll.Modifiers;
 /// for a config-tunable damage multiplier.
 ///
 /// The multiplier is applied via Core.GameHooks.Entities.TakeDamage.Pre, matching
-/// GameModifierBiggerExplosions - but identified differently: the player who owns these grenades is
+/// GameModifierAtomicExplosions - but identified differently: the player who owns these grenades is
 /// already dead by the time they detonate, so resolving CTakeDamageInfo.Attacker back to a player
-/// (as BiggerExplosions does) isn't reliable here. Instead this tracks the specific entity indices of
+/// (as AtomicExplosions does) isn't reliable here. Instead this tracks the specific entity indices of
 /// the grenades it spawns itself and checks CTakeDamageInfo.Inflictor (the actual damaging entity -
 /// a separate field from Attacker, confirmed via metadata) against that set, so it works regardless
 /// of whether the thrower is still alive. Tracked indices are removed once EventHegrenadeDetonate
@@ -27,7 +27,7 @@ namespace CSRoll.Modifiers;
 /// ClusterGrenades already confirmed reliably creates a fully-armed, normal-fuse grenade (no manual
 /// entity setup needed).
 /// </summary>
-public sealed class GameModifierKamikaze : GameModifierBase
+public sealed class GameModifierSuicideBomber : GameModifierBase
 {
     private readonly HashSet<uint> _kamikazeGrenadeIndices = [];
     private Guid _deathHookId;
@@ -35,16 +35,16 @@ public sealed class GameModifierKamikaze : GameModifierBase
 
     public override IReadOnlyDictionary<string, string>? DynamicTextTokens => new Dictionary<string, string>
     {
-        ["count"] = Runtime.Config.Kamikaze.GrenadeCount.ToString(),
-        ["mult"] = $"{Runtime.Config.Kamikaze.DamageMultiplier:0.##}x",
+        ["count"] = Runtime.Config.SuicideBomber.GrenadeCount.ToString(),
+        ["mult"] = $"{Runtime.Config.SuicideBomber.DamageMultiplier:0.##}x",
     };
 
     public override string Description =>
-        $"On death, drops {Runtime.Config.Kamikaze.GrenadeCount} grenades near your body that explode for {Runtime.Config.Kamikaze.DamageMultiplier:0.##}x HE damage";
+        $"On death, drops {Runtime.Config.SuicideBomber.GrenadeCount} grenades near your body that explode for {Runtime.Config.SuicideBomber.DamageMultiplier:0.##}x HE damage";
 
-    public GameModifierKamikaze()
+    public GameModifierSuicideBomber()
     {
-        Name = "Kamikaze";
+        Name = "SuicideBomber";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }
@@ -72,8 +72,8 @@ public sealed class GameModifierKamikaze : GameModifierBase
             return HookResult.Continue;
         }
 
-        var count = Math.Max(0, Runtime.Config.Kamikaze.GrenadeCount);
-        var scatterSpeed = Runtime.Config.Kamikaze.ScatterSpeed;
+        var count = Math.Max(0, Runtime.Config.SuicideBomber.GrenadeCount);
+        var scatterSpeed = Runtime.Config.SuicideBomber.ScatterSpeed;
         for (var i = 0; i < count; i++)
         {
             var angleRadians = Random.Shared.NextSingle() * MathF.Tau;
@@ -100,6 +100,6 @@ public sealed class GameModifierKamikaze : GameModifierBase
             return;
         }
 
-        ctx.Params.Info.Damage *= Runtime.Config.Kamikaze.DamageMultiplier;
+        ctx.Params.Info.Damage *= Runtime.Config.SuicideBomber.DamageMultiplier;
     }
 }

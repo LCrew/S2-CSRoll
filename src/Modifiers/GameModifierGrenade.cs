@@ -70,7 +70,7 @@ public sealed class GameModifierLongerFlashes : GameModifierBase
 }
 
 /// <summary>
-/// Randomizes HE, flashbang, and smoke fuse timers within Config.DodgyGrenades.Min/MaxFuseSeconds
+/// Randomizes HE, flashbang, and smoke fuse timers within Config.ChineseGrenades.Min/MaxFuseSeconds
 /// (0.1-10s by default).
 ///
 /// Bug fix: smoke grenades used to be skipped entirely on the assumption they had "no known
@@ -92,7 +92,7 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
 {
     public GameModifierRandomGrenadeTime()
     {
-        Name = "DodgyGrenades";
+        Name = "ChineseGrenades";
         Description = "Timers on grenades are randomized";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
@@ -117,8 +117,8 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
 
         var grenade = @event.Entity.As<CBaseCSGrenadeProjectile>();
         var isFlashbang = @event.Entity.DesignerName == "flashbang_projectile";
-        var min = Runtime.Config.DodgyGrenades.MinFuseSeconds;
-        var max = Runtime.Config.DodgyGrenades.MaxFuseSeconds;
+        var min = Runtime.Config.ChineseGrenades.MinFuseSeconds;
+        var max = Runtime.Config.ChineseGrenades.MaxFuseSeconds;
         var fuseSeconds = min + (Random.Shared.NextSingle() * (max - min));
 
         // Bug fix: writing only once, deferred a tick via NextWorldUpdate, apparently lost a race
@@ -132,9 +132,9 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
         // instant OnEntitySpawned fires, so GetThrowerPlayer() returned null and IsAssignedTo(-1)
         // failed for every grenade whenever this modifier was scoped to specific player(s) (the
         // default RandomizePlayers=true mode) - timers silently never randomized for anyone. In
-        // global mode (SupportsPerPlayerRandomization=false, like RainbowSmokes) this never showed up
+        // global mode (SupportsPerPlayerRandomization=false) this never showed up
         // since an empty AssignedSlots makes IsAssignedTo always true regardless of thrower
-        // resolution - that's why RainbowSmokes worked and this didn't. The check now happens inside
+        // resolution - that's why global-mode modifiers worked and this didn't. The check now happens inside
         // ApplyFuse itself, re-evaluated at both the immediate and next-tick write, so it only needs
         // Thrower to be resolved by then rather than at entity-spawn time.
         void ApplyFuse(string when)
@@ -155,7 +155,7 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
             if (Runtime.DebugMode)
             {
                 Core.Logger.LogInformation(
-                    "[CSRoll] DodgyGrenades ({When}): thrower={Thrower} assigned={Assigned} fuse={Fuse:0.##}s",
+                    "[CSRoll] ChineseGrenades ({When}): thrower={Thrower} assigned={Assigned} fuse={Fuse:0.##}s",
                     when, thrower?.Controller is { IsValid: true } c ? c.PlayerName : "unresolved", assigned, fuseSeconds);
             }
 
@@ -175,93 +175,5 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
 
         ApplyFuse("immediate");
         Core.Scheduler.NextWorldUpdate(() => ApplyFuse("deferred"));
-    }
-}
-
-/// <summary>
-/// Smoke grenades pop in a random color.
-///
-/// Bug fix: with RandomizePlayers on (the default), the automatic per-round rotation only ever pulls
-/// from the SupportsPerPlayerRandomization pool - a prior "supplementary global roll" that used to
-/// also consider global-only modifiers like this one every round was removed entirely (see
-/// ModifierRuntime.ApplyRandomRoundsForRound's own comment), so with SupportsPerPlayerRandomization
-/// false this could only ever appear via an explicit admin !rolltoggle/!addrandommodifier - reported
-/// live as "I've never rolled this, is this rollable even?" Flipped to true: the modifier's own
-/// IsAssignedTo(thrower) check already scopes the color-swap to just the assigned player's throws
-/// regardless, so per-player assignment isn't the redundant no-op the old comment assumed - it's
-/// exactly what makes this reachable through the normal rotation at all.
-/// </summary>
-public sealed class GameModifierRainbowSmokes : GameModifierBase
-{
-    private static readonly Vector[] Colors =
-    [
-        new(255, 0, 0), new(0, 255, 0), new(0, 0, 255), new(255, 255, 0), new(255, 0, 255),
-        new(0, 255, 255), new(255, 128, 0), new(128, 0, 255), new(255, 192, 203), new(128, 128, 128),
-        new(255, 255, 255), new(0, 128, 0), new(128, 0, 0),
-    ];
-
-    public GameModifierRainbowSmokes()
-    {
-        Name = "RainbowSmokes";
-        Description = "Smoke colors are randomized";
-        SupportsRandomRounds = true;
-        SupportsPerPlayerRandomization = true;
-    }
-
-    protected override void OnEnabled()
-    {
-        Core.Event.OnEntitySpawned += OnEntitySpawned;
-    }
-
-    protected override void OnDisabled()
-    {
-        Core.Event.OnEntitySpawned -= OnEntitySpawned;
-    }
-
-    private void OnEntitySpawned(IOnEntitySpawnedEvent @event)
-    {
-        if (@event.Entity.DesignerName != "smokegrenade_projectile")
-        {
-            return;
-        }
-
-        var grenade = @event.Entity.As<CSmokeGrenadeProjectile>();
-
-        // Bug fix: the thrower/IsAssignedTo check used to happen synchronously here, before the
-        // deferred write below - same root cause DodgyGrenades' own ApplyFuse fix documents in this
-        // same file: CBaseCSGrenadeProjectile.Thrower isn't reliably populated yet at the exact
-        // instant OnEntitySpawned fires, so GetThrowerPlayer() returned null and IsAssignedTo(-1)
-        // failed for every smoke whenever this modifier was scoped to a specific player - silently
-        // never recoloring anything. This never showed up while SupportsPerPlayerRandomization was
-        // false (an empty AssignedSlots makes IsAssignedTo always true regardless of thrower
-        // resolution), but broke the moment it was flipped to true so this modifier could actually be
-        // reached through normal per-player rolls/!memodifier (see class doc comment) - the one path
-        // it's used through in practice. Resolving the thrower inside the deferred callback instead,
-        // by which point Thrower is reliably populated, fixes it the same way DodgyGrenades was fixed.
-        Core.Scheduler.NextWorldUpdate(() =>
-        {
-            // Hardening: see DodgyGrenades.ApplyFuse's matching IsValid guard - this raw entity
-            // wrapper is dereferenced a tick later with no validity check.
-            //
-            // IsActive matters specifically because the assignment check moved INTO this deferred
-            // callback: Deactivate() clears AssignedSlots, and an empty set means "everyone" to
-            // IsAssignedTo - so a smoke thrown in the tick before this modifier was removed would
-            // otherwise still get recolored here, for any thrower at all.
-            if (!IsActive || !grenade.IsValid)
-            {
-                return;
-            }
-
-            var thrower = CSRollUtils.GetThrowerPlayer(Core, grenade);
-            if (!IsAssignedTo(thrower?.Slot ?? -1))
-            {
-                return;
-            }
-
-            // Bug fix vs. the CSS original: it never called the dirty-flag equivalent here,
-            // so the color change may not have replicated to other clients.
-            grenade.SmokeColor = Colors[Random.Shared.Next(Colors.Length)];
-            grenade.SmokeColorUpdated();
-        });
     }
 }

@@ -83,7 +83,7 @@ public partial class CSRoll
             // refills it when a non-null slots argument is passed. Every per-player-scoped modifier
             // (anything added via !memodifier, or any per-player random-round assignment) silently lost
             // its scoping and widened to "everyone" (empty AssignedSlots) starting from the very next
-            // round transition. Invisible for cheap/instant reapply effects (RandomLoadout/GrenadesOnly
+            // round transition. Invisible for cheap/instant reapply effects (RandomLoadout/WalkingGrenadier
             // just re-hand out weapons - looks the same for one player or all of them), but WeaponRoulette
             // reported this as "spreads to the whole server and won't go away" - explicitly re-passing
             // each modifier's own current slots preserves its scope across this reapply.

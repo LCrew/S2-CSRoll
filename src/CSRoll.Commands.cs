@@ -237,7 +237,19 @@ public partial class CSRoll
             return;
         }
 
-        Runtime.RemoveAllModifiers();
-        Runtime.ApplyRandomRoundsForRound();
+        // Same spin-then-reveal pairing the menu's Re-roll option and the automatic round-start roll
+        // use - showBanner:false stashes the roll so PlaySpinThenRevealActiveModifiersBanner can
+        // commit it exactly when the animation lands, rather than swapping modifiers in silently.
+        //
+        // Marshalled to the main thread for the same reason the menu version is: the reveal runs on a
+        // Core.Scheduler.DelayBySeconds chain and ultimately calls Activate(), which touches
+        // thread-unsafe APIs. Harmless if this command already runs on the main thread - it just
+        // starts a tick later.
+        Core.Scheduler.NextWorldUpdate(() =>
+        {
+            Runtime.RemoveAllModifiers();
+            Runtime.ApplyRandomRoundsForRound(showBanner: false);
+            Runtime.PlaySpinThenRevealActiveModifiersBanner();
+        });
     }
 }

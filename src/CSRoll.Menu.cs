@@ -122,8 +122,27 @@ public partial class CSRoll
                 return ValueTask.CompletedTask;
             }
 
-            Runtime.RemoveAllModifiers();
-            Runtime.ApplyRandomRoundsForRound();
+            // Bug fix: this ran directly in the Click handler and silently did nothing - modifiers
+            // were stripped and none granted, with no spin. Menu callbacks are an async context, and
+            // the reveal is driven by a self-rescheduling Core.Scheduler.DelayBySeconds chain that
+            // never fired from there, so the roll was stashed as pending and then simply abandoned:
+            // no frames, no commit, nothing active. Every other handler in this menu happens to be
+            // purely synchronous, which is why only this one broke.
+            //
+            // Hopping to the main thread first fixes it and also covers the Activate() calls the
+            // reveal ultimately makes - GiveItem/SetModel/ItemServices and friends are all documented
+            // thread-unsafe.
+            //
+            // Once there: showBanner:false stashes the roll as pending so
+            // PlaySpinThenRevealActiveModifiersBanner can commit it exactly when the spin lands,
+            // matching the automatic round-start ordering (OnRoundStart/ScheduleFreezeTimeBanner).
+            Core.Scheduler.NextWorldUpdate(() =>
+            {
+                Runtime.RemoveAllModifiers();
+                Runtime.ApplyRandomRoundsForRound(showBanner: false);
+                Runtime.PlaySpinThenRevealActiveModifiersBanner();
+            });
+
             return ValueTask.CompletedTask;
         };
         menu.AddOption(reroll);

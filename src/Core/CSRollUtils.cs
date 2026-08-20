@@ -13,7 +13,7 @@ using CSRoll.Modifiers;
 
 namespace CSRoll.Core;
 
-public static class CSRollUtils
+public static partial class CSRollUtils
 {
     /// <summary>Single source of truth for the admin permission string - referenced by command registration (CSRoll.Commands.cs) and by the admin-only chat helpers below.</summary>
     public const string AdminPermission = "gamemodifiers.admin";
@@ -22,7 +22,7 @@ public static class CSRollUtils
 
     /// <summary>
     /// Cross-modifier shared state: which player slots currently have x-ray vision (Wallhack).
-    /// GameModifierInvisibleBase (ConditionalInvisibility/FullInvisibility) reads this to exempt
+    /// GameModifierInvisibleBase (ConditionalInvisibility/Vanish) reads this to exempt
     /// x-ray-enabled viewers from its own transmit-block entirely - the same technique already used
     /// to exempt spectators, applied here because "wallhack lets you see through walls" reasonably
     /// ought to include seeing through an invisibility effect too. Simpler and more direct than an
@@ -80,7 +80,25 @@ public static class CSRollUtils
         CSWeaponType.WEAPONTYPE_TASER, CSWeaponType.WEAPONTYPE_GRENADE,
     ];
 
-    /// <summary>Same as AllRangedWeaponTypes but excludes WEAPONTYPE_GRENADE - "every gun, no grenades, no knife" for modifiers that want to restrict firearms while leaving utility untouched (GrenadesOnly, WeaponRoulette).</summary>
+    /// <summary>
+    /// AllRangedWeaponTypes plus the knife - "literally everything except the bomb", for a total
+    /// disarm (Vanish).
+    ///
+    /// Used sparingly and deliberately: GameModifierWalkingGrenadier documents that stripping the knife
+    /// was tried and reverted, because CS2 doesn't handle a player holding nothing at all cleanly
+    /// (it confuses weapon-switch/inventory state). That's survivable for a brief, self-reverting
+    /// window in a way it wasn't for a whole-round restriction - hence Vanish.RemoveKnife exists as
+    /// an escape hatch if it misbehaves live. WEAPONTYPE_C4 is still excluded, so the bomb (and
+    /// therefore plant/defuse) is never affected.
+    /// </summary>
+    public static readonly HashSet<CSWeaponType> AllRangedAndKnifeWeaponTypes =
+    [
+        CSWeaponType.WEAPONTYPE_PISTOL, CSWeaponType.WEAPONTYPE_SUBMACHINEGUN, CSWeaponType.WEAPONTYPE_RIFLE,
+        CSWeaponType.WEAPONTYPE_SHOTGUN, CSWeaponType.WEAPONTYPE_SNIPER_RIFLE, CSWeaponType.WEAPONTYPE_MACHINEGUN,
+        CSWeaponType.WEAPONTYPE_TASER, CSWeaponType.WEAPONTYPE_GRENADE, CSWeaponType.WEAPONTYPE_KNIFE,
+    ];
+
+    /// <summary>Same as AllRangedWeaponTypes but excludes WEAPONTYPE_GRENADE - "every gun, no grenades, no knife" for modifiers that want to restrict firearms while leaving utility untouched (WalkingGrenadier, WeaponRoulette).</summary>
     public static readonly HashSet<CSWeaponType> AllGunWeaponTypes =
     [
         CSWeaponType.WEAPONTYPE_PISTOL, CSWeaponType.WEAPONTYPE_SUBMACHINEGUN, CSWeaponType.WEAPONTYPE_RIFLE,
@@ -107,7 +125,7 @@ public static class CSRollUtils
 
             // Bug fix: RemoveWeapon only detaches the weapon from the player - the underlying
             // entity isn't destroyed, so it was left sitting on the ground as a live, pickup-able
-            // world entity (harmless for RandomLoadout/GrenadesOnly, which only strip once per
+            // world entity (harmless for RandomLoadout/WalkingGrenadier, which only strip once per
             // life, but WeaponRoulette re-strips every reroll and was littering the map with
             // abandoned guns). Despawn() actually removes it.
             removed.Add(weapon.DesignerName);
@@ -123,7 +141,7 @@ public static class CSRollUtils
                 // entity instance is no longer valid" whenever RemoveWeapon's own detach already
                 // triggered the engine's cleanup for that weapon entity (observed for WeaponRoulette,
                 // which re-strips every reroll instead of once per life, making the race far more
-                // likely to hit than for RandomLoadout/GrenadesOnly). Already-gone is the goal state
+                // likely to hit than for RandomLoadout/WalkingGrenadier). Already-gone is the goal state
                 // Despawn() was trying to reach anyway, so this is not a real failure - but left
                 // uncaught, the exception propagated out of this whole method and up through every
                 // caller: OnPlayerSpawn (crashed the spawn hook), OnGameTick (crashed the tick,
@@ -138,6 +156,159 @@ public static class CSRollUtils
         }
 
         return removed;
+    }
+
+    /// <summary>A stripped weapon plus the ammo it had at the moment it was taken away, so it can be handed back in the same state rather than freshly topped up. ItemDefinitionIndex pins down WHICH weapon it actually was - see GiveNameForItemDefinition.</summary>
+    public sealed record StrippedWeapon(string DesignerName, ushort ItemDefinitionIndex, int Clip1, int ReserveAmmo);
+
+    /// <summary>
+    /// Item definition indices whose entity designer name is ambiguous, mapped to the name that
+    /// actually gives that exact weapon back.
+    ///
+    /// Bug fix, reported live: a stripped USP-S came back as a P2000 and an M4A1-S came back as an
+    /// M4A4. Several CS2 weapons share a loadout slot with a sibling, and the silenced variant is
+    /// implemented as a subclass of the base - so the entity's DesignerName is the BASE name
+    /// ("weapon_m4a1" is literally the M4A4's classname), and giving that name back yields the
+    /// sibling rather than what the player was carrying. The definition index is the only field that
+    /// distinguishes them, so restores resolve the give-name through this table first and only fall
+    /// back to DesignerName for unambiguous weapons.
+    /// </summary>
+    private static readonly Dictionary<ushort, string> GiveNameForItemDefinition = new()
+    {
+        [16] = "weapon_m4a1",            // M4A4
+        [60] = "weapon_m4a1_silencer",   // M4A1-S
+        [32] = "weapon_hkp2000",         // P2000
+        [61] = "weapon_usp_silencer",    // USP-S
+        [1] = "weapon_deagle",           // Desert Eagle
+        [64] = "weapon_revolver",        // R8 Revolver
+        [33] = "weapon_mp7",             // MP7
+        [23] = "weapon_mp5sd",           // MP5-SD
+    };
+
+    /// <summary>The name that gives this exact weapon back - the definition-index mapping where one exists, otherwise the entity's own designer name.</summary>
+    private static string ResolveGiveName(StrippedWeapon weapon)
+        => GiveNameForItemDefinition.TryGetValue(weapon.ItemDefinitionIndex, out var name) ? name : weapon.DesignerName;
+
+    /// <summary>Reads a weapon's econ definition index, or 0 when it can't be resolved (in which case restores just fall back to the designer name).</summary>
+    private static ushort TryGetItemDefinitionIndex(CBasePlayerWeapon weapon)
+    {
+        try
+        {
+            return weapon.AttributeManager.Item.ItemDefinitionIndex;
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// StripWeaponTypes, but also snapshots each weapon's ammo.
+    ///
+    /// Needed by anything that takes weapons away temporarily and gives them straight back: plain
+    /// RestoreWeapons re-gives via GiveItem, which hands over a weapon at full default ammo, so a
+    /// short disarm would silently double as a free full reload.
+    /// </summary>
+    public static List<StrippedWeapon> StripWeaponTypesWithAmmo(IPlayer player, HashSet<CSWeaponType> typesToStrip)
+    {
+        var removed = new List<StrippedWeapon>();
+        if (player.PlayerPawn?.WeaponServices is not { } weaponServices)
+        {
+            return removed;
+        }
+
+        foreach (var weapon in weaponServices.MyValidWeapons.ToList())
+        {
+            var weaponType = weapon.PlayerWeaponVData?.As<CCSWeaponBaseVData>().WeaponType;
+            if (weaponType is not { } type || !typesToStrip.Contains(type))
+            {
+                continue;
+            }
+
+            var reserve = 0;
+            try
+            {
+                reserve = weapon.ReserveAmmo[0];
+            }
+            catch (Exception)
+            {
+                // Some weapon types (knife especially) have no reserve slot to read - treat as zero
+                // rather than letting it escape and abort the whole strip, which is the failure mode
+                // StripWeaponTypes' own Despawn try/catch documents at length.
+            }
+
+            removed.Add(new StrippedWeapon(weapon.DesignerName, TryGetItemDefinitionIndex(weapon), weapon.Clip1, reserve));
+            weaponServices.RemoveWeapon(weapon);
+
+            try
+            {
+                weapon.Despawn();
+            }
+            catch (InvalidOperationException)
+            {
+                // See StripWeaponTypes for the full explanation - already-gone is the goal state.
+            }
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// Counterpart to StripWeaponTypesWithAmmo: re-gives each weapon then writes its snapshotted ammo
+    /// back over the default full clip GiveItem hands out.
+    ///
+    /// The ammo write is deferred a tick - the weapon entity doesn't exist yet at the moment GiveItem
+    /// is called, so writing Clip1 immediately would land on nothing.
+    /// </summary>
+    public static void RestoreWeaponsWithAmmo(ISwiftlyCore core, IPlayer player, IReadOnlyList<StrippedWeapon> weapons)
+    {
+        if (player.PlayerPawn?.ItemServices is not { } itemServices)
+        {
+            return;
+        }
+
+        foreach (var weapon in weapons)
+        {
+            itemServices.GiveItem(ResolveGiveName(weapon));
+        }
+
+        var slot = player.Slot;
+        core.Scheduler.NextWorldUpdate(() =>
+        {
+            if (core.PlayerManager.GetPlayer(slot) is not { IsValid: true } restored ||
+                restored.PlayerPawn?.WeaponServices is not { } weaponServices)
+            {
+                return;
+            }
+
+            // Matched on definition index where both sides resolved one, falling back to designer
+            // name - the index is what actually distinguishes a USP-S from a P2000, which share a
+            // designer name. A player can't carry two of the same weapon, so this can't mis-pair.
+            foreach (var live in weaponServices.MyValidWeapons.ToList())
+            {
+                var liveDefinition = TryGetItemDefinitionIndex(live);
+                var snapshot = weapons.FirstOrDefault(w => w.ItemDefinitionIndex != 0 && w.ItemDefinitionIndex == liveDefinition)
+                    ?? weapons.FirstOrDefault(w => w.DesignerName == live.DesignerName);
+
+                if (snapshot is null)
+                {
+                    continue;
+                }
+
+                live.Clip1 = snapshot.Clip1;
+                live.Clip1Updated();
+
+                try
+                {
+                    live.ReserveAmmo[0] = snapshot.ReserveAmmo;
+                    live.ReserveAmmoUpdated();
+                }
+                catch (Exception)
+                {
+                    // Same as the read side - not every weapon has a reserve slot.
+                }
+            }
+        });
     }
 
     /// <summary>Gives back a previously-stripped set of item names to a player (counterpart to StripWeaponTypes).</summary>
@@ -439,7 +610,12 @@ public static class CSRollUtils
     /// HTML parser, not an XML one. &lt;br/&gt; is still perfectly valid, so nothing here needs to
     /// change - but the parser is not the constraint the old note assumed it was.
     /// </summary>
-    public static string BuildActivatingModifiersHtml(ISwiftlyCore core, IReadOnlyCollection<GameModifierBase> modifiers, SpinRevealConfig? spinReveal = null)
+    /// <param name="descriptionProgress">
+    /// When null the descriptions render normally. When set (0..1) they render mid-wipe at that
+    /// progress instead, which is what the reveal's scramble animation drives frame by frame - the
+    /// title and modifier names are identical either way, so only the description lines move.
+    /// </param>
+    public static string BuildActivatingModifiersHtml(ISwiftlyCore core, IReadOnlyCollection<GameModifierBase> modifiers, SpinRevealConfig? spinReveal = null, float? descriptionProgress = null)
     {
         var title = modifiers.Count == 1 ? "Activating Modifier:" : "Activating Modifiers:";
         var lines = new List<string>();
@@ -450,10 +626,183 @@ public static class CSRollUtils
         }
 
         lines.Add($"<span color=\"red\" class=\"fontWeight-Bold\">{title}</span>");
-        lines.AddRange(modifiers.Select(m => $"<span color=\"gold\" class=\"fontWeight-Bold\">{GetModifierDisplayName(core, m)}</span>"));
+
+        foreach (var modifier in modifiers)
+        {
+            lines.Add($"<span color=\"gold\" class=\"fontWeight-Bold\">{GetModifierDisplayName(core, modifier)}</span>");
+
+            if (!(spinReveal?.ShowDescription ?? false))
+            {
+                continue;
+            }
+
+            var description = GetModifierDescription(core, modifier);
+
+            // Descriptions are authored for chat, so their "[green]" tokens have to be translated
+            // rather than passed through - center-HTML would render them as literal text. The
+            // scramble path strips them instead, since it indexes real character positions and would
+            // otherwise shred the markup it just inserted.
+            lines.Add(descriptionProgress is { } progress
+                ? BuildScrambledDescriptionHtml(PlainTextFromChatColors(description), progress)
+                : BuildDescriptionLineHtml(ConvertChatColorsToHtml(description)));
+        }
 
         return string.Join("<br/>", lines);
     }
+
+    /// <summary>
+    /// The description line's shared styling, so the scramble frames and the final resolved line are
+    /// visually identical apart from their text - anything that differs here would read as a jump at
+    /// the moment the animation lands.
+    /// </summary>
+    public static string BuildDescriptionLineHtml(string descriptionHtml)
+        => $"<span class=\"fontWeight-Bold {MonoFontClass}\">{descriptionHtml}</span>";
+
+    /// <summary>
+    /// Builds one frame of the description's left-to-right reveal wipe.
+    ///
+    /// Three zones, tracking a window that sweeps across the text: everything left of the window is
+    /// already locked to its real character, everything inside it is randomized, and everything to
+    /// the right is blank. So the line starts empty, churns through the middle, and resolves from
+    /// the left - progress 0 renders nothing, progress 1 renders the full text.
+    ///
+    /// Spaces are never scrambled: keeping them intact preserves the word rhythm, so the line reads
+    /// as text resolving rather than as an undifferentiated block of noise. The whole run is
+    /// monospaced (see MonoFontClass) because Panorama's default font is proportional and per-frame
+    /// glyph churn would otherwise make the line visibly change width on every frame.
+    ///
+    /// Takes plain text, not markup - callers must strip color tokens first (PlainTextFromChatColors),
+    /// since this indexes real character positions and would otherwise scramble the tags themselves.
+    /// </summary>
+    public static string BuildScrambledDescriptionHtml(string plainText, float progress, int scrambleWindowChars = 6)
+    {
+        if (string.IsNullOrEmpty(plainText))
+        {
+            return BuildDescriptionLineHtml(string.Empty);
+        }
+
+        var clamped = Math.Clamp(progress, 0f, 1f);
+        if (clamped >= 1f)
+        {
+            return BuildDescriptionLineHtml(plainText);
+        }
+
+        // The window starts fully off the left edge and ends fully past the right, so the first frame
+        // is genuinely blank and the last locks the final character.
+        var window = Math.Max(1, scrambleWindowChars);
+        var head = (clamped * (plainText.Length + window)) - window;
+
+        var builder = new System.Text.StringBuilder(plainText.Length);
+        for (var i = 0; i < plainText.Length; i++)
+        {
+            if (plainText[i] == ' ')
+            {
+                builder.Append(' ');
+                continue;
+            }
+
+            if (i < head)
+            {
+                builder.Append(plainText[i]);
+            }
+            else if (i < head + window)
+            {
+                builder.Append(ScrambleGlyphs[Random.Shared.Next(ScrambleGlyphs.Length)]);
+            }
+            else
+            {
+                builder.Append(' ');
+            }
+        }
+
+        return BuildDescriptionLineHtml(System.Net.WebUtility.HtmlEncode(builder.ToString()));
+    }
+
+    /// <summary>Glyphs the scramble window cycles through - deliberately dense, similar-width symbols so the churn reads as noise rather than as almost-words.</summary>
+    private const string ScrambleGlyphs = "!@#$%^&*<>/\\|=+-_?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    /// <summary>
+    /// Chat color tokens that descriptions in en.jsonc are written with, mapped to the color names
+    /// Panorama's center-HTML accepts in a &lt;span color="..."&gt; attribute.
+    ///
+    /// These two systems are entirely separate: chat resolves "[green]" through
+    /// SwiftlyS2.Shared.Helper.Colored() into a control character, while center-HTML has no notion of
+    /// the token at all and would render the literal text "[green]" on screen. Descriptions are
+    /// authored for chat, so anything routing one into HTML has to translate first - that's what
+    /// ConvertChatColorsToHtml is for.
+    ///
+    /// Only names Panorama actually accepts are mapped; the rest fall through to
+    /// PlainTextFromChatColors' strip path rather than emitting a color Panorama would ignore.
+    /// </summary>
+    private static readonly Dictionary<string, string> ChatColorToHtmlColor = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["white"] = "white", ["darkred"] = "darkred", ["green"] = "green", ["olive"] = "olive",
+        ["lime"] = "lime", ["red"] = "red", ["gray"] = "grey", ["grey"] = "grey",
+        ["yellow"] = "yellow", ["lightyellow"] = "yellow", ["silver"] = "silver",
+        ["lightblue"] = "lightblue", ["blue"] = "blue", ["darkblue"] = "darkblue",
+        ["purple"] = "purple", ["magenta"] = "magenta", ["lightred"] = "red",
+        ["gold"] = "gold", ["orange"] = "orange", ["lightpurple"] = "purple",
+        ["bluegrey"] = "grey",
+    };
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\[([a-zA-Z/]+)\]")]
+    private static partial System.Text.RegularExpressions.Regex ChatColorTokenRegex();
+
+    /// <summary>
+    /// Translates a chat-authored string's "[green]...[default]" tokens into center-HTML
+    /// &lt;span color="..."&gt; markup, so a description written for chat can be shown in a popup
+    /// without leaking literal "[green]" text on screen.
+    ///
+    /// "[default]" and "[/]" close the current span rather than opening anything. An unrecognized
+    /// bracketed word (e.g. "[CSRoll]") is deliberately left untouched - the same behaviour
+    /// Helper.Colored() has in chat, which is what lets a literal "[CSRoll]" banner survive.
+    /// Any span still open at the end is closed so the markup can't bleed into whatever follows it.
+    /// </summary>
+    public static string ConvertChatColorsToHtml(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        var open = 0;
+        var result = ChatColorTokenRegex().Replace(text, match =>
+        {
+            var token = match.Groups[1].Value;
+
+            if (token is "default" or "/")
+            {
+                if (open == 0)
+                {
+                    return string.Empty;
+                }
+
+                open--;
+                return "</span>";
+            }
+
+            if (!ChatColorToHtmlColor.TryGetValue(token, out var htmlColor))
+            {
+                return match.Value;
+            }
+
+            open++;
+            return $"<span color=\"{htmlColor}\">";
+        });
+
+        return open > 0 ? result + string.Concat(Enumerable.Repeat("</span>", open)) : result;
+    }
+
+    /// <summary>
+    /// Strips chat color tokens entirely, leaving just the readable text. Used by the scramble
+    /// animation, which has to reason about real character positions - markup embedded mid-string
+    /// would be scrambled as if it were content, corrupting the tags.
+    /// </summary>
+    public static string PlainTextFromChatColors(string text)
+        => string.IsNullOrEmpty(text) ? text : ChatColorTokenRegex().Replace(text, match =>
+            match.Groups[1].Value is "default" or "/" || ChatColorToHtmlColor.ContainsKey(match.Groups[1].Value)
+                ? string.Empty
+                : match.Value);
 
     /// <summary>
     /// The optional reveal logo, or null when none is configured (the default) - in which case no
@@ -478,9 +827,12 @@ public static class CSRollUtils
     /// modifiers - or a plain "No modifiers" line if they have none, so the popup still confirms
     /// it's tracking the right target rather than just disappearing.
     /// </summary>
-    public static string BuildSpectatorHudHtml(ISwiftlyCore core, string targetName, IReadOnlyCollection<GameModifierBase> modifiers)
+    public static string BuildSpectatorHudHtml(ISwiftlyCore core, string targetName, IReadOnlyCollection<GameModifierBase> modifiers, bool showDescriptions = true)
     {
-        var lines = new List<string> { $"<span color=\"gold\" class=\"fontWeight-Bold\">Watching: {targetName}</span>" };
+        // Escaped because this is a player-controlled Steam name going straight into markup: an
+        // <img src='http://...'/> in a name would fire an outbound request from every spectator's
+        // client, and an unbalanced <span color> would bleed colour through the rest of the panel.
+        var lines = new List<string> { $"<span color=\"gold\" class=\"fontWeight-Bold\">Watching: {System.Net.WebUtility.HtmlEncode(targetName)}</span>" };
 
         if (modifiers.Count == 0)
         {
@@ -488,7 +840,17 @@ public static class CSRollUtils
         }
         else
         {
-            lines.AddRange(modifiers.Select(m => $"<span class=\"fontWeight-Bold\">{GetModifierDisplayName(core, m)}</span>"));
+            foreach (var modifier in modifiers)
+            {
+                lines.Add($"<span class=\"fontWeight-Bold\">{GetModifierDisplayName(core, modifier)}</span>");
+
+                // Deliberately never scrambled here, unlike the reveal popup: this HUD is persistent
+                // and re-sent on a timer while spectating, so an animation would restart endlessly.
+                if (showDescriptions)
+                {
+                    lines.Add(BuildDescriptionLineHtml(ConvertChatColorsToHtml(GetModifierDescription(core, modifier))));
+                }
+            }
         }
 
         return string.Join("<br/>", lines);
@@ -618,8 +980,10 @@ public static class CSRollUtils
         foreach (var modifier in modifiers)
         {
             var displayName = GetColoredModifierDisplayName(core, modifier);
+            // Bug fix: descriptions were sent raw while only the display name went through
+            // Helper.Colored(), so color tokens inside a description printed literally in chat.
             var line = withDescriptions ? $"• {displayName} - [{GetModifierDescription(core, modifier)}]" : $"• {displayName}";
-            player?.SendChat(line);
+            player?.SendChat(SwiftlyS2.Shared.Helper.Colored(line));
         }
     }
 
@@ -723,7 +1087,7 @@ public static class CSRollUtils
     /// "{Name}.DisplayName"), falling back to the modifier's internal Name if no override exists.
     /// The internal Name itself is never renamed - it's still what IncompatibleModifiers lists,
     /// DisabledModifiers config, and admin commands (!rolltoggle etc.) all match against - this only
-    /// changes what players actually see printed, e.g. renaming the confusing "DontMiss"/"DropOnMiss"
+    /// changes what players actually see printed, e.g. renaming the confusing "BoomerangBullets"/"Butterfingers"
     /// pair to something clearer without touching any code or breaking existing references to them.
     /// </summary>
     public static string GetModifierDisplayName(ISwiftlyCore core, GameModifierBase modifier) =>
@@ -766,7 +1130,7 @@ public static class CSRollUtils
         }
 
         // Bug fix: this used to pass the full EyeAngles (pitch and all, whether defaulted from the
-        // pawn or passed in explicitly - FlankTeleport passes the FLANK TARGET's EyeAngles) straight
+        // pawn or passed in explicitly - Flanker passes the FLANK TARGET's EyeAngles) straight
         // into Teleport()'s angle parameter. A player's entity rotation only ever has a meaningful
         // YAW - pitch (looking up/down) is a client-side camera value, never meant to be baked into
         // the body's absolute orientation. Teleporting/reviving while looking at the ground visibly

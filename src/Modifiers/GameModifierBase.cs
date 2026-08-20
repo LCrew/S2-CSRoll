@@ -64,7 +64,7 @@ public abstract class GameModifierBase
 
     /// <summary>
     /// Shared TakeDamage.Pre victim-resolution pattern, duplicated near-identically across several
-    /// modifiers (HardHead, IronBody, Jetpack): resolve the pawn being damaged to its owning IPlayer,
+    /// modifiers (HardHead, SteelBody, Jetpack): resolve the pawn being damaged to its owning IPlayer,
     /// then bail unless it's valid and in scope for this modifier instance.
     /// </summary>
     protected bool TryGetAssignedTakeDamageVictim(ref TakeDamageEntityPreContext ctx, out IPlayer victim)
@@ -115,7 +115,24 @@ public abstract class GameModifierBase
     /// <summary>Adds more owning slots to an already-active per-player modifier (e.g. a second player rolls the same modifier this round) without re-running OnEnabled().</summary>
     internal void AddAssignedSlots(IEnumerable<int> slots)
     {
-        _assignedSlots.UnionWith(slots);
+        var added = slots.Where(_assignedSlots.Add).ToList();
+        if (added.Count > 0)
+        {
+            OnSlotsAdded(added);
+        }
+    }
+
+    /// <summary>
+    /// Called when slots are added to an ALREADY-ACTIVE modifier (e.g. !memodifier on a modifier
+    /// someone else already has), which deliberately does not re-run OnEnabled.
+    ///
+    /// Bug fix: any per-player state OnEnabled seeds was silently never seeded for these players.
+    /// Vanish seeds its activation cooldown there, and its readiness check defaults a missing entry
+    /// to "ready now" - so a player handed the modifier mid-round could use it on the very next tick,
+    /// skipping RoundStartCooldownSeconds entirely.
+    /// </summary>
+    protected virtual void OnSlotsAdded(IReadOnlyCollection<int> slots)
+    {
     }
 
     /// <summary>
@@ -134,7 +151,7 @@ public abstract class GameModifierBase
     /// IsAssignedTo reads as "applies to everyone". A per-player modifier assigned to exactly one
     /// player therefore silently WIDENED from "scoped to that player" to "server-wide" the moment
     /// they disconnected, instead of ending: ConditionalInvisibility rolled for one player who then
-    /// disconnects mid-round started hiding every player on the server, FullInvisibility started
+    /// disconnects mid-round started hiding every player on the server, Vanish started
     /// stripping everyone's weapons, MoreDamage buffed everyone. ModifierRuntime tests this BEFORE
     /// removing the slot and deactivates instead - deliberately in that order, because Deactivate()
     /// runs OnDisabled() before clearing the set, and several modifiers' OnDisabled iterates by

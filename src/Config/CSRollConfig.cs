@@ -18,7 +18,7 @@ public class CSRollConfig
     public int PerPlayerRepeatCooldownRounds { get; set; } = 3;
 
     /// <summary>
-    /// Prefix shown before every chat message this plugin sends (e.g. "Added Bhop modifier.").
+    /// Prefix shown before every chat message this plugin sends (e.g. "Added BunnyHop modifier.").
     /// Supports SwiftlyS2's chat color tokens - resolved once via SwiftlyS2.Shared.Helper.Colored()
     /// whenever this config (re)loads. SwiftlyS2 uses square brackets for color tokens (unlike
     /// CounterStrikeSharp's curly braces) - confirmed via the official porting guide
@@ -49,23 +49,26 @@ public class CSRollConfig
     /// <summary>Tunables for the Speedhack modifier (faster movement).</summary>
     public SpeedhackConfig Speedhack { get; set; } = new();
 
-    /// <summary>Tunables for the LeadBoots modifier (slower movement - now per-player, previously a server-wide sv_maxspeed cvar).</summary>
-    public LeadBootsConfig LeadBoots { get; set; } = new();
+    /// <summary>Tunables for the Vanish modifier (Inspect-Weapon-triggered brief invisibility + total disarm, on a cooldown).</summary>
+    public VanishConfig Vanish { get; set; } = new();
+
+    /// <summary>Tunables for the HeavyBoots modifier (slower movement - now per-player, previously a server-wide sv_maxspeed cvar).</summary>
+    public HeavyBootsConfig HeavyBoots { get; set; } = new();
 
     /// <summary>Tunables for the Jetpack modifier (per-player jump velocity boost plus jetpack thrust/fuel/air-strafe, previously a server-wide sv_jump_impulse cvar).</summary>
     public JetpackConfig Jetpack { get; set; } = new();
 
-    /// <summary>Tunables for the Bhop modifier (per-player auto-bhop while holding jump, no landing speed penalty).</summary>
-    public BhopConfig Bhop { get; set; } = new();
+    /// <summary>Tunables for the BunnyHop modifier (per-player auto-bhop while holding jump, no landing speed penalty).</summary>
+    public BunnyHopConfig BunnyHop { get; set; } = new();
 
-    /// <summary>Tunables for the BiggerExplosions modifier (per-player HE damage multiplier, previously a server-wide sv_hegrenade_damage_multiplier cvar).</summary>
-    public BiggerExplosionsConfig BiggerExplosions { get; set; } = new();
+    /// <summary>Tunables for the AtomicExplosions modifier (per-player HE damage multiplier, previously a server-wide sv_hegrenade_damage_multiplier cvar).</summary>
+    public AtomicExplosionsConfig AtomicExplosions { get; set; } = new();
 
     /// <summary>Tunables for the IncreasedSpread modifier (per-player weapon accuracy penalty, previously a server-wide weapon_accuracy_forcespread cvar).</summary>
     public IncreasedSpreadConfig IncreasedSpread { get; set; } = new();
 
-    /// <summary>Tunables for the PoisonSmoke modifier (damage dealt per tick to enemies standing in the assigned player's smoke).</summary>
-    public PoisonSmokeConfig PoisonSmoke { get; set; } = new();
+    /// <summary>Tunables for the PoisonousSmoke modifier (damage dealt per tick to enemies standing in the assigned player's smoke).</summary>
+    public PoisonousSmokeConfig PoisonousSmoke { get; set; } = new();
 
     /// <summary>Tunables for the FlashingBullets modifier (per-bullet-hit blind chance).</summary>
     public FlashingBulletsConfig FlashingBullets { get; set; } = new();
@@ -73,8 +76,8 @@ public class CSRollConfig
     /// <summary>Tunables for the DisarmingBullets modifier (per-bullet-hit disarm chance).</summary>
     public DisarmingBulletsConfig DisarmingBullets { get; set; } = new();
 
-    /// <summary>Tunables for the Kamikaze modifier (grenades dropped on death, and their damage multiplier).</summary>
-    public KamikazeConfig Kamikaze { get; set; } = new();
+    /// <summary>Tunables for the SuicideBomber modifier (grenades dropped on death, and their damage multiplier).</summary>
+    public SuicideBomberConfig SuicideBomber { get; set; } = new();
 
     /// <summary>Tunables for the Revive modifier (escalating chance to survive lethal damage).</summary>
     public ReviveConfig Revive { get; set; } = new();
@@ -88,8 +91,8 @@ public class CSRollConfig
     /// <summary>Tunables for the PlantAnywhere modifier (delayed anywhere-plant + extended bomb timer, previously a static ConVarModifiers/*.cfg entry with neither).</summary>
     public PlantAnywhereConfig PlantAnywhere { get; set; } = new();
 
-    /// <summary>Tunables for the FlankTeleport modifier (Inspect-Weapon-triggered teleport behind a random enemy, on a cooldown).</summary>
-    public FlankTeleportConfig FlankTeleport { get; set; } = new();
+    /// <summary>Tunables for the Flanker modifier (Inspect-Weapon-triggered teleport behind a random enemy, on a cooldown).</summary>
+    public FlankerConfig Flanker { get; set; } = new();
 
     /// <summary>Modifier names excluded from random rolls unless the relevant team has at least this many players - e.g. Saint is pointless in a 1v1 (no teammate to ever revive).</summary>
     public string[] RequiresMultiplePlayersPerTeam { get; set; } = ["Saint"];
@@ -100,11 +103,11 @@ public class CSRollConfig
     /// <summary>Tunables for the persistent center-HTML popup shown to spectators, listing whatever modifiers are active on whoever they're currently observing.</summary>
     public SpectatorHudConfig SpectatorHud { get; set; } = new();
 
-    /// <summary>Tunables for the DodgyGrenades ("Chinese Grenades") modifier (randomized fuse timer range applied to HE/flashbang/smoke).</summary>
-    public DodgyGrenadesConfig DodgyGrenades { get; set; } = new();
+    /// <summary>Tunables for the ChineseGrenades ("Chinese Grenades") modifier (randomized fuse timer range applied to HE/flashbang/smoke).</summary>
+    public ChineseGrenadesConfig ChineseGrenades { get; set; } = new();
 
-    /// <summary>Tunables for the DontMiss ("Boomerang Bullets") modifier (bonus max health so a heavy weapon's self-damage on a miss doesn't one-shot the player).</summary>
-    public DontMissConfig DontMiss { get; set; } = new();
+    /// <summary>Tunables for the BoomerangBullets ("Boomerang Bullets") modifier (bonus max health so a heavy weapon's self-damage on a miss doesn't one-shot the player).</summary>
+    public BoomerangBulletsConfig BoomerangBullets { get; set; } = new();
 
     /// <summary>Tunables for the SmallPlayers modifier (max health while shrunk).</summary>
     public SmallPlayersConfig SmallPlayers { get; set; } = new();
@@ -145,10 +148,42 @@ public class ConditionalInvisibilityConfig
     public float DamageFlashFadeSeconds { get; set; } = 0.07f;
 }
 
+public class VanishConfig
+{
+    /// <summary>How long a single vanish lasts - invisible and holding nothing at all for this many seconds.</summary>
+    public float DurationSeconds { get; set; } = 3f;
+
+    /// <summary>Seconds before the power can be used again, measured from when the vanish ENDS (not from when it was triggered) - so a full cycle is DurationSeconds + this. Timed that way so the HUD meter reads as one continuous drain-then-refill with no jump between the two phases.</summary>
+    public float CooldownSeconds { get; set; } = 20f;
+
+    /// <summary>Cooldown seeded on activation and on every respawn, so the power isn't available the instant a round begins.</summary>
+    public float RoundStartCooldownSeconds { get; set; } = 5f;
+
+    /// <summary>
+    /// Whether the knife is stripped too, making the disarm total.
+    ///
+    /// Kept as a switch because this is the known-risky part: GameModifierWalkingGrenadier documents that
+    /// stripping the knife was tried and reverted, since CS2 doesn't cleanly handle a player holding
+    /// literally nothing (it confuses weapon-switch/inventory state). A brief self-reverting window is
+    /// a much smaller exposure than a whole-round restriction, but if weapon-switching or the restore
+    /// misbehaves live, turn this off - everything except the knife still gets stripped.
+    /// </summary>
+    public bool RemoveKnife { get; set; } = true;
+}
+
 public class SpeedhackConfig
 {
     /// <summary>Movement speed multiplier (VelocityModifier mechanism).</summary>
     public float SpeedMultiplier { get; set; } = 2.0f;
+
+    /// <summary>
+    /// Zeroes CCSPlayer_MovementServices.Stamina every tick, so jumping doesn't strip the speed
+    /// bonus away. Stamina is CS2's own jump/land fatigue value - it rises on every jump and landing
+    /// and reduces max speed until it decays, which is why a boosted player visibly slows the moment
+    /// they leave the ground. GameModifierBunnyHop already zeroes it for exactly this reason; this
+    /// applies the same proven fix to Speedhack. Turn off to keep vanilla jump fatigue.
+    /// </summary>
+    public bool RemoveJumpStaminaPenalty { get; set; } = true;
 }
 
 public class RandomHealthConfig
@@ -160,7 +195,7 @@ public class RandomHealthConfig
     public int MaxHealth { get; set; } = 250;
 }
 
-public class DontMissConfig
+public class BoomerangBulletsConfig
 {
     /// <summary>
     /// Max health granted to the assigned player while active, restored to normal on disable -
@@ -176,7 +211,7 @@ public class SmallPlayersConfig
     public int MaxHealth { get; set; } = 50;
 }
 
-public class LeadBootsConfig
+public class HeavyBootsConfig
 {
     /// <summary>Movement speed multiplier (VelocityModifier mechanism) - below 1.0 to feel "heavy".</summary>
     public float SpeedMultiplier { get; set; } = 0.5f;
@@ -221,13 +256,13 @@ public class JetpackConfig
     public float GaugeUpdateIntervalSeconds { get; set; } = 0.2f;
 }
 
-public class BhopConfig
+public class BunnyHopConfig
 {
     /// <summary>Upward velocity (units/sec) applied on each auto-triggered jump while holding jump and grounded - CS2's own normal jump impulse is ~301, matched here since this is meant to feel like normal bhop, not a boosted jump.</summary>
     public float JumpVelocityZ { get; set; } = 301f;
 }
 
-public class BiggerExplosionsConfig
+public class AtomicExplosionsConfig
 {
     /// <summary>Multiplier applied to DMG_BLAST damage dealt by the assigned player's grenades.</summary>
     public float DamageMultiplier { get; set; } = 3.0f;
@@ -245,7 +280,7 @@ public class IncreasedSpreadConfig
     public float AccuracyPenalty { get; set; } = 1.15f;
 }
 
-public class PoisonSmokeConfig
+public class PoisonousSmokeConfig
 {
     /// <summary>Damage dealt once per tick (see TickIntervalSeconds in code) to each enemy standing inside the assigned player's smoke.</summary>
     public float DamagePerTick { get; set; } = 5f;
@@ -343,7 +378,7 @@ public class WeaponRouletteConfig
     public int SpinFrameCount { get; set; } = 30;
 }
 
-public class KamikazeConfig
+public class SuicideBomberConfig
 {
     /// <summary>How many live HE grenades are dropped near the assigned player's body on death.</summary>
     public int GrenadeCount { get; set; } = 3;
@@ -398,6 +433,73 @@ public class MasterZeusConfig
 
     /// <summary>Cooldown used only if mp_taser_recharge_time somehow can't be read live.</summary>
     public float FallbackCooldownSeconds { get; set; } = 2f;
+
+    /// <summary>
+    /// Particle dispatched at each point of the muzzle-to-target lightning chain on every extended-
+    /// range zap. Composite/wrapper particles (e.g. particles/unified_weapon_fx/weapon_tracers_taser.vpcf,
+    /// the real native zap asset) were confirmed live to never render through any dispatch mechanism
+    /// tried, so this must be one of that wrapper's standalone children instead - wire1a is the actual
+    /// wire/bolt visual (as opposed to weapon_taser_glow.vpcf, a plain glow dot with no wire shape),
+    /// referenced as a child in the composite's decompiled .vpcf_c alongside wire1b and
+    /// weapon_taser_glow_impact.vpcf. Swap to another standalone particle
+    /// (e.g. one of the particles/generic_fx/fx_electricspark_*.vpcf assets) if this doesn't look
+    /// right once tested.
+    /// </summary>
+    public string LightningParticlePath { get; set; } = "particles/weapons/cs_weapon_fx/weapon_tracers_taser_wire1a.vpcf";
+
+    /// <summary>Second particle spawned alongside LightningParticlePath on every strand (same control points) - wire1a and wire1b are siblings in the real taser tracer's m_Children list, so layering both gives a denser combined visual than either alone. Empty string disables it.</summary>
+    public string LightningSecondaryParticlePath { get; set; } = "particles/weapons/cs_weapon_fx/weapon_tracers_taser_wire1b.vpcf";
+
+    /// <summary>Seconds the spawned lightning strand entities are kept alive before being despawned - long enough for each strand's particle playback to finish without leaking entities at repeated-zap frequency. Bumped from the particle's own ~1.4-1.8s natural fade so a slow client/late join still gets the full effect, though the particle's own baked-in fade timing (not this value) is what actually governs how long it stays visible.</summary>
+    public float LightningLifetimeSeconds { get; set; } = 3f;
+
+    /// <summary>
+    /// Number of straight segments the muzzle-to-target line is split into, each spawned as its own
+    /// particle with control point 0 = segment start and control point 1 = segment end. This is the
+    /// lever that controls how straight the bolt looks: wire1a's own path params bulge the path by
+    /// m_flBulge = 1.0, which behaves as a fraction of path length, so one segment spanning the whole
+    /// extended range produces an enormous sideways arc (barely noticeable on the native short-range
+    /// zap, very obvious across thousands of units). More segments means each bulge is proportionally
+    /// smaller, so the line reads as slightly jagged lightning rather than one giant swerve.
+    /// Total entities per zap is roughly segments x strands x 2 (wire1a + wire1b), so raising this a
+    /// lot is not free.
+    /// </summary>
+    public int LightningChainSegments { get; set; } = 8;
+
+    /// <summary>Number of parallel bolts spawned per zap, each independently jittered off the centre line - higher values look denser. Kept at 1 by default because segmentation already provides visual richness and total entity count multiplies by this.</summary>
+    public int LightningStrandCount { get; set; } = 1;
+
+    /// <summary>Max perpendicular offset (units) randomly applied to each strand beyond the first, so multiple strands read as a bundle of distinct bolts instead of perfectly overlapping copies that just look like one weak strand.</summary>
+    public float LightningStrandJitterDistance { get; set; } = 5f;
+
+    /// <summary>
+    /// Where the bolt visually starts, as an offset from the shooter's eye position along their own
+    /// forward/right/up axes. This is purely cosmetic and deliberately separate from
+    /// MuzzleOffsetDistance, which positions the gameplay trace and must not be retuned for looks.
+    /// An approximation is unavoidable: the SDK exposes no way to read a model's real muzzle_flash
+    /// attachment position, so the weapon's actual muzzle can't be queried. Defaults put the bolt
+    /// forward of, right of, and below the eye, roughly where the world model's barrel sits.
+    /// Note the bolt is a world-space effect, so it lines up with the world model other players see;
+    /// it can't also line up with the shooter's own first-person viewmodel, which is rendered
+    /// separately and positioned differently.
+    /// </summary>
+    public float LightningMuzzleForwardOffset { get; set; } = 24f;
+
+    /// <summary>Sideways offset of the bolt's visual start point from the shooter's eye - positive is to their right, matching a right-handed weapon hold. See LightningMuzzleForwardOffset.</summary>
+    public float LightningMuzzleRightOffset { get; set; } = 8f;
+
+    /// <summary>Vertical offset of the bolt's visual start point from the shooter's eye - negative drops it below eye level, where the weapon actually sits. See LightningMuzzleForwardOffset.</summary>
+    public float LightningMuzzleUpOffset { get; set; } = -6f;
+
+    /// <summary>
+    /// Minimum seconds between lightning bolts from the same player, enforced inside the render call
+    /// itself rather than at any one call site, so every trigger path is covered. The real zap is
+    /// already gated by mp_taser_recharge_time well above this, so at the default value this never
+    /// interferes with normal play - it exists purely as a spam backstop, since each bolt spawns
+    /// roughly segments x strands x 2 entities and an ungated trigger firing at weapon rate would
+    /// flood the entity list. Set to 0 to disable the guard entirely.
+    /// </summary>
+    public float LightningCooldownSeconds { get; set; } = 0.5f;
 }
 
 public class PlantAnywhereConfig
@@ -409,7 +511,7 @@ public class PlantAnywhereConfig
     public float BombTimerSeconds { get; set; } = 75f;
 }
 
-public class FlankTeleportConfig
+public class FlankerConfig
 {
     /// <summary>Seconds before the teleport becomes usable at the start of each round/life - deliberately separate from (and longer than) CooldownSeconds, so it can't be used the instant a round begins.</summary>
     public float RoundStartCooldownSeconds { get; set; } = 20f;
@@ -432,14 +534,68 @@ public class SpinRevealConfig
     /// <summary>Seconds between name changes at the very start of the spin - fast enough to actually blur rather than be readable.</summary>
     public float StartIntervalSeconds { get; set; } = 0.025f;
 
-    /// <summary>Seconds between name changes right before landing on the real result - slow (the "ease out").</summary>
-    public float EndIntervalSeconds { get; set; } = 0.45f;
+    /// <summary>
+    /// Seconds between name changes right before landing on the real result - slow (the "ease out").
+    ///
+    /// Kept above the ~150ms center-HTML render floor (see DescriptionScrambleFrames for the full
+    /// explanation) so the last few frames, and the landing itself, always render.
+    /// </summary>
+    public float EndIntervalSeconds { get; set; } = 0.18f;
 
-    /// <summary>How many random names to cycle through before landing on the real result.</summary>
-    public int SpinCount { get; set; } = 30;
+    /// <summary>
+    /// How many random names to cycle through before landing on the real result.
+    ///
+    /// This and EndIntervalSeconds together set the spin's length: the interval eases quadratically
+    /// from StartIntervalSeconds to EndIntervalSeconds across this many frames, so the total is the
+    /// sum of that curve, not count x average. 52 frames ending at 0.18s runs ~4.0s at roughly 77ms
+    /// per frame - deliberately a lot of fast frames rather than fewer slow ones, so the names blur
+    /// past instead of ticking over one at a time.
+    ///
+    /// Budgeted against a standard 15s freeze time: 1s initial delay (ScheduleFreezeTimeBanner) + 4s
+    /// spin + 10s reveal hold = 15s, so the popup clears exactly as the round goes live.
+    ///
+    /// Note this is per-player when RandomizePlayers is on - each assigned player runs their own
+    /// spin, so the message count scales with player count.
+    /// </summary>
+    public int SpinCount { get; set; } = 52;
 
-    /// <summary>How long the real result stays on screen once the spin lands on it.</summary>
-    public float RevealDurationSeconds { get; set; } = 15f;
+    /// <summary>How long the real result (name + description) stays on screen once the spin lands on it. Sized so 1s delay + 4s spin + this = a standard 15s freeze time, clearing right as the round starts.</summary>
+    public float RevealDurationSeconds { get; set; } = 10f;
+
+    /// <summary>Whether each revealed modifier's description is shown on its own line under the name.</summary>
+    public bool ShowDescription { get; set; } = true;
+
+    /// <summary>
+    /// Whether the description wipes in with a left-to-right scramble instead of appearing at once.
+    /// Only affects the description - the modifier-name spin above it is unchanged either way.
+    /// </summary>
+    public bool DescriptionScrambleEnabled { get; set; } = true;
+
+    /// <summary>Total time the description scramble takes to resolve, from blank to fully readable.</summary>
+    public float DescriptionScrambleDurationSeconds { get; set; } = 0.8f;
+
+    /// <summary>
+    /// How many frames the scramble is drawn in - the one number here worth tuning by eye.
+    ///
+    /// Each frame is a separate center-HTML message, and the client rebuilds the whole panel per
+    /// message rather than drawing it like a normal render frame, so this is bounded by panel
+    /// replacement rate, not by client FPS. The evidence in this codebase is genuinely mixed:
+    /// GameModifierWeaponRoulette measured frames being silently swallowed at ~67ms and settled on
+    /// 150ms, yet StartIntervalSeconds above runs the name spin at 25ms and visibly works. The likely
+    /// reconciliation is that a dropped frame mid-churn is invisible while a dropped FINAL frame is
+    /// obvious - which is exactly what that modifier reported.
+    ///
+    /// So this starts ambitious (20 frames over 0.8s = 40ms each) and the landing frame is held
+    /// separately via DescriptionHoldMs. If the wipe looks stuttery live, step down to 10 or 5.
+    /// </summary>
+    public int DescriptionScrambleFrames { get; set; } = 20;
+
+    /// <summary>
+    /// How long the fully-resolved description is held immediately after the scramble finishes,
+    /// deliberately well clear of the frame interval above so the readable text can never be the
+    /// message that gets swallowed. Raise this first if the final line ever fails to appear.
+    /// </summary>
+    public int DescriptionHoldMs { get; set; } = 250;
 
     /// <summary>
     /// CS2 soundevent name played on every spin-frame tick (each name flip during the animation) -
@@ -509,7 +665,7 @@ public class SpectatorHudConfig
     public float RefreshIntervalSeconds { get; set; } = 0.2f;
 }
 
-public class DodgyGrenadesConfig
+public class ChineseGrenadesConfig
 {
     /// <summary>Minimum possible fuse length, in seconds, rolled fresh for each HE/flashbang/smoke thrown.</summary>
     public float MinFuseSeconds { get; set; } = 0.1f;

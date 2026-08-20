@@ -18,19 +18,19 @@ public abstract class GameModifierRemoveWeapons : GameModifierBase
     private readonly HashSet<int> _grantInProgress = [];
     private Guid _spawnHookId;
 
-    /// <summary>Weapon categories this modifier strips. Ranged-weapon-restricting modifiers strip everything but knives; GrenadesOnly leaves grenades alone.</summary>
+    /// <summary>Weapon categories this modifier strips. Ranged-weapon-restricting modifiers strip everything but knives; WalkingGrenadier leaves grenades alone.</summary>
     protected abstract HashSet<CSWeaponType> TypesToStrip { get; }
 
     /// <summary>
     /// Opt-in for a modifier that's genuinely global in scope (e.g. one driven by a server-wide
-    /// cvar, like the now-removed KnivesOnly). Both current subclasses (GrenadesOnly, RandomLoadout)
+    /// cvar, like the now-removed KnivesOnly). Both current subclasses (WalkingGrenadier, RandomLoadout)
     /// are per-player-scoped and override this to false - broadcasting "weapons restored" to the
     /// whole server when only one player's weapons were ever touched was misleading everyone else
     /// into thinking it affected them too.
     /// </summary>
     protected virtual bool AnnounceRemovalGlobally => true;
 
-    /// <summary>Kept as an alias of CSRollUtils.AllRangedWeaponTypes (relocated there so GameModifierFullInvisibility can reuse it without inheriting this class).</summary>
+    /// <summary>Kept as an alias of CSRollUtils.AllRangedWeaponTypes (relocated there so GameModifierVanish can reuse it without inheriting this class).</summary>
     protected static HashSet<CSWeaponType> AllRangedWeaponTypes => CSRollUtils.AllRangedWeaponTypes;
 
     protected override void OnRegistered()
@@ -210,7 +210,7 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = [
-            "GrenadesOnly",
+            "WalkingGrenadier",
         ];
     }
 
@@ -305,7 +305,7 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
 /// Bug fix: this used to also give molotov/smoke/flashbang once at spawn - per explicit request this
 /// is unlimited HE and nothing else, so GiveReplacementWeapons only ever gives weapon_hegrenade now.
 ///
-/// Bug fix: this used to be bolted onto ModifierConfig/GrenadesOnly.cfg, which set sv_infinite_ammo
+/// Bug fix: this used to be bolted onto ModifierConfig/WalkingGrenadier.cfg, which set sv_infinite_ammo
 /// 1 (and sv_cheats 1 to allow it) server-wide - infinite ammo for every weapon, for every player on
 /// the server, not just unlimited HE grenades for whoever rolled this. The unlimited-HE effect never
 /// actually needed that cvar: OnGrenadeThrown below already re-gives a fresh HE directly to the
@@ -319,15 +319,15 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
 /// holding literally nothing cleanly (confuses weapon-switch/inventory state). Keeping the knife
 /// guarantees there's always at least one weapon in hand, throw or no throw.
 /// </summary>
-public sealed class GameModifierGrenadesOnly : GameModifierRemoveWeapons
+public sealed class GameModifierWalkingGrenadier : GameModifierRemoveWeapons
 {
     private const string HeGrenadeName = "weapon_hegrenade";
 
     private Guid _thrownHookId;
 
-    public GameModifierGrenadesOnly()
+    public GameModifierWalkingGrenadier()
     {
-        Name = "GrenadesOnly";
+        Name = "WalkingGrenadier";
         Description = "Buy menu is disabled, unlimited HE grenades only";
         SupportsRandomRounds = true;
         // Bug fix: this was missing SupportsPerPlayerRandomization, so when it got randomly rolled
