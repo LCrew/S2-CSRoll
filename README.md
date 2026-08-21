@@ -5,7 +5,10 @@
   <p>A chaos-mod style plugin for CS2, built on <a href="https://swiftlys2.net">SwiftlyS2</a>.</p>
 </div>
 
-Players roll random modifiers - like Jetpack, Speedhack, MasterZeus, or SuicideBomber - that apply for a round.
+Each round all players roll a random modifiers that apply for a round.
+|  |  |
+|--|--|
+| ![demo](./demo.gif) | ![demo](./demo2.gif) |
 
 ## Modifier List
 
