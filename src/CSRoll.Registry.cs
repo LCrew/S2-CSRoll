@@ -103,5 +103,13 @@ public partial class CSRoll
         () => new GameModifierRegeneration(),
         () => new GameModifierBounty(),
         () => new GameModifierWeaponRoulette(),
+
+        // New: Recall (Inspect-Weapon rewind), plus the two modifier-granting ones - ButterflyEffect
+        // rerolls a second modifier onto its carrier on a timer, Mimic copies one off whoever they
+        // killed. Both hand out other registered modifiers via ModifierRuntime's grant/revoke pair,
+        // which is why they're mutually incompatible.
+        () => new GameModifierRecall(),
+        () => new GameModifierButterflyEffect(),
+        () => new GameModifierMimic(),
     ];
 }

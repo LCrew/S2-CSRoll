@@ -141,7 +141,7 @@ public sealed class GameModifierRegeneration : GameModifierBase
                    "<span class=\"fontWeight-Bold\">Health: </span>" +
                    $"<span color=\"{color}\" class=\"fontWeight-Bold\">{displayedRate:0} HP/s</span>";
 
-        player.SendCenterHTML(html, HtmlDurationMs);
+        SetHud(slot, html);
     }
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)

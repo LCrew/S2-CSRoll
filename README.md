@@ -58,6 +58,9 @@ Each round all players roll a random modifiers that apply for a round.
 | Regeneration | Heals over time - faster standing still |
 | Bounty | Damage enemies for bonus money |
 | Weapon Roulette | Random weapon, re-rolled often |
+| Recall | Press Inspect to rewind a few seconds |
+| Butterfly Effect | A 2nd modifier, re-rolled every 20s |
+| Mimic | Kills steal the victim's modifier |
 
 Display names and descriptions are fully customizable via `resources/translations/en.jsonc`.
 

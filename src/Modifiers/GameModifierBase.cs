@@ -143,7 +143,48 @@ public abstract class GameModifierBase
     /// on every disconnect so a freed slot is never still "owned" by anyone.
     ///
     /// </summary>
-    internal void RemoveAssignedSlot(int slot) => _assignedSlots.Remove(slot);
+    internal void RemoveAssignedSlot(int slot)
+    {
+        if (!_assignedSlots.Remove(slot))
+        {
+            return;
+        }
+
+        // Bug fix: Deactivate() clears this modifier's HUD blocks for everyone, but that only runs
+        // when the LAST owner loses it. Un-scoping one player off a modifier that other players still
+        // have takes this path instead, which left that player's block published forever - nothing
+        // ever refreshed it (the modifier no longer counts them as assigned) and nothing ever
+        // retracted it. Reachable as soon as one modifier can grant another: ButterflyEffect re-rolls
+        // a granted Jetpack away from its carrier while an unrelated player also has Jetpack, and the
+        // carrier keeps a frozen fuel gauge on screen for the rest of the round.
+        Runtime.ClearHudSection(this, slot);
+
+        OnSlotsRemoved([slot]);
+    }
+
+    /// <summary>
+    /// Called when a slot is un-scoped from an ALREADY-ACTIVE modifier, which (like OnSlotsAdded, its
+    /// mirror) deliberately does not run OnDisabled.
+    ///
+    /// Bug fix: this is what makes it safe for one modifier to grant another. ButterflyEffect and
+    /// Mimic hand out other registered modifiers per-slot; if THEY are themselves granted to someone
+    /// and later revoked (Mimic steals ButterflyEffect, then steals something else off the next kill),
+    /// they stop being assigned to that player - but whatever they had handed out was still scoped
+    /// onto them, with no OnDisabled to clean it up, so it was stranded on that player until the round
+    /// ended. Implementers release per-slot state here.
+    /// </summary>
+    protected virtual void OnSlotsRemoved(IReadOnlyCollection<int> slots)
+    {
+    }
+
+    /// <summary>Publishes this modifier's persistent HUD block for one player. See ModifierRuntime._hudSections for why modifiers must not call SendCenterHTML directly for this.</summary>
+    protected void SetHud(int slot, string html, int priority = 0) => Runtime.SetHudSection(this, slot, html, priority);
+
+    /// <summary>Whether another modifier is currently drawing its own HUD block for this player - see ModifierRuntime.HasHudSection.</summary>
+    protected bool HasHud(GameModifierBase other, int slot) => Runtime.HasHudSection(other, slot);
+
+    /// <summary>Retracts this modifier's HUD block for one player (e.g. while they're dead).</summary>
+    protected void ClearHud(int slot) => Runtime.ClearHudSection(this, slot);
 
     /// <summary>
     /// Bug fix: true when `slot` is the ONLY slot this modifier is currently assigned to - i.e.
@@ -167,6 +208,12 @@ public abstract class GameModifierBase
     internal void Deactivate()
     {
         OnDisabled();
+
+        // Unconditional, so no modifier can leave a stale block on a player's HUD after it ends -
+        // this is cleanup every HUD-drawing modifier would otherwise have to remember in its own
+        // OnDisabled, and forgetting it leaves text on screen with nothing behind it.
+        Runtime.ClearHudSections(this);
+
         CvarConfig?.Remove();
         IsActive = false;
         _assignedSlots.Clear();

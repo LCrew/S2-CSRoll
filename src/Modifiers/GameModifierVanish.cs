@@ -289,28 +289,12 @@ public sealed class GameModifierVanish : GameModifierInvisibleBase
         }
 
         var html = "<span color=\"gold\" class=\"fontWeight-Bold\">Vanish</span><br/>" +
-                   BuildBarOnlyHtml(ratio, barColor) + "<br/>" +
+                   CSRollUtils.BuildBarHtml(ratio, barColor, GaugeBarWidth) + "<br/>" +
                    statusLine;
 
-        player.SendCenterHTML(html, HtmlDurationMs);
+        SetHud(slot, html);
     }
 
-    /// <summary>
-    /// Just the bar, without BuildGaugeHtml's own label line - this HUD supplies its own name line
-    /// above and its own status line below, so the shared helper's built-in label would insert a
-    /// blank line between them.
-    /// </summary>
-    private static string BuildBarOnlyHtml(float ratio, string barColor)
-    {
-        var clamped = Math.Clamp(ratio, 0f, 1f);
-        var filled = (int)Math.Round(clamped * GaugeBarWidth);
-        var empty = GaugeBarWidth - filled;
-
-        var filledSegment = filled > 0 ? $"<span color=\"{barColor}\">{new string('█', filled)}</span>" : "";
-        var emptySegment = empty > 0 ? $"<span color=\"grey\">{new string('░', empty)}</span>" : "";
-
-        return $"<span class=\"fontWeight-Bold {CSRollUtils.MonoFontClass}\">[{filledSegment}{emptySegment}] {(int)Math.Round(clamped * 100f),3}%</span>";
-    }
 
     /// <summary>Re-seeds the cooldown on respawn and clears any vanish that somehow survived the life, mirroring Flanker's per-spawn reset.</summary>
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)

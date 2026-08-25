@@ -52,6 +52,15 @@ public class CSRollConfig
     /// <summary>Tunables for the Vanish modifier (Inspect-Weapon-triggered brief invisibility + total disarm, on a cooldown).</summary>
     public VanishConfig Vanish { get; set; } = new();
 
+    /// <summary>Tunables for the Recall modifier (Inspect-Weapon-triggered rewind to a recent position/health, on a cooldown).</summary>
+    public RecallConfig Recall { get; set; } = new();
+
+    /// <summary>Tunables for the Butterfly Effect modifier (the carrier's extra modifier is swapped for a different random one on an interval).</summary>
+    public ButterflyEffectConfig ButterflyEffect { get; set; } = new();
+
+    /// <summary>Tunables for the Mimic modifier (steal the modifier of whoever you last killed or assisted on).</summary>
+    public MimicConfig Mimic { get; set; } = new();
+
     /// <summary>Tunables for the HeavyBoots modifier (slower movement - now per-player, previously a server-wide sv_maxspeed cvar).</summary>
     public HeavyBootsConfig HeavyBoots { get; set; } = new();
 
@@ -94,8 +103,20 @@ public class CSRollConfig
     /// <summary>Tunables for the Flanker modifier (Inspect-Weapon-triggered teleport behind a random enemy, on a cooldown).</summary>
     public FlankerConfig Flanker { get; set; } = new();
 
-    /// <summary>Modifier names excluded from random rolls unless the relevant team has at least this many players - e.g. Saint is pointless in a 1v1 (no teammate to ever revive).</summary>
-    public string[] RequiresMultiplePlayersPerTeam { get; set; } = ["Saint"];
+    /// <summary>
+    /// Modifiers excluded from a player's random roll unless THEIR OWN team has at least 2 players.
+    ///
+    /// Two distinct reasons a modifier lands here:
+    /// - it needs a teammate to act on at all (Saint revives a dead teammate - in a 1v1 there is
+    ///   never one, so it can only ever no-op)
+    /// - it only pays off AFTER the roller dies, which in a 1v1 is the moment the round ends, so
+    ///   nothing is left to affect (SwapOnDeath swaps into a round that's already over;
+    ///   SuicideBomber's grenades detonate with no live round around them)
+    ///
+    /// Checked per-roller, not server-wide, so on a 1v5 the lone player is excluded while the
+    /// five-stack still rolls these normally.
+    /// </summary>
+    public string[] RequiresMultiplePlayersPerTeam { get; set; } = ["Saint", "SwapOnDeath", "SuicideBomber"];
 
     /// <summary>Tunables for the "slot machine" style spin animation shown in the center-HTML popup before the real assigned modifier(s) are revealed.</summary>
     public SpinRevealConfig SpinReveal { get; set; } = new();
@@ -169,6 +190,69 @@ public class VanishConfig
     /// misbehaves live, turn this off - everything except the knife still gets stripped.
     /// </summary>
     public bool RemoveKnife { get; set; } = true;
+}
+
+public class RecallConfig
+{
+    /// <summary>How far back a rewind goes. The teleport targets the oldest recorded sample still inside this window, so it lands within one SampleIntervalSeconds of this value.</summary>
+    public float RewindSeconds { get; set; } = 3f;
+
+    /// <summary>Seconds before the power can be used again, measured from the moment it fires.</summary>
+    public float CooldownSeconds { get; set; } = 20f;
+
+    /// <summary>Cooldown seeded on activation and on every respawn, so the power isn't available the instant a round begins.</summary>
+    public float RoundStartCooldownSeconds { get; set; } = 5f;
+
+    /// <summary>
+    /// How often a position/health snapshot is taken. Not every tick on purpose: at 64 tick a 3 second
+    /// window would be ~192 samples per player per life for no visible gain, where 0.1s gives 30 and is
+    /// still accurate to within a tenth of a second of the intended moment.
+    /// </summary>
+    public float SampleIntervalSeconds { get; set; } = 0.1f;
+
+    /// <summary>
+    /// How long the rewind itself takes to play out. The player is dragged back along the exact path
+    /// they walked, one interpolated step per tick, instead of being snapped there instantly - so a
+    /// 3 second rewind replayed over 0.4s reads as a fast "trace back" rather than a teleport.
+    ///
+    /// They keep camera control throughout and can't act until it finishes. Raising this makes the
+    /// rewind prettier but leaves them a sitting target for longer, since they can't shoot or steer
+    /// while it runs.
+    /// </summary>
+    public float RewindAnimationSeconds { get; set; } = 0.4f;
+}
+
+public class ButterflyEffectConfig
+{
+    /// <summary>Seconds between swaps. Each swap revokes the currently granted extra modifier and grants a different random one in its place.</summary>
+    public float SwapIntervalSeconds { get; set; } = 20f;
+
+    /// <summary>Delay before the first swap, so the carrier isn't handed a second modifier the instant the round starts (and while the reveal popup is still playing).</summary>
+    public float FirstSwapDelaySeconds { get; set; } = 10f;
+
+    /// <summary>Whether each swap announces the new modifier's name to the affected player in chat. Off makes the modifier considerably more chaotic to play against.</summary>
+    public bool AnnounceSwaps { get; set; } = true;
+
+    /// <summary>
+    /// How long the slot-machine roll runs before landing on the new modifier. The roll STARTS this
+    /// many seconds before the countdown reaches zero (exactly as WeaponRoulette does), so it fills
+    /// the timer's final stretch and lands the moment the timer hits 0 rather than starting there.
+    /// The carrier has no extra modifier for the duration of the roll - that gap is the "rolling"
+    /// window, and it's why this shouldn't be pushed much higher.
+    /// </summary>
+    public float SpinDurationSeconds { get; set; } = 3f;
+
+    /// <summary>Number of names flashed during the roll. Widened automatically if the frame count would push individual frames below the 150ms floor the HUD needs to render them - see GameModifierButterflyEffect.MinFrameIntervalSeconds.</summary>
+    public int SpinFrameCount { get; set; } = 20;
+}
+
+public class MimicConfig
+{
+    /// <summary>Whether an assist counts as a steal, not just the killing blow.</summary>
+    public bool CountAssists { get; set; } = true;
+
+    /// <summary>Whether each steal announces the stolen modifier's name to the thief in chat.</summary>
+    public bool AnnounceSteals { get; set; } = true;
 }
 
 public class SpeedhackConfig

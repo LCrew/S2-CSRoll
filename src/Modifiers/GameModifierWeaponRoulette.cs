@@ -59,6 +59,9 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     private const int HtmlDurationMs = 400;
     private const float HtmlRefreshIntervalSeconds = 0.1f;
 
+    /// <summary>Fixed rendered width of the weapon-name field, so the countdown after it never moves while the roll flickers through names of different lengths. Sized by what fits on one line - see GameModifierButterflyEffect.NameFieldWidth for why that matters more than fitting the longest name.</summary>
+    private const int NameFieldWidth = 15;
+
     private sealed class SpinState
     {
         public int FrameIndex;
@@ -333,7 +336,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             _currentWeaponName[player.Slot] = spin.FinalWeaponName;
 
             var remaining = Math.Max(0f, _nextRerollTime - now);
-            player.SendCenterHTML(BuildStatusHtml(isRolling: false, spin.FinalWeaponName, remaining), HtmlDurationMs);
+            SetHud(player.Slot, BuildStatusHtml(spin.FinalWeaponName, remaining));
 
             if (Runtime.DebugMode)
             {
@@ -351,11 +354,27 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         // SpinDurationSeconds - so at SpinDurationSeconds <= 0 the trigger fired only 0.1s early but
         // the spin still took frameCount ticks to land, putting the new weapon AFTER the countdown
         // hit zero: exactly the defect the early-trigger change was made to fix. A negative value
-        // additionally produced a negative SendCenterHTML duration below. Both sites now read the
+        // additionally produced a negative panel duration back when this pushed center-HTML
+        // directly (it now publishes through the shared HUD composer). Both sites now read the
         // same clamped value.
         var interval = SpinDurationSeconds / frameCount;
         var randomName = CSRollUtils.GetRandomMainWeaponName(spin.Team);
-        player.SendCenterHTML(BuildStatusHtml(isRolling: true, randomName, 0f), (int)(interval * 1000) + 50);
+
+        // Spin frames go through the shared HUD composer too, rather than pushing center-HTML
+        // directly. A direct push would be overwritten within 100ms by the composer's next
+        // pass for this player (which is drawing every OTHER modifier's block for them), so a
+        // player running WeaponRoulette alongside anything else would see the animation shredded.
+        // Composing costs the frames some timing precision - they land quantized to the composer's
+        // 0.1s cadence rather than exactly on `interval` - which is harmless here: frames are held
+        // for at least MinFrameIntervalSeconds (0.15s) anyway, so quantizing re-pushes identical
+        // markup at worst. The per-frame tick sound below still fires on exact timing.
+        // The countdown keeps running through the roll rather than being replaced by a "Rolling"
+        // label. _nextRerollTime was already advanced to the NEXT cycle when the roll was triggered,
+        // so one interval is subtracted back off here to get THIS roll's landing moment - otherwise
+        // the timer would visibly jump forward by a full interval the instant the roll started,
+        // instead of counting smoothly down to zero as the new weapon lands.
+        var landingRemaining = Math.Max(0f, _nextRerollTime - Runtime.Config.WeaponRoulette.RerollIntervalSeconds - now);
+        SetHud(player.Slot, BuildStatusHtml(randomName, landingRemaining));
         CSRollUtils.PlaySoundToPlayer(Core, player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume, debugMode: Runtime.DebugMode);
 
         spin.FrameIndex++;
@@ -383,38 +402,31 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 
         var weaponName = _currentWeaponName.GetValueOrDefault(player.Slot, "-");
         var remaining = Math.Max(0f, _nextRerollTime - now);
-        player.SendCenterHTML(BuildStatusHtml(isRolling: false, weaponName, remaining), HtmlDurationMs);
+        SetHud(player.Slot, BuildStatusHtml(weaponName, remaining));
     }
 
-    /// <summary>Orange-family gradient for the "Rolling" text - gold through to a deep orange-red, matching the flat orange it replaces.</summary>
-    private static readonly string RollingGradientHtml = SwiftlyS2.Shared.HtmlGradient.GenerateGradientText("Rolling", "#FFD700", "#FF4500");
-
     /// <summary>
-    /// Single 4-line template shared by both the spin animation and the idle countdown, so there's
-    /// only ever one place building this modifier's HUD text. Line 2 and line 4 swap meaning based
-    /// on state: "Timer: Ns" / "[orange]Active:[default] weapon" while idle, or a gradient "Rolling"
-    /// / the current random spin-frame weapon name while spinning.
+    /// Two-line HUD: the modifier's title, then the active weapon with its countdown to the right.
     ///
-    /// The gradient was previously removed after live reports that no spin animation was ever
-    /// visible - but the actual cause (confirmed separately) was per-frame updates arriving faster
-    /// than the panel could render at all, not the gradient markup itself; see
-    /// GameModifierWeaponRoulette.MinFrameIntervalSeconds. Re-added now that the real cause is fixed.
+    /// Replaces a four-line block that put a gradient "Rolling" label on line 2 and the weapon on
+    /// line 4, with a blank line between them. The roll is legible without a label - the weapon name
+    /// visibly flickers - so the label was spending two lines to say what the animation already
+    /// showed. Dropping it also means the countdown no longer has to be hidden during the roll: one
+    /// line now reads the same way in both states, just with a name that stops changing when it
+    /// lands.
+    ///
+    /// Height matters more than usual here because the shared HUD composer stacks this block above
+    /// any other modifier's block for the same player (see ModifierRuntime._hudSections).
     /// </summary>
-    private static string BuildStatusHtml(bool isRolling, string weaponName, float secondsRemaining)
+    private static string BuildStatusHtml(string weaponName, float secondsRemaining)
     {
         var friendlyName = weaponName == "-" ? weaponName : CSRollUtils.GetFriendlyWeaponName(weaponName);
-
-        var line2 = isRolling
-            ? $"<span class=\"fontWeight-Bold\">{RollingGradientHtml}</span>"
-            : $"<span class=\"fontWeight-Bold\">Timer: {secondsRemaining:0.0}s</span>".Replace('.', ',');
-
-        var line4 = isRolling
-            ? friendlyName
-            : $"<span color=\"orange\" class=\"fontWeight-Bold\">Active:</span> {friendlyName}";
+        var timer = $"{secondsRemaining:0.0}s".Replace('.', ',');
 
         return "<span color=\"gold\" class=\"fontWeight-Bold\">Weapon Roulette</span><br/>" +
-               line2 + "<br/><br/>" +
-               line4;
+               CSRollUtils.BuildFixedWidthField(friendlyName, NameFieldWidth) +
+               $"<span class=\"{CSRollUtils.MonoFontClass}\">&nbsp;</span>" +
+               $"<span color=\"orange\" class=\"fontWeight-Bold {CSRollUtils.MonoFontClass}\">{timer}</span>";
     }
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
