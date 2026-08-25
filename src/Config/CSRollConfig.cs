@@ -425,8 +425,7 @@ public class MasterZeusConfig
     /// <summary>Max distance (units) the extended-range zap can reach - the single most balance-defining number for this modifier, previously a hardcoded constant.</summary>
     public float RangeDistance { get; set; } = 4000f;
 
-    /// <summary>Cosine of the aim-cone half-angle used for target acquisition - lower is a wider/more forgiving cone. ~0.85 is roughly a 60-degree full cone.</summary>
-    public float AimConeCosine { get; set; } = 0.85f;
+
 
     /// <summary>Distance the LOS trace's start point is nudged forward along the aim direction before tracing, clearing the shooter's own head hitbox so the trace doesn't immediately self-block.</summary>
     public float MuzzleOffsetDistance { get; set; } = 24f;

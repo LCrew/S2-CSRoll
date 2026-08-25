@@ -117,6 +117,17 @@ public sealed class ModifierRuntime
         return (int)(Math.Max(1f, seconds) * 1000);
     }
 
+    /// <summary>
+    /// Clears state holding a GlobalVars.CurrentTime value, which is map-relative and restarts near
+    /// zero on a map change - see CSRoll.OnMapLoad for the full explanation. A stale future deadline
+    /// would otherwise keep every modifier HUD suppressed until the new map's clock caught up to it.
+    /// </summary>
+    public void ResetMapRelativeTimeState()
+    {
+        _modifierHudSuppressedUntil = 0f;
+        _lastSpectatorHudUpdateTime.Clear();
+    }
+
     /// <summary>Extends the HUD blackout to at least <paramref name="seconds"/> from now - never shortens an existing one, so overlapping reveals can't cut each other short.</summary>
     private void SuppressModifierHudFor(float seconds)
     {

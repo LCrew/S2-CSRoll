@@ -31,12 +31,35 @@ public partial class CSRoll
     {
         _roundStartHookId = Core.GameEvent.HookPost<EventRoundStart>(OnRoundStart);
         _roundEndHookId = Core.GameEvent.HookPost<EventRoundEnd>(OnRoundEnd);
+        Core.Event.OnMapLoad += OnMapLoad;
     }
 
     private void UninitializeGameEvents()
     {
         Core.GameEvent.Unhook(_roundStartHookId);
         Core.GameEvent.Unhook(_roundEndHookId);
+        Core.Event.OnMapLoad -= OnMapLoad;
+    }
+
+    /// <summary>
+    /// Bug fix: GlobalVars.CurrentTime is map-relative and restarts near zero on every map change,
+    /// but any timestamp captured on the previous map keeps its old (large) value. Every
+    /// "now - stored &lt; interval" or "now &lt; deadline" comparison then reads as though the interval
+    /// had only just started, and stays that way until CurrentTime climbs back past the stale value.
+    ///
+    /// Reported live on a Best-of-3: after the first map change, random rounds never rolled again -
+    /// OnRoundStart's debounce below saw a hugely negative delta, took its early return, and (because
+    /// the timestamp is only written after that guard) never refreshed it, so every later round was
+    /// skipped too. A manual re-roll still worked because it deliberately bypasses that debounce,
+    /// and a plugin reload "fixed" it only because that reinitialises the field.
+    ///
+    /// Anything re-seeded on spawn or cleared on Deactivate self-heals; these are the values that
+    /// survive a map change untouched, so they're reset explicitly here.
+    /// </summary>
+    private void OnMapLoad(SwiftlyS2.Shared.Events.IOnMapLoadEvent @event)
+    {
+        _lastRoundStartHandledTime = float.NegativeInfinity;
+        Runtime.ResetMapRelativeTimeState();
     }
 
     public HookResult OnRoundStart(EventRoundStart @event)
@@ -44,6 +67,16 @@ public partial class CSRoll
         if (Runtime.RandomRoundsEnabled)
         {
             var now = Core.Engine.GlobalVars.CurrentTime;
+
+            // Time running backwards means the map clock restarted (see OnMapLoad). Belt-and-braces
+            // alongside the OnMapLoad reset: without this, a stale future timestamp would make the
+            // debounce below swallow every round start forever, since it returns before refreshing
+            // the timestamp that would otherwise let it recover.
+            if (now < _lastRoundStartHandledTime)
+            {
+                _lastRoundStartHandledTime = float.NegativeInfinity;
+            }
+
             if (now - _lastRoundStartHandledTime < RoundStartDebounceSeconds)
             {
                 return HookResult.Continue;

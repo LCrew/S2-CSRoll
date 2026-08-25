@@ -28,22 +28,24 @@ namespace CSRoll.Modifiers;
 /// explicit instruction: the shared-cvar fast recharge for everyone is preferred over a
 /// correctly-scoped recharge that no longer recharges fast at all.
 ///
-/// Extended range: CS2's zeus attack is a short native trace with no exposed range field, so target
-/// resolution here iterates every living enemy directly - within range, within a generous aim cone
-/// of the shooter's eye direction, and with a plain solid-only line-of-sight check (IgnoreEntity on
-/// both shooter and candidate pawns) - picking the closest qualifying target. The exact native
-/// "tased" stun/slow effect field wasn't identified - this applies a moderate amount of damage as a
-/// best-effort stand-in.
+/// Extended range: CS2's zeus attack is a short native trace with no exposed range field, so this
+/// fires its own straight hitscan ray along the aim direction out to RangeDistance and zaps whoever
+/// it strikes - the same thing the visible bolt depicts. The exact native "tased" stun/slow effect
+/// field wasn't identified, so this applies a flat amount of damage as a best-effort stand-in.
 ///
-/// Bug fix history: this traces/aims against candidatePawn.AbsOrigin (feet-level), which is the
-/// exact configuration live-confirmed working (back when this only dealt 15 damage - LOS correctly
-/// let real ranged hits through while still blocking on real obstructions). A later change swapped
-/// this to candidatePawn.EyePosition on a theory that an eye-to-feet trace clips the ground at long
-/// range - live !rolldebug testing showed that swap made LOS reject 100% of attempts, including a
-/// dead-on shot down a clearly open street, so it was a regression, not a fix, and has been reverted
-/// back to AbsOrigin. (LOS being required at all is deliberate: Wallhack should still be blocked by
-/// walls even with an extended-range zap - removing the check entirely was tried and immediately
-/// reverted since it let MasterZeus shoot through the whole map.)
+/// Bug fix history: acquisition was previously an aim-cone search - iterate every living enemy, keep
+/// those inside a cone around the aim direction, line-of-sight trace each, take the closest. It was
+/// reported live as killing a player roughly 15 degrees off-aim, and the cone width could not simply
+/// be tightened: the cone was measured to the target's AbsOrigin (feet), so from eye height a
+/// perfectly-aimed shot read as increasingly off-aim the closer the target was (~17 degrees at 150
+/// units, ~4.6 at 600). The wide cone existed to stop close-range zaps failing. A single ray has no
+/// such range-dependent skew, needs no width tuning, and folds line-of-sight in for free - anything
+/// that would have blocked the shot stops the ray first. Wallhack is still correctly blocked by
+/// walls, which was the reason LOS was required in the first place.
+///
+/// The ray needs MaskTrace.Player to hit players at all (Solid alone traces world geometry and
+/// passes through them) and the same func_buyzone veto the old LOS trace needed - without it the ray
+/// dies on the spawn trigger volume, live-confirmed via HitEntity=func_buyzone.
 ///
 /// Trigger mechanism: it's unconfirmed whether weapon_fire actually dispatches for a taser zap in
 /// this engine build (a taser is a short native melee-range trace, not a bullet), so this hooks it
@@ -334,103 +336,57 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         // collision, before tracing toward the target avoids that self-block.
         var traceOrigin = eyePosition + (forward * Runtime.Config.MasterZeus.MuzzleOffsetDistance);
 
+        // Target acquisition is a single straight hitscan along the aim direction - whoever the ray
+        // actually strikes is the target, exactly like the visible bolt suggests.
+        //
+        // This replaced an aim-cone search (iterate every living enemy, keep those inside a cone of
+        // the aim direction, LOS-trace each, take the closest). That was reported live as killing a
+        // player roughly 15 degrees off-aim, and the width was hard to tune away: the cone was
+        // measured to the target's feet, so a perfectly-aimed shot read as increasingly off-aim the
+        // closer the target got (~17 degrees at 150 units), forcing a very wide cone to stay usable.
+        // A ray has no such skew and needs no width tuning at all.
+        //
+        // It also folds the separate line-of-sight pass in: a ray that reaches a player necessarily
+        // wasn't stopped by anything first. MaskTrace.Player is what makes players hittable at all -
+        // MaskTrace.Solid alone traces world geometry and passes straight through them. The buyzone
+        // veto is the same one the old LOS trace needed; without it the ray dies on the trigger volume
+        // in spawn (live-confirmed via HitEntity=func_buyzone).
+        var shotParams = TraceParams.Builder(TraceParams.DefaultLine())
+            .InteractWith(MaskTrace.Solid | MaskTrace.Player)
+            .HitTrigger(false)
+            .WithShouldHitEntity(entity => entity.DesignerName is not ("func_buyzone" or "func_bomb_target" or "func_hostage_rescue"))
+            .IgnoreEntity(shooterPawn)
+            .Build();
+
+        var shotEnd = traceOrigin + (forward * Runtime.Config.MasterZeus.RangeDistance);
+        var shotResult = Core.Trace.TraceShapeLine(traceOrigin, shotEnd, shotParams);
+
+        // Fraction is used rather than HitPoint - HitPoint is only populated when ExactHitPoint is
+        // set and otherwise reads as world origin, which showed up live as bolts ending at a fixed
+        // spot on the map.
+        var lightningEndpoint = traceOrigin + ((shotEnd - traceOrigin) * Math.Min(shotResult.Fraction, 1f));
+
         IPlayer? bestTarget = null;
-        var bestTargetPosition = default(Vector);
-        var bestDistanceSquared = float.MaxValue;
-        var candidatesConsidered = 0;
-        var rejectedOutOfRange = 0;
-        var rejectedAimCone = 0;
-        var rejectedBlockedLos = 0;
-
-        foreach (var candidate in Core.PlayerManager.GetAlive())
+        if (shotResult.HitPlayer(out var hitPlayer) && hitPlayer is { IsValid: true } victim &&
+            !CSRollUtils.IsSamePlayer(victim, shooter) && victim.Controller?.Team != shooter.Controller?.Team)
         {
-            // Bug fix: self-target check used to compare SteamID - bot SteamID is fixed at 0, so a
-            // bot targeting a different bot was misread as targeting itself and skipped.
-            if (CSRollUtils.IsSamePlayer(candidate, shooter) || candidate.Controller?.Team == shooter.Controller?.Team ||
-                candidate.PlayerPawn is not { } candidatePawn || candidatePawn.AbsOrigin is not { } candidatePosition)
-            {
-                continue;
-            }
-
-            candidatesConsidered++;
-
-            var toCandidate = candidatePosition - traceOrigin;
-            var distanceSquared = toCandidate.LengthSquared();
-            var rangeDistance = Runtime.Config.MasterZeus.RangeDistance;
-            if (distanceSquared > rangeDistance * rangeDistance || distanceSquared >= bestDistanceSquared)
-            {
-                rejectedOutOfRange++;
-                continue;
-            }
-
-            if (Vector.Dot(forward, toCandidate.Normalized()) < Runtime.Config.MasterZeus.AimConeCosine)
-            {
-                rejectedAimCone++;
-                continue;
-            }
-
-            // Bug fix: live !rolldebug logging (StartInSolid=False, HitEntity=func_buyzone) confirmed the
-            // trace was blocking on a non-solid trigger volume, not real geometry or a self-hit - buy
-            // zones, bomb/rescue zones etc. should never physically block a line of sight.
-            // HitTrigger(false) alone didn't stop it (func_buyzone apparently isn't classified as a
-            // "trigger" for this trace's HitTrigger flag specifically, despite being non-solid
-            // gameplay-wise), so this instead uses ShouldHitEntity to explicitly veto known trigger-
-            // zone designer names regardless of how the engine's own mask/trigger classification
-            // treats them - a direct, engine-classification-independent exclusion.
-            var losParams = TraceParams.Builder(TraceParams.DefaultLine())
-                .InteractWith(MaskTrace.Solid)
-                .HitTrigger(false)
-                .WithShouldHitEntity(entity => entity.DesignerName is not ("func_buyzone" or "func_bomb_target" or "func_hostage_rescue"))
-                .IgnoreEntity(shooterPawn)
-                .IgnoreEntity(candidatePawn)
-                .Build();
-
-            var losResult = Core.Trace.TraceShapeLine(traceOrigin, candidatePosition, losParams);
-            if (losResult.DidHit)
-            {
-                rejectedBlockedLos++;
-
-                if (Runtime.DebugMode)
-                {
-                    Core.Logger.LogInformation("[CSRoll] MasterZeus LOS blocked - StartInSolid={StartInSolid} HitEntity={Entity} Fraction={Fraction:0.###}",
-                        losResult.StartInSolid, losResult.Entity?.DesignerName ?? "null", losResult.Fraction);
-                }
-
-                continue;
-            }
-
-            bestTarget = candidate;
-            bestTargetPosition = candidatePosition;
-            bestDistanceSquared = distanceSquared;
+            bestTarget = victim;
         }
 
-        // Play the lightning visual on every zap, hit or miss - not gated on bestTarget - so a whiff
-        // still visibly reaches exactly as far as it looked like it should. On a miss there's no
-        // target position to aim at, so this traces straight along the aim direction out to
-        // RangeDistance and uses wherever that trace actually stops.
-        var lightningEndpoint = bestTargetPosition;
-        if (bestTarget is null)
+        if (Runtime.DebugMode)
         {
-            var missParams = TraceParams.Builder(TraceParams.DefaultLine())
-                .InteractWith(MaskTrace.Solid)
-                .IgnoreEntity(shooterPawn)
-                .Build();
-            var missTraceEnd = traceOrigin + (forward * Runtime.Config.MasterZeus.RangeDistance);
-            var missResult = Core.Trace.TraceShapeLine(traceOrigin, missTraceEnd, missParams);
-            // Bug fix: TraceResult.HitPoint is only populated when ExactHitPoint is true - otherwise
-            // it reads as a zero Vector (world origin), which showed up live as the chain's endpoint
-            // landing at a fixed "null" spot on the map. Fraction is always reliably computed as part
-            // of DidHit itself, so interpolating along the trace segment with it (clamped to <=1,
-            // since a no-hit trace reports Fraction >1) is the reliable way to get the actual stop
-            // position.
-            lightningEndpoint = traceOrigin + ((missTraceEnd - traceOrigin) * Math.Min(missResult.Fraction, 1f));
+            Core.Logger.LogInformation("[CSRoll] MasterZeus shot - DidHit={DidHit} Fraction={Fraction:0.###} HitEntity={Entity} Target={Target}",
+                shotResult.DidHit, shotResult.Fraction, shotResult.Entity?.DesignerName ?? "null",
+                bestTarget?.Controller is { IsValid: true } debugController ? debugController.PlayerName : "none");
         }
 
+        // The bolt always renders, hit or miss - lightningEndpoint above is wherever the ray
+        // actually stopped, so a whiff visibly reaches exactly as far as it looked like it should.
         SpawnLightningEffect(shooter.Slot, GetLightningMuzzlePosition(eyePosition, shooterPawn.EyeAngles), lightningEndpoint);
 
         if (bestTarget is null)
         {
-            LogZapDebug(shooter, $"no qualifying target ({candidatesConsidered} enemy candidate(s): {rejectedOutOfRange} out of range, {rejectedAimCone} outside aim cone, {rejectedBlockedLos} blocked LOS)");
+            LogZapDebug(shooter, $"missed - ray stopped at fraction {shotResult.Fraction:0.###} on {shotResult.Entity?.DesignerName ?? "nothing"}");
             return;
         }
 

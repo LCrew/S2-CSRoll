@@ -154,9 +154,15 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         // countdown got pushed back to now+25 every single round instead of counting down real time.
         // Only set on this activation's first OnEnabled(); a mere round-start reapply leaves whatever
         // was already in flight alone.
-        if (_nextRerollTime < 0f)
+        // Bug fix: the "< 0f" sentinel alone couldn't recover from a map change. GlobalVars.CurrentTime
+        // is map-relative and restarts near zero, so a deadline carried over from the previous map is
+        // a large POSITIVE number - not < 0, so it was left alone, and OnGameTick's "now >= deadline"
+        // then never became true. The reroll timer simply stopped for the rest of the session.
+        // A deadline further out than the whole interval can only be stale, so re-seed on that too.
+        var now = Core.Engine.GlobalVars.CurrentTime;
+        if (_nextRerollTime < 0f || _nextRerollTime > now + Runtime.Config.WeaponRoulette.RerollIntervalSeconds)
         {
-            _nextRerollTime = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
+            _nextRerollTime = now + Runtime.Config.WeaponRoulette.RerollIntervalSeconds;
         }
 
         Core.Event.OnTick += OnGameTick;
