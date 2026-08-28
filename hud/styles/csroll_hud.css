@@ -90,11 +90,22 @@
 }
 
 /* ================================================================================================
-   Spin reel
+   SCREEN POSITION - read this before moving anything
 
-   The strip is taller than its window and slides upward under it. One transition moves it the whole
-   way; the server fills the twenty rows once, adds a duration class, and then does nothing but play
-   the tick sound until it lands.
+   All three states sit centred horizontally and below the crosshair, roughly where CS2's own
+   center-HTML messages appear. There is ONE number behind that: DROP, currently 280px below screen
+   centre. The three margin-top values are derived from it and are NOT independent:
+
+       track   margin-top: 280px     (DROP)
+       reveal  margin-top: 178px     (DROP - (trackHeight - revealHeight) / 2)
+       spin    margin-top: 147px     (DROP - (trackHeight - rowHeight) / 2)
+
+   vertical-align:center places a panel's CENTRE at screen centre + margin-top, so panels of different
+   heights need different margins for their TOPS to coincide. Their tops must coincide, because the
+   reveal collapses down onto the first tracker chip - if the tops differ, the collapse lands beside
+   the chip instead of on it and the morph falls apart.
+
+   To move the block, change all three by the same amount.
    ================================================================================================ */
 
 /* ================================================================================================
@@ -111,10 +122,10 @@
 
 .csr-spin
 {
-	width: 300px;
-	horizontal-align: left;
+	width: 400px;
+	horizontal-align: center;
 	vertical-align: center;
-	margin-left: 26px;
+	margin-top: 147px;
 	opacity: 1.0;
 	transition-property: opacity;
 	transition-duration: 0.15s;
@@ -153,11 +164,12 @@
 	border-left: 3px solid #e4ae39;
 	border-radius: 2px;
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 16px;
+	font-size: 21px;
 	font-weight: bold;
 	color: #e8edf3;
 	text-transform: uppercase;
-	letter-spacing: 0.5px;
+	letter-spacing: 1.5px;
+	text-align: center;
 	vertical-align: center;
 	box-shadow: rgba(0, 0, 0, 0.6) 0px 3px 14px 0px;
 }
@@ -186,12 +198,12 @@
 
 .csr-reveal
 {
-	width: 300px;
-	horizontal-align: left;
+	width: 400px;
+	horizontal-align: center;
 	vertical-align: center;
-	margin-left: 26px;
+	margin-top: 178px;
 	flow-children: down;
-	padding: 11px 13px 13px 13px;
+	padding: 12px 16px 14px 16px;
 	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.94)), to(rgba(14, 22, 30, 0.94)));
 	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
 	background-size: 360px 360px;
@@ -204,7 +216,7 @@
 	/* Fixed height, not auto - Panorama cannot transition to or from auto, and the collapse below
 	   needs two concrete values. Anything longer than this clips rather than growing the panel, which
 	   is why the description is capped to two lines. */
-	height: 104px;
+	height: 108px;
 	overflow: clip clip;
 
 	opacity: 0.0;
@@ -216,7 +228,7 @@
 .csr-reveal.reveal-in
 {
 	opacity: 1.0;
-	height: 104px;
+	height: 108px;
 }
 
 /*
@@ -329,11 +341,15 @@
 
 .csr-track
 {
-	width: 300px;
-	horizontal-align: left;
+	width: 400px;
+	/* Fixed height so the column's TOP is deterministic under vertical-align:center. Without it the
+	   container height tracks the number of visible chips, the top drifts as chips come and go, and
+	   the reveal no longer collapses onto the first chip. */
+	height: 312px;
+	horizontal-align: center;
 	vertical-align: center;
 	flow-children: down;
-	margin-left: 26px;
+	margin-top: 280px;
 	transition-property: opacity;
 	/* Short on purpose. The chip is meant to appear at the instant the collapsing reveal reaches chip
 	   height, so a slow fade-in here would show the chip ghosting through the card and undo the
