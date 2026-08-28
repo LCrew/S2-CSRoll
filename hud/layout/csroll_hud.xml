@@ -43,7 +43,8 @@
 				<Panel class="csr-spin-window" hittest="false">
 					<Panel id="csr_spin_reel" class="csr-spin-reel" hittest="false">
 						<Label id="csr_reel0" class="csr-reel-row" text="{s:name}" />
-						<Label id="csr_reel1" class="csr-reel-row" text="{s:name}" />
+						<!-- The landing row: the middle of the three visible slots. -->
+						<Label id="csr_reel1" class="csr-reel-row csr-reel-landing" text="{s:name}" />
 						<Label id="csr_reel2" class="csr-reel-row" text="{s:name}" />
 						<Label id="csr_reel3" class="csr-reel-row" text="{s:name}" />
 						<Label id="csr_reel4" class="csr-reel-row" text="{s:name}" />
@@ -60,8 +61,7 @@
 						<Label id="csr_reel15" class="csr-reel-row" text="{s:name}" />
 						<Label id="csr_reel16" class="csr-reel-row" text="{s:name}" />
 						<Label id="csr_reel17" class="csr-reel-row" text="{s:name}" />
-						<!-- The landing row: the reel stops with this one in the middle slot. -->
-						<Label id="csr_reel18" class="csr-reel-row csr-reel-landing" text="{s:name}" />
+						<Label id="csr_reel18" class="csr-reel-row" text="{s:name}" />
 						<!-- The landing row. Always the real result - see HudPanelIds.ReelLandingRow. -->
 						<Label id="csr_reel19" class="csr-reel-row" text="{s:name}" />
 					</Panel>

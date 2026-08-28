@@ -37,17 +37,6 @@ public sealed class HudSequencer
     /// </summary>
     private const float RevealFadeOutSeconds = 0.28f;
 
-    /// <summary>
-    /// Gap between parking the reel at the top and arming the spin, in seconds.
-    ///
-    /// Class state reaches the client as an entity netvar diff, so clearing and re-setting the same
-    /// class inside one tick is a zero diff and ships nothing - the reel would never rewind and the
-    /// roll would show its result immediately. Live measurement in the reference notes puts the
-    /// smallest gap that reliably works at about 0.3s, far more than a 15.6ms tick would explain, so
-    /// this is a real delay rather than a NextTick hop. It is added to the reveal's total length.
-    /// </summary>
-    private const float ReelResetSettleSeconds = 0.3f;
-
     private readonly ISwiftlyCore _core;
     private readonly ModifierRuntime _runtime;
     private readonly ICSRollHudService _hud;
@@ -109,114 +98,86 @@ public sealed class HudSequencer
             return;
         }
 
-        // Park the reel back at the top BEFORE anything else. Without this the second and every
-        // subsequent roll shows its result immediately and never animates: the reel is still sitting at
-        // the previous roll's end position, so re-adding `spinning` asks it to travel to where it
-        // already is. Instant duration so the rewind is not itself visible.
-        SetClassGroup(slot, broadcast, HudPanelIds.SpinReel, HudClasses.GroupDuration, HudClasses.DurationInstant);
-        SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, false);
-
-        FillReel(slot, broadcast, landing);
-
-        SetText(slot, broadcast, HudPanelIds.RevealTitle, HudPanelIds.VarName, "ROLLING");
         Show(slot, broadcast, HudPanelIds.Spin, true);
+        SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, true);
+        SetText(slot, broadcast, HudPanelIds.RevealTitle, HudPanelIds.VarName, "ROLLING");
 
-        // The reset needs its own trip to the client before the spin is armed. Class state travels as
-        // an entity netvar diff, so removing and re-adding `spinning` within one tick is a zero diff
-        // and ships nothing at all - and measurements from live testing put the minimum usable gap at
-        // roughly 0.3s, well above a tick. Hence a real delay rather than a NextTick hop.
-        _core.Scheduler.DelayBySeconds(ReelResetSettleSeconds, () =>
-        {
-            if (_runtime.RollGeneration != generation || (!broadcast && !IsPlayerPresent(slot!.Value)))
-            {
-                return;
-            }
-
-            SetClassGroup(slot, broadcast, HudPanelIds.SpinReel, HudClasses.GroupDuration, HudClasses.Duration(spinSeconds));
-            SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, true);
-
-            // The reel travels client-side, but the tick sound still has to be emitted per frame - that
-            // is the only way it is audible. This chain sends no text, only sound, on the same eased
-            // schedule the center-HTML spin uses.
-            PlayTickSound(slot, broadcast, 0, Config.SpinReveal.SpinCount, generation);
-        });
-
-        _core.Scheduler.DelayBySeconds(ReelResetSettleSeconds + spinSeconds, () =>
-        {
-            if (_runtime.RollGeneration != generation)
-            {
-                return;
-            }
-
-            if (!broadcast && !IsPlayerPresent(slot!.Value))
-            {
-                // Matches the center-HTML path: a player who left mid-spin never commits.
-                return;
-            }
-
-            // Landing frame. Commit FIRST, before any presentation, so the mechanical effect lands with
-            // the reveal rather than after it.
-            onRevealed();
-
-            // Duration to instant BEFORE clearing `spinning`, so the reel snaps back to the top rather
-            // than slowly rewinding under a hidden panel and leaving the next roll to start from an
-            // unknown position.
-            SetClassGroup(slot, broadcast, HudPanelIds.SpinReel, HudClasses.GroupDuration, HudClasses.DurationInstant);
-            SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, false);
-            Show(slot, broadcast, HudPanelIds.Spin, false);
-            ShowCard(slot, broadcast, modifiers, generation);
-        });
+        PlaySpinFrame(slot, broadcast, 0, Config.SpinReveal.SpinCount, modifiers, landing, onRevealed, generation);
     }
 
     /// <summary>
-    /// Loads the reel with random modifier names and puts the real result in the landing row.
+    /// One frame of the spin: shuffle the three visible rows and play the tick.
     ///
-    /// Names come from the same registered pool the center-HTML spin draws from, so the reel reads as
-    /// plausible rather than as filler.
+    /// This pushes text per frame rather than animating a CSS transform, which is a deliberate step
+    /// back. Two separate attempts at a client-side animation - a rotary wheel on spokes, then a
+    /// translating strip - both failed to render in game and neither was diagnosable from outside it.
+    /// Dialog-variable writes are the one mechanism here proven to work every time; the tracker runs on
+    /// them constantly. Three writes per frame for one panel is nothing next to the center-HTML path's
+    /// full panel rebuild per message, which is what made that approach fragile.
+    ///
+    /// The eased interval comes from the same GetSpinFrameIntervalSeconds the center-HTML spin uses, so
+    /// the reel slows into its landing on the identical curve and the freeze-time budget is unchanged.
     /// </summary>
-    private void FillReel(int? slot, bool broadcast, string landingName)
+    private void PlaySpinFrame(int? slot, bool broadcast, int frameIndex, int totalFrames,
+                               IReadOnlyList<GameModifierBase> modifiers, string landing,
+                               Action onRevealed, int generation)
     {
-        var pool = _runtime.RegisteredModifiers;
-
-        for (var row = 0; row < HudPanelIds.ReelRows; row++)
+        if (_runtime.RollGeneration != generation)
         {
-            if (row == HudPanelIds.ReelLandingIndex)
+            return;
+        }
+
+        if (!broadcast && !IsPlayerPresent(slot!.Value))
+        {
+            // Matches the center-HTML path: a player who left mid-spin never commits.
+            return;
+        }
+
+        if (frameIndex >= totalFrames)
+        {
+            // Landing. The real result goes in the centre row, with fresh neighbours either side so the
+            // reel does not appear to have run out of cards.
+            SetText(slot, broadcast, HudPanelIds.ReelRow(0), HudPanelIds.VarName, RandomName());
+            SetText(slot, broadcast, HudPanelIds.ReelLandingRow(), HudPanelIds.VarName, landing);
+            SetText(slot, broadcast, HudPanelIds.ReelRow(2), HudPanelIds.VarName, RandomName());
+
+            // Commit FIRST, before any presentation, so the mechanical effect lands with the reveal.
+            onRevealed();
+
+            SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, false);
+            Show(slot, broadcast, HudPanelIds.Spin, false);
+            ShowCard(slot, broadcast, modifiers, generation);
+            return;
+        }
+
+        SetText(slot, broadcast, HudPanelIds.ReelRow(0), HudPanelIds.VarName, RandomName());
+        SetText(slot, broadcast, HudPanelIds.ReelLandingRow(), HudPanelIds.VarName, RandomName());
+        SetText(slot, broadcast, HudPanelIds.ReelRow(2), HudPanelIds.VarName, RandomName());
+
+        if (!string.IsNullOrEmpty(Config.SpinReveal.TickSoundEventName))
+        {
+            if (broadcast)
             {
-                continue;
+                CSRollUtils.PlaySoundToAll(_core, Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume, debugMode: _runtime.DebugMode);
             }
-
-            var name = pool.Count > 0
-                ? CSRollUtils.GetModifierDisplayName(_core, pool[Random.Shared.Next(pool.Count)])
-                : string.Empty;
-
-            SetText(slot, broadcast, HudPanelIds.ReelRow(row), HudPanelIds.VarName, name);
-        }
-
-        SetText(slot, broadcast, HudPanelIds.ReelLandingRow(), HudPanelIds.VarName, landingName);
-    }
-
-    private void PlayTickSound(int? slot, bool broadcast, int frameIndex, int totalFrames, int generation)
-    {
-        if (frameIndex >= totalFrames || _runtime.RollGeneration != generation || string.IsNullOrEmpty(Config.SpinReveal.TickSoundEventName))
-        {
-            return;
-        }
-
-        if (broadcast)
-        {
-            CSRollUtils.PlaySoundToAll(_core, Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume, debugMode: _runtime.DebugMode);
-        }
-        else if (_core.PlayerManager.GetPlayer(slot!.Value) is { IsValid: true } player)
-        {
-            CSRollUtils.PlaySoundToPlayer(_core, player, Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume, debugMode: _runtime.DebugMode);
-        }
-        else
-        {
-            return;
+            else if (_core.PlayerManager.GetPlayer(slot!.Value) is { IsValid: true } player)
+            {
+                CSRollUtils.PlaySoundToPlayer(_core, player, Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume, debugMode: _runtime.DebugMode);
+            }
         }
 
         var interval = _runtime.SpinFrameIntervalSeconds(frameIndex, totalFrames);
-        _core.Scheduler.DelayBySeconds(interval, () => PlayTickSound(slot, broadcast, frameIndex + 1, totalFrames, generation));
+        _core.Scheduler.DelayBySeconds(interval, () =>
+            PlaySpinFrame(slot, broadcast, frameIndex + 1, totalFrames, modifiers, landing, onRevealed, generation));
+    }
+
+    /// <summary>A random registered modifier's display name, for the reel's filler rows.</summary>
+    private string RandomName()
+    {
+        var pool = _runtime.RegisteredModifiers;
+        return pool.Count > 0
+            ? CSRollUtils.GetModifierDisplayName(_core, pool[Random.Shared.Next(pool.Count)])
+            : string.Empty;
     }
 
     /// <summary>Populates and shows the reveal card, then schedules its fade-out.</summary>

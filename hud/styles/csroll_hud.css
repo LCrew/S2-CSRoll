@@ -104,7 +104,12 @@
    A shared bottom edge is what the morph needs: the reveal collapses from its full height down to a
    chip's height with its bottom pinned, so it folds upward and lands exactly on the chip.
 
-   To move the block, change margin-bottom on .csr-spin, .csr-reveal and .csr-track by the same amount.
+   The tracker is the exception: it sits lower still, 110px up, just clear of the team icon, because it
+   is the one panel that stays on screen for the whole round and so has to keep out of the way. The
+   consequence is that the reveal no longer collapses exactly onto its chip - it folds shut at 250px
+   and the chip appears at 110px. Bring .csr-track back to 250px to restore the precise morph.
+
+   To move the block, change margin-bottom on .csr-spin, .csr-reveal and .csr-track together.
    ================================================================================================ */
 
 /* ================================================================================================
@@ -156,19 +161,19 @@
 	border-bottom: 1px solid rgba(228, 174, 57, 0.55);
 }
 
+/* The strip no longer moves - the server rewrites the three visible rows per frame. See
+   HudSequencer.PlaySpinFrame for why a client-side transform was abandoned. */
 .csr-spin-reel
 {
 	width: 100%;
 	flow-children: down;
-	transform: translate3d( 0px, 0px, 0px );
-	transition-property: transform;
-	/* Fast away, long settle - it should coast into the landing rather than stop dead. */
-	transition-timing-function: cubic-bezier(0.10, 0.75, 0.10, 1.0);
 }
 
-.csr-spin-reel.spinning
+/* Live state while a roll is running. Purely a tint now, no motion. */
+.csr-spin-reel.spinning .csr-reel-landing
 {
-	transform: translate3d( 0px, -782px, 0px );
+	border-left-color: #ffd479;
+	color: #ffffff;
 }
 
 .csr-reel-row
@@ -176,7 +181,7 @@
 	width: 100%;
 	height: 46px;
 	padding: 0px 13px;
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.92)), to(rgba(14, 22, 30, 0.80)));
+	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.74)), to(rgba(14, 22, 30, 0.74)));
 	border: 1px solid rgba(255, 255, 255, 0.07);
 	border-left: 3px solid #e4ae39;
 	border-radius: 2px;
@@ -221,7 +226,7 @@
 	width: 400px;
 	flow-children: down;
 	padding: 12px 16px 14px 16px;
-	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.94)), to(rgba(14, 22, 30, 0.94)));
+	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.74)), to(rgba(14, 22, 30, 0.74)));
 	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
 	background-size: 360px 360px;
 	background-img-opacity: 0.020;
@@ -295,13 +300,13 @@
 
 .csr-card-icon
 {
-	width: 22px;
-	height: 22px;
-	margin-right: 10px;
-	margin-top: 1px;
+	width: 30px;
+	height: 30px;
+	margin-right: 12px;
 	text-align: center;
+	vertical-align: center;
 	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 17px;
+	font-size: 24px;
 	color: #8899aa;
 }
 
@@ -360,7 +365,7 @@
 {
 	horizontal-align: center;
 	vertical-align: bottom;
-	margin-bottom: 250px;
+	margin-bottom: 110px;
 	width: 400px;
 	flow-children: down;
 	transition-property: opacity;
@@ -393,7 +398,7 @@
 	flow-children: right;
 	margin-bottom: 5px;
 	padding: 11px 13px;
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.86)), to(rgba(8, 14, 20, 0.56)));
+	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.74)), to(rgba(14, 22, 30, 0.74)));
 	border: 1px solid rgba(255, 255, 255, 0.06);
 	border-left: 3px solid #8899aa;
 	border-radius: 2px;
@@ -410,12 +415,12 @@
 
 .csr-row-icon
 {
-	width: 22px;
-	height: 22px;
+	width: 30px;
+	height: 30px;
 	vertical-align: center;
 	text-align: center;
 	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 17px;
+	font-size: 24px;
 	color: #8899aa;
 	margin-right: 10px;
 }

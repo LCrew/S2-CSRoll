@@ -63,12 +63,13 @@ public static class HudPanelIds
     public static string ReelRow(int index) => _reelRows[index];
 
     /// <summary>
-    /// The row the reel stops on. Deliberately NOT the last one: the window shows three rows at a
-    /// time, so the result has to land in the middle slot with rows left over to fill the slot below -
-    /// otherwise the reel visibly runs out of cards as it stops. Must match the travel distance in
-    /// csroll_hud.css, which is row height x (this - 1).
+    /// The row the reel stops on: the MIDDLE of the three visible rows.
+    ///
+    /// The reel no longer travels - the server rewrites rows 0, 1 and 2 per frame instead of animating
+    /// a transform - so this is simply which of the three is the result. Row 1 is the one the landing
+    /// frame in csroll_hud.css marks.
     /// </summary>
-    public const int ReelLandingIndex = 18;
+    public const int ReelLandingIndex = 1;
 
     /// <summary>The reel row the spin lands on - the only one holding a real result.</summary>
     public static string ReelLandingRow() => _reelRows[ReelLandingIndex];
