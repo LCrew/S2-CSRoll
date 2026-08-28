@@ -33,11 +33,14 @@
     Workshop addon folder name. Must match on both the content and game side.
 
 .EXAMPLE
-    pwsh tools/build_hud_resources.ps1 -Action Validate
+    Run from cmd.exe, elevated. 'powershell' is the built-in Windows PowerShell 5.1; 'pwsh'
+    (PowerShell 7) works too but is a separate install and is not present by default.
+
+    powershell -ExecutionPolicy Bypass -File tools\build_hud_resources.ps1 -Action Validate
 
 .EXAMPLE
-    pwsh tools\build_hud_resources.ps1 -Action Build `
-        -CS2Root "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive" `
+    powershell -ExecutionPolicy Bypass -File tools\build_hud_resources.ps1 -Action Build ^
+        -CS2Root "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive" ^
         -VpkEditCli "C:\Tools\VPKEdit\vpkeditcli.exe"
 #>
 
@@ -60,8 +63,19 @@ $HudSource = Join-Path $RepoRoot 'hud'
 function Write-Step([string] $Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
 function Write-Ok([string] $Message) { Write-Host "    $Message" -ForegroundColor Green }
 
+function Test-IsWindows {
+    # $IsWindows only exists in PowerShell 6+. In Windows PowerShell 5.1 it is undefined, and 5.1 only
+    # ever runs on Windows - so treat "not defined" as Windows rather than letting a $null comparison
+    # decide it by accident.
+    if ($null -eq (Get-Variable -Name 'IsWindows' -ErrorAction SilentlyContinue)) {
+        return $true
+    }
+
+    return [bool] $IsWindows
+}
+
 function Assert-Windows([string] $Action) {
-    if ($IsWindows -eq $false) {
+    if (-not (Test-IsWindows)) {
         Write-Error @"
 -Action $Action needs resourcecompiler.exe, which is part of the Windows-only CS2 Workshop Tools.
 
