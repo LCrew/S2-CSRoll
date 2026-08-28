@@ -27,10 +27,15 @@ namespace CSRoll.Hud;
 public sealed class HudSequencer
 {
     /// <summary>
-    /// How long the landed card takes to fade out, in seconds. Matches the reveal-out transition in
-    /// csroll_hud.css; the panel is hidden after it so a collapsed panel never cuts the fade short.
+    /// How long the reveal takes to collapse into a tracker chip, in seconds.
+    ///
+    /// Must match the reveal-out transition-duration in csroll_hud.css. The panel is hidden and the
+    /// tracker un-dimmed only once this elapses, so that the chip appears at the exact moment the
+    /// collapsing card reaches chip height - that coincidence is the whole effect. Shorten this below
+    /// the CSS duration and the card vanishes mid-collapse; lengthen it and there is a visible pause
+    /// on a collapsed card before the chip appears.
     /// </summary>
-    private const float RevealFadeOutSeconds = 0.3f;
+    private const float RevealFadeOutSeconds = 0.28f;
 
     private readonly ISwiftlyCore _core;
     private readonly ModifierRuntime _runtime;

@@ -200,9 +200,15 @@
 	border-left: 3px solid #e4ae39;
 	border-radius: 2px;
 	box-shadow: rgba(0, 0, 0, 0.72) 0px 4px 22px 0px;
+
+	/* Fixed height, not auto - Panorama cannot transition to or from auto, and the collapse below
+	   needs two concrete values. Anything longer than this clips rather than growing the panel, which
+	   is why the description is capped to two lines. */
+	height: 104px;
+	overflow: clip clip;
+
 	opacity: 0.0;
-	transform: scale3d( 0.97, 0.97, 1.0 );
-	transition-property: opacity, transform;
+	transition-property: height, opacity;
 	transition-duration: 0.18s;
 	transition-timing-function: ease-out;
 }
@@ -210,14 +216,27 @@
 .csr-reveal.reveal-in
 {
 	opacity: 1.0;
-	transform: scale3d( 1.0, 1.0, 1.0 );
+	height: 104px;
 }
 
+/*
+   The collapse, instead of a cross-fade.
+
+   The panel shrinks from its full height to exactly a tracker chip's height, keeping its top edge,
+   border and left stripe - so it reads as the card folding shut onto the chip rather than one panel
+   disappearing while another appears. Opacity is deliberately NOT animated here: fading during the
+   collapse is what makes it look like two objects swapping.
+
+   This works only because nothing writes a dialog variable into this panel while it is animating -
+   its text is set once, up front. The same transition on a tracker row would be reset on every
+   countdown tick, which is exactly the trap the bars hit.
+*/
 .csr-reveal.reveal-out
 {
-	opacity: 0.0;
-	transform: scale3d( 1.0, 0.98, 1.0 );
-	transition-duration: 0.3s;
+	opacity: 1.0;
+	height: 46px;
+	transition-duration: 0.28s;
+	transition-timing-function: ease-in-out;
 }
 
 .csr-reveal-title
@@ -280,6 +299,8 @@
 	font-size: 13px;
 	color: #93a3b4;
 	margin-top: 6px;
+	height: 34px;
+	text-overflow: ellipsis;
 }
 
 .csr-card-desc.desc-wipe
@@ -314,7 +335,10 @@
 	flow-children: down;
 	margin-left: 26px;
 	transition-property: opacity;
-	transition-duration: 0.2s;
+	/* Short on purpose. The chip is meant to appear at the instant the collapsing reveal reaches chip
+	   height, so a slow fade-in here would show the chip ghosting through the card and undo the
+	   single-object read. */
+	transition-duration: 0.08s;
 	opacity: 1.0;
 }
 
