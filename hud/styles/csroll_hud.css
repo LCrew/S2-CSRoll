@@ -76,125 +76,142 @@
    the tick sound until it lands.
    ================================================================================================ */
 
-/* Left column, sitting directly above the tracker. Spin and reveal are never on screen together, so
-   they deliberately share the same slot - one replaces the other in place. */
+/* ================================================================================================
+   Spin wheel
+
+   A rotary carousel rather than a vertical strip: the cards hang off a pivot away to the LEFT, so
+   rotating the wheel swings each one up through the horizontal reading position and away again. The
+   cards either side sit at an angle and run off the screen edge, which is what gives it the "rolling
+   dial" read rather than a list scrolling past.
+
+   The geometry is only two numbers, and they have to agree with each other:
+     * every card shares transform-origin -200px 50%  - the wheel's hub
+     * card N is parked at N x 16 degrees
+     * so the wheel rotates -304 degrees to bring the last card (the real result) to horizontal
+   Change the angle or the row count and the sweep has to change with it.
+   ================================================================================================ */
+
 .csr-spin
 {
 	width: 320px;
 	horizontal-align: left;
 	vertical-align: center;
 	margin-left: 26px;
-	margin-bottom: 220px;
-	flow-children: right;
-	padding: 8px 12px;
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.88)), to(rgba(8, 14, 20, 0.55)));
-	border-left: 3px solid #e4ae39;
-	border-radius: 2px;
+	margin-bottom: 210px;
+	overflow: noclip;
+	opacity: 1.0;
 	transition-property: opacity;
 	transition-duration: 0.15s;
-	opacity: 1.0;
 }
 
-/* The rotating ring. Purely decorative and purely client-side: it has no id, the server never touches
-   it, and it spins for as long as the spin panel is visible. Uncoloured on three sides so the
-   rotation actually reads - a full ring spinning looks static. */
-.csr-spin-ring
-{
-	width: 20px;
-	height: 20px;
-	margin-right: 12px;
-	vertical-align: center;
-	border: 2px solid rgba(228, 174, 57, 0.18);
-	border-top: 2px solid #e4ae39;
-	border-radius: 10px;
-	animation-name: csr-spin;
-	animation-duration: 0.85s;
-	animation-timing-function: linear;
-	animation-iteration-count: infinite;
-}
-
-/* Fixed-height viewport. Exactly one reel row is visible at a time. */
+/* noclip: the angled cards are meant to overhang and run off the screen edge. */
 .csr-spin-window
 {
-	width: fill-parent-flow(1);
-	height: 34px;
-	vertical-align: center;
-	overflow: clip clip;
+	width: 100%;
+	height: 46px;
+	overflow: noclip;
 }
 
 .csr-spin-reel
 {
 	width: 100%;
-	flow-children: down;
-	/* 20 rows x 56px, parked so row 0 sits in the window. */
-	transform: translate3d( 0px, 0px, 0px );
+	height: 100%;
+	transform-origin: -200px 50%;
+	transform: rotatez( 0deg );
 	transition-property: transform;
-	/* Fast out of the gate, long slow settle - the same shape as the eased server-side spin this
-	   mirrors, so both surfaces read identically. */
-	transition-timing-function: cubic-bezier(0.12, 0.72, 0.10, 1.0);
+	/* Fast away, long settle - the wheel should coast into its landing, not stop dead. */
+	transition-timing-function: cubic-bezier(0.10, 0.75, 0.10, 1.0);
 }
 
-/* Travels 19 rows so the landing row (csr_reel19) ends up in the window. 19 x 34px = 646px - keep
-   this in step with .csr-reel-row's height or the reel lands off-centre. */
 .csr-spin-reel.spinning
 {
-	transform: translate3d( 0px, -646px, 0px );
+	transform: rotatez( -304deg );
 }
 
+/* Each card. Every one is absolutely stacked on the same spot and then rotated out to its own spoke,
+   so ignore-parent-flow keeps them from laying out in a column first. */
 .csr-reel-row
 {
-	width: 100%;
-	height: 34px;
-	text-align: left;
-	vertical-align: center;
+	width: 230px;
+	height: 44px;
+	ignore-parent-flow: true;
+	transform-origin: -200px 50%;
+	background-color: rgba(250, 250, 252, 0.94);
+	border: 3px solid #e5004c;
+	border-radius: 2px;
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 19px;
+	font-size: 17px;
 	font-weight: bold;
-	color: #c8d4e0;
-	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.8);
+	color: #16181d;
+	text-align: center;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	box-shadow: rgba(0, 0, 0, 0.55) 0px 3px 14px 0px;
 }
 
+/* The card that is currently horizontal reads as the live one. */
 .csr-reel-landing
 {
-	color: #ffffff;
+	background-color: #ffffff;
 }
 
-/* Retained so the layout's element still has a rule, but the compact reel does not need a landing
-   line - the ring and the border already mark it. */
+/* Retained because the layout still declares the element; the wheel needs no landing line. */
 .csr-spin-marker
 {
 	width: 0px;
 	height: 0px;
 }
 
+/* Each card's parked angle on the wheel. */
+#csr_reel0 { transform: rotatez( 0deg ); }
+#csr_reel1 { transform: rotatez( 16deg ); }
+#csr_reel2 { transform: rotatez( 32deg ); }
+#csr_reel3 { transform: rotatez( 48deg ); }
+#csr_reel4 { transform: rotatez( 64deg ); }
+#csr_reel5 { transform: rotatez( 80deg ); }
+#csr_reel6 { transform: rotatez( 96deg ); }
+#csr_reel7 { transform: rotatez( 112deg ); }
+#csr_reel8 { transform: rotatez( 128deg ); }
+#csr_reel9 { transform: rotatez( 144deg ); }
+#csr_reel10 { transform: rotatez( 160deg ); }
+#csr_reel11 { transform: rotatez( 176deg ); }
+#csr_reel12 { transform: rotatez( 192deg ); }
+#csr_reel13 { transform: rotatez( 208deg ); }
+#csr_reel14 { transform: rotatez( 224deg ); }
+#csr_reel15 { transform: rotatez( 240deg ); }
+#csr_reel16 { transform: rotatez( 256deg ); }
+#csr_reel17 { transform: rotatez( 272deg ); }
+#csr_reel18 { transform: rotatez( 288deg ); }
+#csr_reel19 { transform: rotatez( 304deg ); }
+
 /* ================================================================================================
    Reveal card
+
+   State two of three: the wheel lands, and the winning card grows downward into a panel carrying the
+   name plus its description. Same left edge, same border, same fill as the card it came from - the
+   continuity is the point, it should read as the card expanding rather than a new panel appearing.
    ================================================================================================ */
 
 .csr-reveal
 {
-	width: 340px;
+	width: 300px;
 	horizontal-align: left;
 	vertical-align: center;
 	margin-left: 26px;
-	margin-bottom: 200px;
+	margin-bottom: 210px;
 	flow-children: down;
-	padding: 18px 22px 20px;
-	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.94)), to(rgba(14, 22, 30, 0.94)));
-	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
-	background-size: 360px 360px;
-	background-img-opacity: 0.020;
-	border: 1px solid rgba(255, 255, 255, 0.07);
-	border-radius: 3px;
-	box-shadow: rgba(0, 0, 0, 0.75) 0px 0px 32px 0px;
+	padding: 11px 14px 13px 14px;
+	background-color: rgba(250, 250, 252, 0.95);
+	border: 3px solid #e5004c;
+	border-radius: 2px;
+	box-shadow: rgba(0, 0, 0, 0.6) 0px 4px 18px 0px;
 	opacity: 0.0;
-	transform: scale3d( 0.96, 0.96, 1.0 );
+	transform: scale3d( 0.97, 0.97, 1.0 );
 	transition-property: opacity, transform;
-	transition-duration: 0.22s;
+	transition-duration: 0.18s;
 	transition-timing-function: ease-out;
 }
 
-/* Landing state: pops up to full size. */
 .csr-reveal.reveal-in
 {
 	opacity: 1.0;
@@ -204,61 +221,49 @@
 .csr-reveal.reveal-out
 {
 	opacity: 0.0;
-	transform: scale3d( 1.0, 1.02, 1.0 );
+	transform: scale3d( 1.0, 0.98, 1.0 );
 	transition-duration: 0.3s;
 }
 
+/* The mock has no header above the name, so this is kept minimal rather than removed - the layout
+   still declares the panel and the sequencer still writes to it. */
 .csr-reveal-title
 {
 	font-family: Stratum2 Condensed, 'Arial Unicode MS';
-	font-size: 15px;
+	font-size: 10px;
 	font-weight: bold;
-	letter-spacing: 2px;
+	letter-spacing: 1.6px;
 	text-transform: uppercase;
-	color: #e4ae39;
-	margin-bottom: 6px;
+	color: #e5004c;
+	margin-bottom: 5px;
 }
 
 .csr-reveal-rule
 {
-	width: 100%;
-	height: 1px;
-	margin-bottom: 12px;
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(228, 174, 57, 0.7)), color-stop(0.55, rgba(50, 129, 172, 0.3)), to(rgba(50, 129, 172, 0.0)));
+	width: 0px;
+	height: 0px;
 }
 
 .csr-card
 {
 	width: 100%;
-	flow-children: right;
-	margin-bottom: 8px;
-	padding: 8px 10px;
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(255, 255, 255, 0.045)), to(rgba(0, 0, 0, 0.16)));
-	border-left: 3px solid #8899aa;
-	border-radius: 2px;
+	flow-children: down;
+	margin-bottom: 6px;
 }
 
+/* The glyph badge sits inline with the name rather than in its own column - the mock is a plain text
+   block, and a 46px badge beside 300px of panel dominated it. */
 .csr-card-icon
 {
-	width: 34px;
-	height: 34px;
-	vertical-align: center;
-	text-align: center;
-	/* Unicode first: these are symbols, and Stratum2 does not carry most of them. */
-	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 19px;
-	color: #8899aa;
-	background-color: rgba(0, 0, 0, 0.28);
-	border: 1px solid rgba(255, 255, 255, 0.07);
-	border-radius: 2px;
-	margin-right: 12px;
+	width: 0px;
+	height: 0px;
+	font-size: 0px;
 }
 
 .csr-card-copy
 {
-	width: fill-parent-flow(1);
+	width: 100%;
 	flow-children: down;
-	vertical-align: center;
 }
 
 .csr-card-name
@@ -266,8 +271,9 @@
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 19px;
 	font-weight: bold;
-	color: #f3f6fb;
-	text-shadow: 1px 1px 2px 2 rgba(0, 0, 0, 0.7);
+	color: #16181d;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
 }
 
 .csr-card-desc
@@ -275,12 +281,12 @@
 	width: 100%;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 13px;
-	color: #93a3b4;
-	margin-top: 2px;
+	color: #4a5058;
+	margin-top: 7px;
 }
 
-/* The description wipe. Replaces the twenty server-pushed scramble frames the center-HTML path needs
-   with one client-side animation that cannot drop a frame. */
+/* Replaces the twenty server-pushed scramble frames the center-HTML path needs with one client-side
+   animation that cannot drop a frame. */
 .csr-card-desc.desc-wipe
 {
 	animation-name: csr-wipe;
@@ -289,23 +295,22 @@
 	animation-iteration-count: 1;
 }
 
-/* Name unquoted, brace on the SAME line, percentage stops. All three matter: a newline before the
-   brace is read as an empty name ("Invalid @keyframe name (missing quotes or empty)"), and quoting the
-   name registers it under something animation-name cannot then find ("missing animation csr-wipe"). */
 @keyframes csr-wipe { 0% { opacity: 0.0; transform: translate3d( -14px, 0px, 0px ); } 100% { opacity: 1.0; transform: translate3d( 0px, 0px, 0px ); } }
 
 .csr-card-more
 {
 	font-family: Stratum2 Condensed, 'Arial Unicode MS';
-	font-size: 14px;
-	color: #7d8b99;
+	font-size: 12px;
+	color: #7b818a;
 	margin-top: 2px;
 }
 
 /* ================================================================================================
    Active-modifier tracker
 
-   Sits on the left edge, clear of the radar (top-left) and the player panel (bottom-left).
+   State three of three: once the reveal fades, each rolled modifier settles into a compact chip that
+   stays for the round. Same left edge, same border, same fill as the reveal it came from, just
+   collapsed back to a single line - the three states are meant to read as one object changing shape.
    ================================================================================================ */
 
 .csr-track
@@ -313,41 +318,39 @@
 	width: 300px;
 	horizontal-align: left;
 	vertical-align: center;
-	margin-left: 26px;
 	flow-children: down;
+	margin-left: 26px;
 	transition-property: opacity;
 	transition-duration: 0.2s;
 	opacity: 1.0;
 }
 
-/* Gets out of the way of a reveal with no server involvement at all - the sequencer sets one class on
-   the root and CSS does the rest. */
+/* Gets out of the way of a reveal with no server involvement: the sequencer sets one class on the
+   root and CSS does the rest. */
 .csr-root.reveal-active .csr-track
 {
 	opacity: 0.0;
 }
 
+/* The mock has no heading above the chips. Kept as a declared-but-invisible panel rather than removed,
+   since the layout still contains it and the service still writes to it. */
 .csr-track-title
 {
-	font-family: Stratum2 Condensed, 'Arial Unicode MS';
-	font-size: 12px;
-	font-weight: bold;
-	letter-spacing: 1px;
-	text-transform: uppercase;
-	color: #6f7f8f;
-	margin-bottom: 5px;
-	margin-left: 2px;
+	width: 0px;
+	height: 0px;
+	font-size: 0px;
 }
 
 .csr-row
 {
 	width: 100%;
 	flow-children: right;
-	margin-bottom: 4px;
-	padding: 5px 8px;
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.82)), to(rgba(8, 14, 20, 0.52)));
-	border-left: 3px solid #8899aa;
+	margin-bottom: 5px;
+	padding: 9px 13px;
+	background-color: rgba(250, 250, 252, 0.93);
+	border: 3px solid #e5004c;
 	border-radius: 2px;
+	box-shadow: rgba(0, 0, 0, 0.45) 0px 2px 10px 0px;
 	transition-property: opacity;
 	transition-duration: 0.15s;
 	opacity: 1.0;
@@ -355,19 +358,19 @@
 
 .csr-row.overflow
 {
-	opacity: 0.7;
+	opacity: 0.72;
 }
 
 .csr-row-icon
 {
-	width: 26px;
-	height: 26px;
+	width: 19px;
+	height: 19px;
 	vertical-align: center;
 	text-align: center;
 	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 16px;
-	color: #8899aa;
-	margin-right: 8px;
+	font-size: 14px;
+	color: #e5004c;
+	margin-right: 9px;
 }
 
 .csr-row-copy
@@ -389,15 +392,19 @@
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 15px;
 	font-weight: bold;
-	color: #e8edf3;
+	color: #16181d;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	vertical-align: center;
 }
 
 .csr-row-time
 {
 	font-family: Stratum2 Condensed, 'Arial Unicode MS';
-	font-size: 14px;
-	color: #93a3b4;
+	font-size: 13px;
+	color: #7b818a;
 	text-align: right;
+	vertical-align: center;
 }
 
 /* ================================================================================================
@@ -414,7 +421,7 @@
 	width: 100%;
 	height: 4px;
 	margin-top: 4px;
-	background-color: rgba(0, 0, 0, 0.45);
+	background-color: rgba(22, 24, 29, 0.14);
 	border-radius: 2px;
 }
 
@@ -422,7 +429,7 @@
 {
 	width: 100%;
 	height: 100%;
-	background-color: #8899aa;
+	background-color: #e5004c;
 	border-radius: 2px;
 	clip: rect( 0%, 100%, 100%, 0% );
 	transition-property: clip;
@@ -649,19 +656,15 @@
    These describe what a modifier DOES, not how rare it is. Every modifier in this plugin comes from a
    uniform random pool, so a rarity gradient would be telling the player something untrue.
 
-   Each accent recolours the row/card border, its glyph badge, and its bar in one go.
+   The frame stays a single colour across every card on purpose - the three states are meant to read
+   as one object changing shape, and a frame that changes colour per modifier breaks that. The accent
+   carries through the glyph and the bar instead, which is enough to tell families apart at a glance
+   without fragmenting the shape. Move `border-color` in here if you would rather tint the frame.
    ------------------------------------------------------------------------------------------------ */
-.csr-row.accent-grey,
-.csr-card.accent-grey
-{
-	border-left-color: #8899aa;
-}
-
 .csr-row-icon.accent-grey,
 .csr-card-icon.accent-grey
 {
 	color: #8899aa;
-	border-color: #5a6a7a;
 }
 
 .csr-row.accent-grey .csr-bar-fill,
@@ -670,17 +673,10 @@
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(#8899aa), to(#5a6a7a));
 }
 
-.csr-row.accent-red,
-.csr-card.accent-red
-{
-	border-left-color: #e05a4e;
-}
-
 .csr-row-icon.accent-red,
 .csr-card-icon.accent-red
 {
 	color: #e05a4e;
-	border-color: #8f2d24;
 }
 
 .csr-row.accent-red .csr-bar-fill,
@@ -689,17 +685,10 @@
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e05a4e), to(#8f2d24));
 }
 
-.csr-row.accent-orange,
-.csr-card.accent-orange
-{
-	border-left-color: #e08a39;
-}
-
 .csr-row-icon.accent-orange,
 .csr-card-icon.accent-orange
 {
 	color: #e08a39;
-	border-color: #8f4c14;
 }
 
 .csr-row.accent-orange .csr-bar-fill,
@@ -708,17 +697,10 @@
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e08a39), to(#8f4c14));
 }
 
-.csr-row.accent-amber,
-.csr-card.accent-amber
-{
-	border-left-color: #e4ae39;
-}
-
 .csr-row-icon.accent-amber,
 .csr-card-icon.accent-amber
 {
 	color: #e4ae39;
-	border-color: #8f6a14;
 }
 
 .csr-row.accent-amber .csr-bar-fill,
@@ -727,82 +709,53 @@
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e4ae39), to(#8f6a14));
 }
 
-.csr-row.accent-green,
-.csr-card.accent-green
-{
-	border-left-color: #5fc27e;
-}
-
 .csr-row-icon.accent-green,
 .csr-card-icon.accent-green
 {
-	color: #5fc27e;
-	border-color: #2c6f43;
+	color: #3fa05e;
 }
 
 .csr-row.accent-green .csr-bar-fill,
 .csr-card.accent-green .csr-bar-fill
 {
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(#5fc27e), to(#2c6f43));
-}
-
-.csr-row.accent-teal,
-.csr-card.accent-teal
-{
-	border-left-color: #3fc4c4;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#3fa05e), to(#2c6f43));
 }
 
 .csr-row-icon.accent-teal,
 .csr-card-icon.accent-teal
 {
-	color: #3fc4c4;
-	border-color: #1c6b6b;
+	color: #2a9d9d;
 }
 
 .csr-row.accent-teal .csr-bar-fill,
 .csr-card.accent-teal .csr-bar-fill
 {
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(#3fc4c4), to(#1c6b6b));
-}
-
-.csr-row.accent-blue,
-.csr-card.accent-blue
-{
-	border-left-color: #82d7ff;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#2a9d9d), to(#1c6b6b));
 }
 
 .csr-row-icon.accent-blue,
 .csr-card-icon.accent-blue
 {
-	color: #82d7ff;
-	border-color: #2a6d8f;
+	color: #3d7fa8;
 }
 
 .csr-row.accent-blue .csr-bar-fill,
 .csr-card.accent-blue .csr-bar-fill
 {
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(#82d7ff), to(#2a6d8f));
-}
-
-.csr-row.accent-violet,
-.csr-card.accent-violet
-{
-	border-left-color: #a98cf0;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#3d7fa8), to(#2a6d8f));
 }
 
 .csr-row-icon.accent-violet,
 .csr-card-icon.accent-violet
 {
-	color: #a98cf0;
-	border-color: #553a94;
+	color: #7a5bc7;
 }
 
 .csr-row.accent-violet .csr-bar-fill,
 .csr-card.accent-violet .csr-bar-fill
 {
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(#a98cf0), to(#553a94));
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#7a5bc7), to(#553a94));
 }
-
 
 /* ================================================================================================
    Reserved regions. Declared and styled now because DOM cannot be added to a published addon without

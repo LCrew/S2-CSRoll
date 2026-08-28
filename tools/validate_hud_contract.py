@@ -239,12 +239,10 @@ def check_stylesheet_syntax(css_text: str, path: pathlib.Path) -> None:
             error(f"{path.name}: animation-name {m.group(1)!r} has no matching @keyframes block "
                   f"(declared: {sorted(declared) or 'none'})")
 
-    # 'noclip' means do NOT clip. A fixed-size viewport meant to mask an overflowing child needs
-    # 'clip clip'. It IS correct on the outermost panel, which has to let children draw past it.
-    for m in re.finditer(r"([.#][\w-]+)[^{}]*\{[^}]*overflow:\s*noclip", stripped):
-        if "root" not in m.group(1):
-            warn(f"{path.name}: {m.group(1)} sets 'overflow: noclip', which disables clipping - "
-                 "use 'clip clip' if this panel is meant to be a viewport")
+    # Deliberately NOT checking overflow. 'noclip' was once a genuine bug here (a viewport that needed
+    # to mask its child), but it is equally the correct choice for the root and for the spin wheel,
+    # whose cards are meant to overhang. Intent is not visible from the stylesheet, and a warning that
+    # fires on correct code teaches you to skim past the ones that matter.
 
     # Transitioning `width` is a trap here. Writing ANY dialog variable in the same subtree re-measures
     # the label, re-lays-out the row, re-resolves `width: 100%` and restarts the transition - so a bar
