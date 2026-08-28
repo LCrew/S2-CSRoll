@@ -233,7 +233,13 @@ function Invoke-Pack {
     $vpk = Join-Path $outDir "$AddonName.vpk"
 
     Write-Step "Packing $gameRoot -> $vpk"
-    & $VpkEditCli --output $vpk $gameRoot
+
+    # --single-file matters. Without it VPKEdit writes a MULTICHUNK vpk - a directory file plus
+    # numbered archives - and Source only recognises that layout when the directory file is named
+    # with a "_dir" suffix (csroll_hud_dir.vpk). VPKEdit warns about this but still succeeds, so the
+    # mismatch surfaces later as a HUD that silently never loads. The compiled HUD is two files, so
+    # there is nothing to gain from chunking; one self-contained vpk sidesteps the naming rule.
+    & $VpkEditCli --single-file --output $vpk $gameRoot
     if ($LASTEXITCODE -ne 0) {
         Write-Error "vpkeditcli failed with exit code $LASTEXITCODE."
         exit 1
