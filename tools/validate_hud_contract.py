@@ -209,35 +209,37 @@ def check_stylesheet_syntax(css_text: str, path: pathlib.Path) -> None:
     """
     stripped = re.sub(r"/\*.*?\*/", "", css_text, flags=re.S)
 
-    # Two separate failure modes, established the hard way against a live client:
+    # Keyframes rules, all three learned from live failures rather than documentation:
     #
-    #   @keyframes name        <newline> {   -> "Invalid @keyframe name (missing quotes or empty)"
-    #                                            the newline is read as an empty name, and the whole
-    #                                            stylesheet is discarded
-    #   @keyframes 'name' { ... }            -> parses, but registers under a name that
-    #                                            animation-name cannot find: "missing animation name"
+    #   @keyframes name <newline> {  -> "Invalid @keyframe name (missing quotes or empty)"
+    #   @keyframes name { ... }      -> same error; the name must be QUOTED
+    #   declared after first use     -> parses, but "trying to apply a missing animation <name>"
     #
-    # The form that works is an unquoted name with the brace on the SAME line, matching Valve's own
-    # stylesheets. animation-name must be unquoted to match.
-    for m in re.finditer(r"@keyframes\s+(['\"])([^'\"]*)\1", stripped):
-        error(f"{path.name}: @keyframes name {m.group(2)!r} is quoted. It parses, but animation-name "
-              "then cannot resolve it - use an unquoted name")
+    # The first two discard the entire stylesheet, which then fails the layout's <include>, which then
+    # builds no panels at all - a log full of "Unable to find panel with id ..." whose actual cause is
+    # one line of CSS. The third is harmless by comparison: a static panel, nothing else affected.
+    for m in re.finditer(r"@keyframes[ \t]+([^\s{'\"]+)", stripped):
+        error(f"{path.name}: @keyframes name {m.group(1)!r} must be quoted - unquoted fails to parse "
+              "and the whole stylesheet is discarded")
 
-    # [ \t]* deliberately, not \s* - the newline is exactly what this is looking for.
-    for m in re.finditer(r"@keyframes[ \t]+([^\s{'\"]+)[ \t]*(.)", stripped):
-        if m.group(2) != "{":
-            error(f"{path.name}: @keyframes {m.group(1)} must have its opening brace on the SAME line - "
-                  "a newline there is parsed as an empty name and discards the whole stylesheet")
+    for m in re.finditer(r"@keyframes[ \t]+(['\"])([^'\"]*)\1[ \t]*(.)", stripped):
+        if m.group(3) != "{":
+            error(f"{path.name}: @keyframes {m.group(2)!r} must have its opening brace on the SAME "
+                  "line - a newline there is parsed as an empty name")
 
-    for m in re.finditer(r"animation-name:\s*(['\"])([^'\"]*)\1", stripped):
-        error(f"{path.name}: animation-name {m.group(2)!r} is quoted; use an unquoted name")
+    # Declared-before-used, by position in the file.
+    declared: dict[str, int] = {}
+    for m in re.finditer(r"@keyframes[ \t]+(['\"])([^'\"]*)\1", stripped):
+        declared.setdefault(m.group(2), m.start())
 
-    # Every animation-name must resolve to a declared @keyframes block.
-    declared = set(re.findall(r"@keyframes\s+([^\s{'\"]+)", stripped))
-    for m in re.finditer(r"animation-name:\s*([^\s;'\"]+)\s*;", stripped):
-        if m.group(1) not in declared:
-            error(f"{path.name}: animation-name {m.group(1)!r} has no matching @keyframes block "
+    for m in re.finditer(r"animation-name:\s*(['\"]?)([\w-]+)\1\s*;", stripped):
+        name = m.group(2)
+        if name not in declared:
+            error(f"{path.name}: animation-name {name!r} has no matching @keyframes block "
                   f"(declared: {sorted(declared) or 'none'})")
+        elif declared[name] > m.start():
+            error(f"{path.name}: animation-name {name!r} is used before its @keyframes block is "
+                  "declared - move the block above its first use")
 
     # Deliberately NOT checking overflow. 'noclip' was once a genuine bug here (a viewport that needed
     # to mask its child), but it is equally the correct choice for the root and for the spin wheel,

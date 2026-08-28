@@ -1,3 +1,24 @@
+/* ================================================================================================
+   Keyframes
+
+   Declared FIRST, before any rule that references them, and with QUOTED names. Both details are the
+   product of three separate live failures and neither is guesswork any more:
+
+     @keyframes name <newline> {   -> "Invalid @keyframe name (missing quotes or empty)" and the whole
+                                      stylesheet is discarded, taking every panel with it
+     @keyframes name { ... }       -> same error: the name has to be quoted
+     declared after first use      -> parses, but "trying to apply a missing animation", because the
+                                      lookup happens where animation-name is read
+
+   The parse error is the dangerous one - it costs the entire stylesheet, so when in doubt prefer the
+   form that parses even if the animation itself fails to resolve. A missing animation is a static
+   panel; a failed parse is no HUD at all.
+   ================================================================================================ */
+
+@keyframes 'csr-wipe' { 0% { opacity: 0.0; transform: translate3d( -14px, 0px, 0px ); } 100% { opacity: 1.0; transform: translate3d( 0px, 0px, 0px ); } }
+
+@keyframes 'csr-spin' { 0% { transform: rotatez( 0deg ); } 100% { transform: rotatez( 360deg ); } }
+
 /*
   CSRoll custom HUD stylesheet.
 
@@ -296,13 +317,12 @@
    animation that cannot drop a frame. */
 .csr-card-desc.desc-wipe
 {
-	animation-name: csr-wipe;
+	animation-name: 'csr-wipe';
 	animation-duration: 0.55s;
 	animation-timing-function: ease-out;
 	animation-iteration-count: 1;
 }
 
-@keyframes csr-wipe { 0% { opacity: 0.0; transform: translate3d( -14px, 0px, 0px ); } 100% { opacity: 1.0; transform: translate3d( 0px, 0px, 0px ); } }
 
 .csr-card-more
 {
@@ -459,13 +479,12 @@
 /* Indeterminate "working" state. */
 .spin
 {
-	animation-name: csr-spin;
+	animation-name: 'csr-spin';
 	animation-duration: 1.1s;
 	animation-timing-function: linear;
 	animation-iteration-count: infinite;
 }
 
-@keyframes csr-spin { 0% { transform: rotateZ( 0deg ); } 100% { transform: rotateZ( 360deg ); } }
 
 /* ------------------------------------------------------------------------------------------------
    Duration ladder. The server picks the nearest rung to the real duration, so a bar may finish
