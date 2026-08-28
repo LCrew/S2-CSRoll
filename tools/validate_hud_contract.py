@@ -209,14 +209,35 @@ def check_stylesheet_syntax(css_text: str, path: pathlib.Path) -> None:
     """
     stripped = re.sub(r"/\*.*?\*/", "", css_text, flags=re.S)
 
-    # Panorama requires the keyframe name to be quoted: @keyframes 'name'. Unquoted gives
-    # "Invalid @keyframe name (missing quotes or empty)" and takes the whole stylesheet with it.
-    for m in re.finditer(r"@keyframes\s+([^\s{'\"]\S*)", stripped):
-        error(f"{path.name}: @keyframes name {m.group(1)!r} must be quoted, e.g. @keyframes 'name' - "
-              "unquoted names fail to parse and the entire stylesheet is discarded")
+    # Two separate failure modes, established the hard way against a live client:
+    #
+    #   @keyframes name        <newline> {   -> "Invalid @keyframe name (missing quotes or empty)"
+    #                                            the newline is read as an empty name, and the whole
+    #                                            stylesheet is discarded
+    #   @keyframes 'name' { ... }            -> parses, but registers under a name that
+    #                                            animation-name cannot find: "missing animation name"
+    #
+    # The form that works is an unquoted name with the brace on the SAME line, matching Valve's own
+    # stylesheets. animation-name must be unquoted to match.
+    for m in re.finditer(r"@keyframes\s+(['\"])([^'\"]*)\1", stripped):
+        error(f"{path.name}: @keyframes name {m.group(2)!r} is quoted. It parses, but animation-name "
+              "then cannot resolve it - use an unquoted name")
 
+    # [ \t]* deliberately, not \s* - the newline is exactly what this is looking for.
+    for m in re.finditer(r"@keyframes[ \t]+([^\s{'\"]+)[ \t]*(.)", stripped):
+        if m.group(2) != "{":
+            error(f"{path.name}: @keyframes {m.group(1)} must have its opening brace on the SAME line - "
+                  "a newline there is parsed as an empty name and discards the whole stylesheet")
+
+    for m in re.finditer(r"animation-name:\s*(['\"])([^'\"]*)\1", stripped):
+        error(f"{path.name}: animation-name {m.group(2)!r} is quoted; use an unquoted name")
+
+    # Every animation-name must resolve to a declared @keyframes block.
+    declared = set(re.findall(r"@keyframes\s+([^\s{'\"]+)", stripped))
     for m in re.finditer(r"animation-name:\s*([^\s;'\"]+)\s*;", stripped):
-        error(f"{path.name}: animation-name {m.group(1)!r} must be quoted, e.g. animation-name: 'name';")
+        if m.group(1) not in declared:
+            error(f"{path.name}: animation-name {m.group(1)!r} has no matching @keyframes block "
+                  f"(declared: {sorted(declared) or 'none'})")
 
     # 'noclip' means do NOT clip. A fixed-size viewport meant to mask an overflowing child needs
     # 'clip clip'. It IS correct on the outermost panel, which has to let children draw past it.

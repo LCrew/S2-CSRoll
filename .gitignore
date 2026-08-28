@@ -8,3 +8,4 @@ build/
 *.bak
 CLAUDE.md
 __pycache__/
+previews/

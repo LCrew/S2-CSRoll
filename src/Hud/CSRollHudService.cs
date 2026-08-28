@@ -602,13 +602,22 @@ public sealed class CSRollHudService : ICSRollHudService
             return;
         }
 
-        // A gauge is not a countdown - it moves in both directions - so it uses the quantised width
+        // A gauge is not a countdown - it moves in both directions - so it uses the quantised fill
         // ladder rather than a transition, and only emits when the 5% bucket actually changes.
+        //
+        // ORDER MATTERS. The duration has to drop to instant BEFORE the drain target is cleared,
+        // otherwise a bar arriving here straight off a countdown still carries that countdown's
+        // dur-N, and clearing drain animates it slowly back to full - which reads as a bar still
+        // filling up long after the cooldown it represents has finished.
         ShowFor(slot, bar.FillA, true);
         ShowFor(slot, bar.FillB, false);
-        SetClassFor(slot, bar.FillA, HudClasses.Drain, false);
         SetClassGroupFor(slot, bar.FillA, HudClasses.GroupDuration, HudClasses.DurationInstant);
+        SetClassFor(slot, bar.FillA, HudClasses.Drain, false);
         SetClassGroupFor(slot, bar.FillA, HudClasses.GroupWidth, HudClasses.Width(fraction));
+
+        // The other fill may still be mid-transition from a countdown that just ended; park it.
+        SetClassGroupFor(slot, bar.FillB, HudClasses.GroupDuration, HudClasses.DurationInstant);
+        SetClassFor(slot, bar.FillB, HudClasses.Drain, false);
 
         // A gauge is not a countdown, so nothing is "running" any more - drop the deadline, or a later
         // countdown that happened to end at the same moment would be mistaken for one already animating.
