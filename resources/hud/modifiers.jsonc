@@ -1,0 +1,101 @@
+{
+  // How each modifier is DRAWN on the CS2 Custom HUD (the Panorama surface, not the center-HTML text
+  // popups). One entry per modifier:
+  //
+  //   "<ModifierName>": { "glyph": "<symbol>", "accent": "<suffix>" }
+  //
+  // "glyph" is the symbol shown in the modifier's icon badge. It is written straight into the panel as
+  // text, so changing an icon is genuinely just pasting a different character here - no rebuild, no
+  // image file, no Workshop republish. That is also why it is a glyph rather than a texture: a texture
+  // reference that doesn't resolve logs a warning on every client, every time, and shipping 46 of those
+  // to make a HUD look right is a bad trade.
+  //
+  // Stick to widely-supported ranges (geometric shapes, arrows, dingbats). The stylesheet falls back to
+  // 'Arial Unicode MS', which covers all of them; something from a rarer block may render as a box.
+  //
+  // "accent" becomes the CSS class "accent-<suffix>", which must exist in hud/styles/csroll_hud.css.
+  // `tools/build_hud_resources.ps1 -Action Validate` checks that it does and fails if it doesn't.
+  //
+  // <ModifierName> must exactly match the modifier's internal Name (case-sensitive), the same rule
+  // resources/translations/en.jsonc follows. It is the internal name, NOT the display name.
+  //
+  // "*" is the catch-all, used for any modifier without its own entry - including every declarative
+  // ConVarModifiers/*.cfg modifier, which by definition can't be listed here ahead of time. A missing
+  // entry is always safe: it degrades to the generic badge, never to a broken panel.
+  //
+  // The accents are THEMATIC - what a modifier does - and deliberately not a rarity scale. Every
+  // modifier here is drawn from a uniform random pool, so grading them by "rarity" would be telling
+  // players something that isn't true. The eight families:
+  //
+  //   red     - raw damage output           orange - explosives and fire
+  //   amber   - weapon handling / ammo      green  - health, healing, survival
+  //   teal    - movement and mobility       blue   - teleports and repositioning
+  //   violet  - vision, stealth, perception grey   - everything else / unknown
+  //
+  // A copy of this file in the plugin's writable data directory (hud/modifiers.jsonc) overrides this
+  // one, so tweaks survive a plugin update.
+
+  // --- damage output -----------------------------------------------------------------------------
+  "MoreDamage":              { "glyph": "✖", "accent": "red"    },
+  "Vampire":                 { "glyph": "♥", "accent": "red"    },
+  "Bounty":                  { "glyph": "★", "accent": "red"    },
+  "MasterZeus":              { "glyph": "↯", "accent": "red"    },
+  "FlashingBullets":         { "glyph": "☀", "accent": "red"    },
+  "DisarmingBullets":        { "glyph": "✂", "accent": "red"    },
+
+  // --- explosives and fire -----------------------------------------------------------------------
+  "AtomicExplosions":        { "glyph": "☢", "accent": "orange" },
+  "ClusterGrenades":         { "glyph": "⁂", "accent": "orange" },
+  "ChineseGrenades":         { "glyph": "⌛", "accent": "orange" },
+  "SuicideBomber":           { "glyph": "☠", "accent": "orange" },
+  "PoisonousSmoke":          { "glyph": "☁", "accent": "orange" },
+  "WalkingGrenadier":        { "glyph": "◉", "accent": "orange" },
+  "PlantAnywhere":           { "glyph": "⚑", "accent": "orange" },
+
+  // --- weapon handling / ammo --------------------------------------------------------------------
+  "NoRecoil":                { "glyph": "↕", "accent": "amber"  },
+  "IncreasedSpread":         { "glyph": "⋔", "accent": "amber"  },
+  "InfiniteAmmo":            { "glyph": "∞", "accent": "amber"  },
+  "OnePerReload":            { "glyph": "①", "accent": "amber"  },
+  "RandomLoadout":           { "glyph": "⚄", "accent": "amber"  },
+  "WeaponRoulette":          { "glyph": "↻", "accent": "amber"  },
+  "Butterfingers":           { "glyph": "↧", "accent": "amber"  },
+  "BoomerangBullets":        { "glyph": "↺", "accent": "amber"  },
+  "LongerFlashes":           { "glyph": "☉", "accent": "amber"  },
+
+  // --- health / survival -------------------------------------------------------------------------
+  "Juggernaut":              { "glyph": "⛨", "accent": "green"  },
+  "RandomHealth":            { "glyph": "⚕", "accent": "green"  },
+  "Regeneration":            { "glyph": "✚", "accent": "green"  },
+  "Revive":                  { "glyph": "♻", "accent": "green"  },
+  "Saint":                   { "glyph": "✝", "accent": "green"  },
+  "HardHead":                { "glyph": "◓", "accent": "green"  },
+  "SteelBody":               { "glyph": "▣", "accent": "green"  },
+
+  // --- movement ----------------------------------------------------------------------------------
+  "Speedhack":               { "glyph": "»", "accent": "teal"   },
+  "HeavyBoots":              { "glyph": "↓", "accent": "teal"   },
+  "BunnyHop":                { "glyph": "↑", "accent": "teal"   },
+  "Jetpack":                 { "glyph": "▲", "accent": "teal"   },
+  "SmallPlayers":            { "glyph": "▾", "accent": "teal"   },
+  "Drunk":                   { "glyph": "≋", "accent": "teal"   },
+
+  // --- teleportation / repositioning -------------------------------------------------------------
+  "SwapOnDeath":             { "glyph": "⇄", "accent": "blue"   },
+  "SwapOnHit":               { "glyph": "⇆", "accent": "blue"   },
+  "TeleportOnReload":        { "glyph": "➤", "accent": "blue"   },
+  "TeleportOnHit":           { "glyph": "➦", "accent": "blue"   },
+  "Flanker":                 { "glyph": "⤴", "accent": "blue"   },
+  "Recall":                  { "glyph": "↶", "accent": "blue"   },
+  "ButterflyEffect":         { "glyph": "✤", "accent": "blue"   },
+
+  // --- vision / stealth --------------------------------------------------------------------------
+  "Wallhack":                { "glyph": "◎", "accent": "violet" },
+  "Vanish":                  { "glyph": "◌", "accent": "violet" },
+  "ConditionalInvisibility": { "glyph": "○", "accent": "violet" },
+  "SmokeImmunity":           { "glyph": "⊘", "accent": "violet" },
+  "Mimic":                   { "glyph": "⚲", "accent": "violet" },
+
+  // --- catch-all ---------------------------------------------------------------------------------
+  "*":                       { "glyph": "◆", "accent": "grey"   }
+}

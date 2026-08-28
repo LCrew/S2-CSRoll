@@ -6,6 +6,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -295,6 +296,34 @@ public sealed class GameModifierVanish : GameModifierInvisibleBase
         SetHud(slot, html);
     }
 
+
+    /// <summary>
+    /// The same three states the center-HTML gauge above draws, handed to the custom HUD as data
+    /// instead of markup.
+    ///
+    /// Both surfaces read the identical per-slot dictionaries, so they cannot disagree; this is
+    /// additive and changes nothing about the center-HTML path, which stays the fallback for servers
+    /// without the HUD addon.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        var now = Core.Engine.GlobalVars.CurrentTime;
+
+        if (_vanishEndsAt.TryGetValue(slot, out var endsAt) && endsAt > now)
+        {
+            return HudTimer.Countdown(endsAt - now, "ACTIVE");
+        }
+
+        var readyAt = _nextAvailableTime.GetValueOrDefault(slot, now);
+        return readyAt > now
+            ? HudTimer.Countdown(readyAt - now)
+            : HudTimer.Ready();
+    }
 
     /// <summary>Re-seeds the cooldown on respawn and clears any vanish that somehow survived the life, mirroring Flanker's per-spawn reset.</summary>
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)

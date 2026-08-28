@@ -6,6 +6,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 using CSRoll.Services.Interfaces;
 
 namespace CSRoll.Modifiers;
@@ -185,6 +186,18 @@ public abstract class GameModifierBase
 
     /// <summary>Retracts this modifier's HUD block for one player (e.g. while they're dead).</summary>
     protected void ClearHud(int slot) => Runtime.ClearHudSection(this, slot);
+
+    /// <summary>
+    /// Optional live readout for this modifier's row on the custom HUD tracker: a cooldown winding down,
+    /// a duration burning off, a gauge draining.
+    ///
+    /// Returning null - the default, and what all but a handful of modifiers do - simply means the
+    /// tracker row shows the modifier's icon and name with no timer, which is correct for the passive
+    /// ones. This is deliberately additive: it does not replace <see cref="SetHud"/>, and a modifier
+    /// that implements it keeps its existing center-HTML gauge untouched, so the fallback path for
+    /// servers without the HUD addon is unaffected either way.
+    /// </summary>
+    public virtual HudTimer? GetHudTimer(int slot) => null;
 
     /// <summary>
     /// Bug fix: true when `slot` is the ONLY slot this modifier is currently assigned to - i.e.

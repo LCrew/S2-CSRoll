@@ -1,0 +1,834 @@
+/*
+  CSRoll custom HUD stylesheet.
+
+  Compiled to .vcss_c by CS2's resourcecompiler and shipped inside the Workshop addon - not in the
+  plugin zip. See tools/HUD_SETUP.md.
+
+  This file is where the animation actually happens. The server cannot set a width, a duration, or an
+  image - it can only add and remove classes. So everything continuous is expressed here as a fixed
+  ladder of classes the server picks from:
+
+    dur-N   transition-duration in seconds, for countdowns with a known length
+    wN      a literal width percentage, for gauges that move in both directions
+
+  Combined with `drain`, a whole 20-second cooldown bar costs the server two class writes instead of
+  eighty width pushes, and it animates at the client's framerate rather than at whatever rate network
+  messages happen to arrive. That distinction is the entire reason this surface exists: the
+  center-HTML HUD it complements has a documented ~150ms floor below which frames are silently
+  swallowed (see SpinRevealConfig.DescriptionScrambleFrames).
+
+  Every class name here that the server can toggle is mirrored in src/Hud/HudClasses.cs, and
+  `tools/build_hud_resources.ps1 -Action Validate` fails on any mismatch.
+*/
+
+/* ================================================================================================
+   Palette
+   ================================================================================================ */
+
+#csr_root
+{
+	width: 100%;
+	height: 100%;
+}
+
+.csr-root
+{
+	width: 100%;
+	height: 100%;
+}
+
+/* ================================================================================================
+   Shared state
+   ================================================================================================ */
+
+.hidden
+{
+	visibility: collapse;
+	opacity: 0.0;
+}
+
+/* Debug aid for !rollhudtest: outlines every panel so one that never gets addressed is obvious. */
+.debug
+{
+	border: 1px solid #ff00ff;
+}
+
+/* ================================================================================================
+   Spin reel
+
+   The strip is taller than its window and slides upward under it. One transition moves it the whole
+   way; the server fills the twenty rows once, adds a duration class, and then does nothing but play
+   the tick sound until it lands.
+   ================================================================================================ */
+
+.csr-spin
+{
+	width: 460px;
+	height: 128px;
+	horizontal-align: center;
+	vertical-align: center;
+	margin-bottom: 180px;
+	flow-children: down;
+	background-color: gradient(linear, 0% 0%, 0% 100%, from(rgba(10, 16, 22, 0.0)), color-stop(0.5, rgba(10, 16, 22, 0.86)), to(rgba(10, 16, 22, 0.0)));
+	transition-property: opacity;
+	transition-duration: 0.15s;
+	opacity: 1.0;
+}
+
+/* Fixed-height viewport. Exactly one reel row is visible at a time. */
+.csr-spin-window
+{
+	width: 100%;
+	height: 56px;
+	vertical-align: center;
+	overflow: noclip;
+}
+
+.csr-spin-reel
+{
+	width: 100%;
+	flow-children: down;
+	/* 20 rows x 56px, parked so row 0 sits in the window. */
+	transform: translateY(0px);
+	transition-property: transform;
+	/* Fast out of the gate, long slow settle - the same shape as the eased server-side spin this
+	   mirrors, so both surfaces read identically. */
+	transition-timing-function: cubic-bezier(0.12, 0.72, 0.10, 1.0);
+}
+
+/* Travels 19 rows so the landing row (csr_reel19) ends up in the window. */
+.csr-spin-reel.spinning
+{
+	transform: translateY(-1064px);
+}
+
+.csr-reel-row
+{
+	width: 100%;
+	height: 56px;
+	text-align: center;
+	vertical-align: center;
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 34px;
+	font-weight: bold;
+	color: #c8d4e0;
+	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.8);
+}
+
+.csr-reel-landing
+{
+	color: #ffffff;
+}
+
+/* The line the reel lands against. */
+.csr-spin-marker
+{
+	width: 100%;
+	height: 2px;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(228, 174, 57, 0.0)), color-stop(0.5, rgba(228, 174, 57, 0.9)), to(rgba(228, 174, 57, 0.0)));
+}
+
+/* ================================================================================================
+   Reveal card
+   ================================================================================================ */
+
+.csr-reveal
+{
+	width: 620px;
+	horizontal-align: center;
+	vertical-align: center;
+	margin-bottom: 150px;
+	flow-children: down;
+	padding: 18px 22px 20px;
+	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.94)), to(rgba(14, 22, 30, 0.94)));
+	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
+	background-size: 360px 360px;
+	background-img-opacity: 0.020;
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	border-radius: 3px;
+	box-shadow: rgba(0, 0, 0, 0.75) 0px 0px 32px 0px;
+	opacity: 0.0;
+	transform: scaleX(0.96) scaleY(0.96);
+	transition-property: opacity, transform;
+	transition-duration: 0.22s;
+	transition-timing-function: ease-out;
+}
+
+/* Landing state: pops up to full size. */
+.csr-reveal.reveal-in
+{
+	opacity: 1.0;
+	transform: scaleX(1.0) scaleY(1.0);
+}
+
+.csr-reveal.reveal-out
+{
+	opacity: 0.0;
+	transform: scaleX(1.0) scaleY(1.02);
+	transition-duration: 0.3s;
+}
+
+.csr-reveal-title
+{
+	font-family: Stratum2 Condensed, 'Arial Unicode MS';
+	font-size: 15px;
+	font-weight: bold;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #e4ae39;
+	margin-bottom: 6px;
+}
+
+.csr-reveal-rule
+{
+	width: 100%;
+	height: 1px;
+	margin-bottom: 12px;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(228, 174, 57, 0.7)), color-stop(0.55, rgba(50, 129, 172, 0.3)), to(rgba(50, 129, 172, 0.0)));
+}
+
+.csr-card
+{
+	width: 100%;
+	flow-children: right;
+	margin-bottom: 8px;
+	padding: 8px 10px;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(255, 255, 255, 0.045)), to(rgba(0, 0, 0, 0.16)));
+	border-left: 3px solid #8899aa;
+	border-radius: 2px;
+}
+
+.csr-card-icon
+{
+	width: 46px;
+	height: 46px;
+	vertical-align: center;
+	text-align: center;
+	/* Unicode first: these are symbols, and Stratum2 does not carry most of them. */
+	font-family: 'Arial Unicode MS', Stratum2;
+	font-size: 26px;
+	color: #8899aa;
+	background-color: rgba(0, 0, 0, 0.28);
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	border-radius: 2px;
+	margin-right: 12px;
+}
+
+.csr-card-copy
+{
+	width: fill-parent-flow(1);
+	flow-children: down;
+	vertical-align: center;
+}
+
+.csr-card-name
+{
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 24px;
+	font-weight: bold;
+	color: #f3f6fb;
+	text-shadow: 1px 1px 2px 2 rgba(0, 0, 0, 0.7);
+}
+
+.csr-card-desc
+{
+	width: 100%;
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 15px;
+	color: #93a3b4;
+	margin-top: 2px;
+}
+
+/* The description wipe. Replaces the twenty server-pushed scramble frames the center-HTML path needs
+   with one client-side animation that cannot drop a frame. */
+.csr-card-desc.desc-wipe
+{
+	animation-name: csr-wipe;
+	animation-duration: 0.55s;
+	animation-timing-function: ease-out;
+	animation-iteration-count: 1;
+}
+
+@keyframes csr-wipe
+{
+	from { opacity: 0.0; transform: translateX(-14px); }
+	to   { opacity: 1.0; transform: translateX(0px); }
+}
+
+.csr-card-more
+{
+	font-family: Stratum2 Condensed, 'Arial Unicode MS';
+	font-size: 14px;
+	color: #7d8b99;
+	margin-top: 2px;
+}
+
+/* ================================================================================================
+   Active-modifier tracker
+
+   Sits on the left edge, clear of the radar (top-left) and the player panel (bottom-left).
+   ================================================================================================ */
+
+.csr-track
+{
+	width: 300px;
+	horizontal-align: left;
+	vertical-align: center;
+	margin-left: 26px;
+	flow-children: down;
+	transition-property: opacity;
+	transition-duration: 0.2s;
+	opacity: 1.0;
+}
+
+/* Gets out of the way of a reveal with no server involvement at all - the sequencer sets one class on
+   the root and CSS does the rest. */
+.csr-root.reveal-active .csr-track
+{
+	opacity: 0.0;
+}
+
+.csr-track-title
+{
+	font-family: Stratum2 Condensed, 'Arial Unicode MS';
+	font-size: 12px;
+	font-weight: bold;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	color: #6f7f8f;
+	margin-bottom: 5px;
+	margin-left: 2px;
+}
+
+.csr-row
+{
+	width: 100%;
+	flow-children: right;
+	margin-bottom: 4px;
+	padding: 5px 8px;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.82)), to(rgba(8, 14, 20, 0.52)));
+	border-left: 3px solid #8899aa;
+	border-radius: 2px;
+	transition-property: opacity;
+	transition-duration: 0.15s;
+	opacity: 1.0;
+}
+
+.csr-row.overflow
+{
+	opacity: 0.7;
+}
+
+.csr-row-icon
+{
+	width: 26px;
+	height: 26px;
+	vertical-align: center;
+	text-align: center;
+	font-family: 'Arial Unicode MS', Stratum2;
+	font-size: 16px;
+	color: #8899aa;
+	margin-right: 8px;
+}
+
+.csr-row-copy
+{
+	width: fill-parent-flow(1);
+	flow-children: down;
+	vertical-align: center;
+}
+
+.csr-row-head
+{
+	width: 100%;
+	flow-children: right;
+}
+
+.csr-row-name
+{
+	width: fill-parent-flow(1);
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 15px;
+	font-weight: bold;
+	color: #e8edf3;
+}
+
+.csr-row-time
+{
+	font-family: Stratum2 Condensed, 'Arial Unicode MS';
+	font-size: 14px;
+	color: #93a3b4;
+	text-align: right;
+}
+
+/* ================================================================================================
+   Bars
+
+   Two fills per bar, alternated by the server on every restart. Restarting a transition means
+   "snap to full at duration 0" then "drain at duration N"; if the client coalesces both into one
+   frame the bar jumps straight to empty. Handing each restart to whichever fill is currently at rest
+   means the animating element always starts from a settled state.
+   ================================================================================================ */
+
+.csr-bar
+{
+	width: 100%;
+	height: 4px;
+	margin-top: 4px;
+	background-color: rgba(0, 0, 0, 0.45);
+	border-radius: 2px;
+}
+
+.csr-bar-fill
+{
+	width: 100%;
+	height: 100%;
+	background-color: #8899aa;
+	border-radius: 2px;
+	transition-property: width;
+	transition-timing-function: linear;
+	transition-duration: 0.0s;
+}
+
+/* Target state for a countdown. Paired with a dur-* class, this is the whole animation. */
+.csr-bar-fill.drain
+{
+	width: 0%;
+}
+
+.csr-bar-fill.fill
+{
+	width: 100%;
+}
+
+/* Indeterminate "working" state. */
+.spin
+{
+	animation-name: csr-spin;
+	animation-duration: 1.1s;
+	animation-timing-function: linear;
+	animation-iteration-count: infinite;
+}
+
+@keyframes csr-spin
+{
+	from { transform: rotateZ(0deg); }
+	to   { transform: rotateZ(360deg); }
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Duration ladder. The server picks the nearest rung to the real duration, so a bar may finish
+   slightly early or late on an unusual config value - the numeric readout beside it stays exact.
+   Adding a rung here is free, but needs the addon republished.
+   ------------------------------------------------------------------------------------------------ */
+.csr-bar-fill.dur-0,
+.csr-spin-reel.dur-0
+{
+	transition-duration: 0.0s;
+}
+.csr-bar-fill.dur-1,
+.csr-spin-reel.dur-1
+{
+	transition-duration: 1.0s;
+}
+.csr-bar-fill.dur-2,
+.csr-spin-reel.dur-2
+{
+	transition-duration: 2.0s;
+}
+.csr-bar-fill.dur-3,
+.csr-spin-reel.dur-3
+{
+	transition-duration: 3.0s;
+}
+.csr-bar-fill.dur-5,
+.csr-spin-reel.dur-5
+{
+	transition-duration: 5.0s;
+}
+.csr-bar-fill.dur-8,
+.csr-spin-reel.dur-8
+{
+	transition-duration: 8.0s;
+}
+.csr-bar-fill.dur-10,
+.csr-spin-reel.dur-10
+{
+	transition-duration: 10.0s;
+}
+.csr-bar-fill.dur-15,
+.csr-spin-reel.dur-15
+{
+	transition-duration: 15.0s;
+}
+.csr-bar-fill.dur-20,
+.csr-spin-reel.dur-20
+{
+	transition-duration: 20.0s;
+}
+.csr-bar-fill.dur-25,
+.csr-spin-reel.dur-25
+{
+	transition-duration: 25.0s;
+}
+.csr-bar-fill.dur-30,
+.csr-spin-reel.dur-30
+{
+	transition-duration: 30.0s;
+}
+.csr-bar-fill.dur-45,
+.csr-spin-reel.dur-45
+{
+	transition-duration: 45.0s;
+}
+.csr-bar-fill.dur-60,
+.csr-spin-reel.dur-60
+{
+	transition-duration: 60.0s;
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Width ladder, in 5% steps. Used for gauges that move in both directions and so cannot be expressed
+   as a transition - fuel, concealment, a ramping heal rate. The short transition below makes
+   consecutive buckets read as continuous movement rather than as visible 5% jumps.
+
+   Two-class selectors so these carry the same specificity as .drain and neither silently wins.
+   ------------------------------------------------------------------------------------------------ */
+.csr-bar-fill.w0
+{
+	width: 0%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w5
+{
+	width: 5%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w10
+{
+	width: 10%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w15
+{
+	width: 15%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w20
+{
+	width: 20%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w25
+{
+	width: 25%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w30
+{
+	width: 30%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w35
+{
+	width: 35%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w40
+{
+	width: 40%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w45
+{
+	width: 45%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w50
+{
+	width: 50%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w55
+{
+	width: 55%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w60
+{
+	width: 60%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w65
+{
+	width: 65%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w70
+{
+	width: 70%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w75
+{
+	width: 75%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w80
+{
+	width: 80%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w85
+{
+	width: 85%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w90
+{
+	width: 90%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w95
+{
+	width: 95%;
+	transition-duration: 0.12s;
+}
+.csr-bar-fill.w100
+{
+	width: 100%;
+	transition-duration: 0.12s;
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Accent families.
+
+   These describe what a modifier DOES, not how rare it is. Every modifier in this plugin comes from a
+   uniform random pool, so a rarity gradient would be telling the player something untrue.
+
+   Each accent recolours the row/card border, its glyph badge, and its bar in one go.
+   ------------------------------------------------------------------------------------------------ */
+.csr-row.accent-grey,
+.csr-card.accent-grey
+{
+	border-left-color: #8899aa;
+}
+
+.csr-row-icon.accent-grey,
+.csr-card-icon.accent-grey
+{
+	color: #8899aa;
+	border-color: #5a6a7a;
+}
+
+.csr-row.accent-grey .csr-bar-fill,
+.csr-card.accent-grey .csr-bar-fill
+{
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#8899aa), to(#5a6a7a));
+}
+
+.csr-row.accent-red,
+.csr-card.accent-red
+{
+	border-left-color: #e05a4e;
+}
+
+.csr-row-icon.accent-red,
+.csr-card-icon.accent-red
+{
+	color: #e05a4e;
+	border-color: #8f2d24;
+}
+
+.csr-row.accent-red .csr-bar-fill,
+.csr-card.accent-red .csr-bar-fill
+{
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e05a4e), to(#8f2d24));
+}
+
+.csr-row.accent-orange,
+.csr-card.accent-orange
+{
+	border-left-color: #e08a39;
+}
+
+.csr-row-icon.accent-orange,
+.csr-card-icon.accent-orange
+{
+	color: #e08a39;
+	border-color: #8f4c14;
+}
+
+.csr-row.accent-orange .csr-bar-fill,
+.csr-card.accent-orange .csr-bar-fill
+{
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e08a39), to(#8f4c14));
+}
+
+.csr-row.accent-amber,
+.csr-card.accent-amber
+{
+	border-left-color: #e4ae39;
+}
+
+.csr-row-icon.accent-amber,
+.csr-card-icon.accent-amber
+{
+	color: #e4ae39;
+	border-color: #8f6a14;
+}
+
+.csr-row.accent-amber .csr-bar-fill,
+.csr-card.accent-amber .csr-bar-fill
+{
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e4ae39), to(#8f6a14));
+}
+
+.csr-row.accent-green,
+.csr-card.accent-green
+{
+	border-left-color: #5fc27e;
+}
+
+.csr-row-icon.accent-green,
+.csr-card-icon.accent-green
+{
+	color: #5fc27e;
+	border-color: #2c6f43;
+}
+
+.csr-row.accent-green .csr-bar-fill,
+.csr-card.accent-green .csr-bar-fill
+{
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#5fc27e), to(#2c6f43));
+}
+
+.csr-row.accent-teal,
+.csr-card.accent-teal
+{
+	border-left-color: #3fc4c4;
+}
+
+.csr-row-icon.accent-teal,
+.csr-card-icon.accent-teal
+{
+	color: #3fc4c4;
+	border-color: #1c6b6b;
+}
+
+.csr-row.accent-teal .csr-bar-fill,
+.csr-card.accent-teal .csr-bar-fill
+{
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#3fc4c4), to(#1c6b6b));
+}
+
+.csr-row.accent-blue,
+.csr-card.accent-blue
+{
+	border-left-color: #82d7ff;
+}
+
+.csr-row-icon.accent-blue,
+.csr-card-icon.accent-blue
+{
+	color: #82d7ff;
+	border-color: #2a6d8f;
+}
+
+.csr-row.accent-blue .csr-bar-fill,
+.csr-card.accent-blue .csr-bar-fill
+{
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#82d7ff), to(#2a6d8f));
+}
+
+.csr-row.accent-violet,
+.csr-card.accent-violet
+{
+	border-left-color: #a98cf0;
+}
+
+.csr-row-icon.accent-violet,
+.csr-card-icon.accent-violet
+{
+	color: #a98cf0;
+	border-color: #553a94;
+}
+
+.csr-row.accent-violet .csr-bar-fill,
+.csr-card.accent-violet .csr-bar-fill
+{
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#a98cf0), to(#553a94));
+}
+
+
+/* ================================================================================================
+   Reserved regions. Declared and styled now because DOM cannot be added to a published addon without
+   every player re-downloading it. See the layout XML for what these are waiting on.
+   ================================================================================================ */
+
+.csr-self
+{
+	width: 300px;
+	horizontal-align: left;
+	vertical-align: center;
+	margin-left: 26px;
+	margin-top: 260px;
+	flow-children: down;
+}
+
+.csr-self-line
+{
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 15px;
+	color: #c8d4e0;
+}
+
+.csr-spec
+{
+	width: 280px;
+	horizontal-align: right;
+	vertical-align: center;
+	margin-right: 26px;
+	flow-children: down;
+	padding: 8px 10px;
+	background-color: rgba(8, 14, 20, 0.72);
+	border-radius: 2px;
+}
+
+.csr-spec-title
+{
+	font-family: Stratum2 Condensed, 'Arial Unicode MS';
+	font-size: 12px;
+	font-weight: bold;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	color: #6f7f8f;
+	margin-bottom: 4px;
+}
+
+.csr-spec-row
+{
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 14px;
+	color: #c8d4e0;
+}
+
+/* Build stamp. Deliberately dim - it exists to be readable in a screenshot when something is wrong,
+   not to be part of the design. */
+.csr-version
+{
+	horizontal-align: right;
+	vertical-align: bottom;
+	margin-right: 8px;
+	margin-bottom: 4px;
+	font-family: Stratum2 Condensed, 'Arial Unicode MS';
+	font-size: 10px;
+	color: rgba(255, 255, 255, 0.22);
+}
+
+/* Marks a tracker row as holding a live modifier. Kept as an explicit class rather than inferred from
+   visibility so the server has one unambiguous signal per row. */
+.csr-row.is-active
+{
+	opacity: 1.0;
+}

@@ -1,0 +1,228 @@
+<!--
+  CSRoll custom HUD layout.
+
+  This file is NOT shipped in the plugin zip. It is compiled to .vxml_c by CS2's resourcecompiler,
+  packed into a VPK, published as a Steam Workshop addon, and downloaded by players. See
+  tools/HUD_SETUP.md.
+
+  THREE RULES, all enforced by `tools/build_hud_resources.ps1 -Action Validate`:
+
+  1. Only Panel, Label, Image and Button exist here. CS2's custom_hud_layout supports nothing else.
+     There is no client-side scripting, no VJS, no onactivate - the server drives everything.
+
+  2. Every id here must appear in src/Hud/HudPanelIds.cs, and vice versa. A C# write to an id that
+     isn't in this file silently does nothing: no exception, no log, no visual difference from an
+     empty value. The id contract is the only thing that catches that.
+
+  3. The DOM is static. The server can change dialog-variable strings and CSS classes, and nothing
+     else - it cannot create a panel. So every row that could ever be shown is declared here up front,
+     and unused ones are simply hidden. That is also why the counts are generous: adding a panel later
+     means recompiling the addon, republishing it, and every player re-downloading it.
+-->
+<root>
+	<styles>
+		<include src="s2r://panorama/styles/custom_game/csroll_hud.vcss_c" />
+	</styles>
+
+	<!-- hittest=false throughout: this HUD is purely informational and must never swallow a click
+	     that belonged to the game. -->
+	<Panel id="csr_root" class="csr-root" hittest="false">
+
+		<!-- ==========================================================================================
+		     Spin reel. The strip translates upward under a fixed-height window with one CSS transition;
+		     the server fills the rows once and then adds a duration class. It does not push a frame per
+		     name the way the center-HTML spin has to.
+		     ========================================================================================== -->
+		<Panel id="csr_spin" class="csr-spin hidden" hittest="false">
+			<Panel class="csr-spin-window" hittest="false">
+				<Panel id="csr_spin_reel" class="csr-spin-reel" hittest="false">
+					<Label id="csr_reel0" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel1" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel2" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel3" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel4" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel5" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel6" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel7" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel8" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel9" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel10" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel11" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel12" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel13" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel14" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel15" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel16" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel17" class="csr-reel-row" text="{s:name}" />
+					<Label id="csr_reel18" class="csr-reel-row" text="{s:name}" />
+					<!-- The landing row. Always the real result - see HudPanelIds.ReelLandingRow. -->
+					<Label id="csr_reel19" class="csr-reel-row csr-reel-landing" text="{s:name}" />
+				</Panel>
+			</Panel>
+			<Panel class="csr-spin-marker" hittest="false" />
+		</Panel>
+
+		<!-- ==========================================================================================
+		     Reveal card. Shown once the reel lands, holding the real result(s).
+		     ========================================================================================== -->
+		<Panel id="csr_reveal" class="csr-reveal hidden" hittest="false">
+			<Label id="csr_reveal_title" class="csr-reveal-title" text="{s:name}" />
+			<Panel class="csr-reveal-rule" hittest="false" />
+
+			<Panel id="csr_card0" class="csr-card" hittest="false">
+				<Label id="csr_card0_icon" class="csr-card-icon" text="{s:name}" />
+				<Panel class="csr-card-copy" hittest="false">
+					<Label id="csr_card0_name" class="csr-card-name" text="{s:name}" />
+					<Label id="csr_card0_desc" class="csr-card-desc" text="{s:desc}" />
+				</Panel>
+			</Panel>
+
+			<Panel id="csr_card1" class="csr-card hidden" hittest="false">
+				<Label id="csr_card1_icon" class="csr-card-icon" text="{s:name}" />
+				<Panel class="csr-card-copy" hittest="false">
+					<Label id="csr_card1_name" class="csr-card-name" text="{s:name}" />
+					<Label id="csr_card1_desc" class="csr-card-desc" text="{s:desc}" />
+				</Panel>
+			</Panel>
+
+			<Panel id="csr_card2" class="csr-card hidden" hittest="false">
+				<Label id="csr_card2_icon" class="csr-card-icon" text="{s:name}" />
+				<Panel class="csr-card-copy" hittest="false">
+					<Label id="csr_card2_name" class="csr-card-name" text="{s:name}" />
+					<Label id="csr_card2_desc" class="csr-card-desc" text="{s:desc}" />
+				</Panel>
+			</Panel>
+
+			<!-- Shown only when a roll produced more modifiers than there are cards, so nothing is ever
+			     silently dropped from the player's view. -->
+			<Label id="csr_card_more" class="csr-card-more hidden" text="{s:name}" />
+		</Panel>
+
+		<!-- ==========================================================================================
+		     Active-modifier tracker. Every row is a per-player override, so one layout entity serves the
+		     whole server while each player sees only their own modifiers.
+
+		     Each bar carries TWO interchangeable fills. Restarting a CSS width transition means writing
+		     "snap to full, duration 0" then "drain, duration N"; if the client collapses both into one
+		     frame the bar jumps instead of animating. Handing each restart to whichever fill is at rest
+		     sidesteps that. Both must exist from the first published version - adding the second later
+		     would mean a republish and a re-download for every player.
+		     ========================================================================================== -->
+		<Panel id="csr_track" class="csr-track hidden" hittest="false">
+			<Label id="csr_track_title" class="csr-track-title" text="{s:name}" />
+
+			<Panel id="csr_row0" class="csr-row hidden" hittest="false">
+				<Label id="csr_row0_icon" class="csr-row-icon" text="{s:name}" />
+				<Panel class="csr-row-copy" hittest="false">
+					<Panel class="csr-row-head" hittest="false">
+						<Label id="csr_row0_name" class="csr-row-name" text="{s:name}" />
+						<Label id="csr_row0_time" class="csr-row-time" text="{s:time}" />
+					</Panel>
+					<Panel id="csr_row0_bar" class="csr-bar hidden" hittest="false">
+						<Panel id="csr_row0_bar_a" class="csr-bar-fill" hittest="false" />
+						<Panel id="csr_row0_bar_b" class="csr-bar-fill hidden" hittest="false" />
+					</Panel>
+				</Panel>
+			</Panel>
+
+			<Panel id="csr_row1" class="csr-row hidden" hittest="false">
+				<Label id="csr_row1_icon" class="csr-row-icon" text="{s:name}" />
+				<Panel class="csr-row-copy" hittest="false">
+					<Panel class="csr-row-head" hittest="false">
+						<Label id="csr_row1_name" class="csr-row-name" text="{s:name}" />
+						<Label id="csr_row1_time" class="csr-row-time" text="{s:time}" />
+					</Panel>
+					<Panel id="csr_row1_bar" class="csr-bar hidden" hittest="false">
+						<Panel id="csr_row1_bar_a" class="csr-bar-fill" hittest="false" />
+						<Panel id="csr_row1_bar_b" class="csr-bar-fill hidden" hittest="false" />
+					</Panel>
+				</Panel>
+			</Panel>
+
+			<Panel id="csr_row2" class="csr-row hidden" hittest="false">
+				<Label id="csr_row2_icon" class="csr-row-icon" text="{s:name}" />
+				<Panel class="csr-row-copy" hittest="false">
+					<Panel class="csr-row-head" hittest="false">
+						<Label id="csr_row2_name" class="csr-row-name" text="{s:name}" />
+						<Label id="csr_row2_time" class="csr-row-time" text="{s:time}" />
+					</Panel>
+					<Panel id="csr_row2_bar" class="csr-bar hidden" hittest="false">
+						<Panel id="csr_row2_bar_a" class="csr-bar-fill" hittest="false" />
+						<Panel id="csr_row2_bar_b" class="csr-bar-fill hidden" hittest="false" />
+					</Panel>
+				</Panel>
+			</Panel>
+
+			<Panel id="csr_row3" class="csr-row hidden" hittest="false">
+				<Label id="csr_row3_icon" class="csr-row-icon" text="{s:name}" />
+				<Panel class="csr-row-copy" hittest="false">
+					<Panel class="csr-row-head" hittest="false">
+						<Label id="csr_row3_name" class="csr-row-name" text="{s:name}" />
+						<Label id="csr_row3_time" class="csr-row-time" text="{s:time}" />
+					</Panel>
+					<Panel id="csr_row3_bar" class="csr-bar hidden" hittest="false">
+						<Panel id="csr_row3_bar_a" class="csr-bar-fill" hittest="false" />
+						<Panel id="csr_row3_bar_b" class="csr-bar-fill hidden" hittest="false" />
+					</Panel>
+				</Panel>
+			</Panel>
+
+			<Panel id="csr_row4" class="csr-row hidden" hittest="false">
+				<Label id="csr_row4_icon" class="csr-row-icon" text="{s:name}" />
+				<Panel class="csr-row-copy" hittest="false">
+					<Panel class="csr-row-head" hittest="false">
+						<Label id="csr_row4_name" class="csr-row-name" text="{s:name}" />
+						<Label id="csr_row4_time" class="csr-row-time" text="{s:time}" />
+					</Panel>
+					<Panel id="csr_row4_bar" class="csr-bar hidden" hittest="false">
+						<Panel id="csr_row4_bar_a" class="csr-bar-fill" hittest="false" />
+						<Panel id="csr_row4_bar_b" class="csr-bar-fill hidden" hittest="false" />
+					</Panel>
+				</Panel>
+			</Panel>
+
+			<Panel id="csr_row5" class="csr-row hidden" hittest="false">
+				<Label id="csr_row5_icon" class="csr-row-icon" text="{s:name}" />
+				<Panel class="csr-row-copy" hittest="false">
+					<Panel class="csr-row-head" hittest="false">
+						<Label id="csr_row5_name" class="csr-row-name" text="{s:name}" />
+						<Label id="csr_row5_time" class="csr-row-time" text="{s:time}" />
+					</Panel>
+					<Panel id="csr_row5_bar" class="csr-bar hidden" hittest="false">
+						<Panel id="csr_row5_bar_a" class="csr-bar-fill" hittest="false" />
+						<Panel id="csr_row5_bar_b" class="csr-bar-fill hidden" hittest="false" />
+					</Panel>
+				</Panel>
+			</Panel>
+		</Panel>
+
+		<!-- ==========================================================================================
+		     Reserved. Declared now, unused by the current plugin version, because DOM cannot be added
+		     without republishing the addon and making every player re-download it.
+
+		     csr_self  - the landing place for the nine modifiers that still draw center-HTML gauges
+		                 (Vanish, Recall, Flanker, Jetpack, ConditionalInvisibility, Regeneration,
+		                 WeaponRoulette, ButterflyEffect, Mimic) when they migrate.
+		     csr_spec  - the spectator readout, currently still center-HTML.
+		     ========================================================================================== -->
+		<Panel id="csr_self" class="csr-self hidden" hittest="false">
+			<Label id="csr_self0" class="csr-self-line" text="{s:name}" />
+			<Label id="csr_self1" class="csr-self-line" text="{s:name}" />
+			<Label id="csr_self2" class="csr-self-line" text="{s:name}" />
+		</Panel>
+
+		<Panel id="csr_spec" class="csr-spec hidden" hittest="false">
+			<Label id="csr_spec_title" class="csr-spec-title" text="{s:name}" />
+			<Label id="csr_spec0" class="csr-spec-row" text="{s:name}" />
+			<Label id="csr_spec1" class="csr-spec-row" text="{s:name}" />
+			<Label id="csr_spec2" class="csr-spec-row" text="{s:name}" />
+			<Label id="csr_spec3" class="csr-spec-row" text="{s:name}" />
+			<Label id="csr_spec4" class="csr-spec-row" text="{s:name}" />
+			<Label id="csr_spec5" class="csr-spec-row" text="{s:name}" />
+		</Panel>
+
+		<!-- Build stamp. The server writes what it expects here, so a client running a stale addon can
+		     be told apart from one where the HUD is simply not working. -->
+		<Label id="csr_version" class="csr-version" text="{s:name}" />
+	</Panel>
+</root>

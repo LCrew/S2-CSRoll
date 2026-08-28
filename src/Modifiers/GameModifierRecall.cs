@@ -5,6 +5,7 @@ using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -318,6 +319,30 @@ public sealed class GameModifierRecall : GameModifierBase
                    statusLine;
 
         SetHud(slot, html);
+    }
+
+    /// <summary>
+    /// Custom-HUD counterpart to the center-HTML gauge above, reading the same per-slot state so the
+    /// two surfaces cannot disagree. Additive - the center-HTML block is untouched.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        if (_rewinds.ContainsKey(slot))
+        {
+            return HudTimer.Ready("REWINDING");
+        }
+
+        var now = Core.Engine.GlobalVars.CurrentTime;
+        var readyAt = _nextAvailableTime.GetValueOrDefault(slot, now);
+
+        return readyAt > now
+            ? HudTimer.Countdown(readyAt - now)
+            : HudTimer.Ready();
     }
 
     /// <summary>History is per-life - rewinding into where you stood before you died would teleport you across the map.</summary>

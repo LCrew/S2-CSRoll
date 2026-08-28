@@ -124,6 +124,9 @@ public class CSRollConfig
     /// <summary>Tunables for the persistent center-HTML popup shown to spectators, listing whatever modifiers are active on whoever they're currently observing.</summary>
     public SpectatorHudConfig SpectatorHud { get; set; } = new();
 
+    /// <summary>Tunables for the CS2 Custom HUD (Panorama) surface - the styled, animated alternative to the center-HTML popups. Requires a separately published Workshop addon; off by default.</summary>
+    public CustomHudConfig CustomHud { get; set; } = new();
+
     /// <summary>Tunables for the ChineseGrenades ("Chinese Grenades") modifier (randomized fuse timer range applied to HE/flashbang/smoke).</summary>
     public ChineseGrenadesConfig ChineseGrenades { get; set; } = new();
 
@@ -746,6 +749,69 @@ public class SpectatorHudConfig
 
     /// <summary>How often, in seconds, the popup refreshes - catches the spectator switching targets or the target's modifiers changing.</summary>
     public float RefreshIntervalSeconds { get; set; } = 0.2f;
+}
+
+/// <summary>
+/// The CS2 Custom HUD (Panorama) surface - a real styled HUD with CSS animation, icons and progress
+/// bars, as opposed to the center-HTML text popup everything else in this plugin draws into.
+///
+/// This needs a piece of infrastructure nothing else here does: the Panorama layout and stylesheet are
+/// CLIENT resources. They have to be compiled with CS2's Workshop Tools, published as a Steam Workshop
+/// addon, mounted on the server, and downloaded by every player. None of that ships in the plugin zip -
+/// see tools/HUD_SETUP.md. Which is why <see cref="Enabled"/> defaults to false: with no addon
+/// installed, an enabled HUD renders literally nothing for players.
+/// </summary>
+public class CustomHudConfig
+{
+    /// <summary>
+    /// Master switch. While false (the default) the layout entity is never created, no events are
+    /// subscribed, and every center-HTML path behaves exactly as it did before this feature existed.
+    /// </summary>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>Panorama layout resource path, as it exists inside the published Workshop addon.</summary>
+    public string LayoutPath { get; set; } = "panorama/layout/custom_game/csroll_hud.xml";
+
+    /// <summary>
+    /// When true, the roll's spin/reveal is drawn ONLY on the custom HUD and the center-HTML reveal is
+    /// skipped.
+    ///
+    /// Defaults to false on purpose, and it is worth understanding why rather than flipping it blind:
+    /// there is no way for the server to detect whether an individual client actually downloaded the
+    /// addon, so this is all-or-nothing for everyone. Turn the HUD on, confirm with !hudstatus and your
+    /// own eyes in-game that it renders, and only then set this. If the addon is missing or broken while
+    /// this is true, players get no reveal at all.
+    /// </summary>
+    public bool ReplaceCenterHtml { get; set; } = false;
+
+    /// <summary>Whether a roll draws the animated spin reel and reveal card.</summary>
+    public bool ShowRevealCard { get; set; } = true;
+
+    /// <summary>Whether the persistent active-modifier tracker panel is drawn.</summary>
+    public bool ShowTracker { get; set; } = true;
+
+    /// <summary>
+    /// How many tracker rows to use. Clamped to the row count compiled into the layout - raising it past
+    /// that does nothing without republishing the Workshop addon.
+    /// </summary>
+    public int TrackerRowCount { get; set; } = 6;
+
+    /// <summary>How often the tracker re-reads each player's modifiers. Dirty tracking means an idle
+    /// tracker costs nothing regardless of this value, so it only bounds how fast a change appears.</summary>
+    public float TrackerRefreshIntervalSeconds { get; set; } = 0.25f;
+
+    /// <summary>How often numeric countdown text is recomputed. Same dirty-tracking caveat.</summary>
+    public float CountdownRefreshIntervalSeconds { get; set; } = 0.25f;
+
+    /// <summary>
+    /// Seconds between attempts to (re)create the layout entity when it is missing. After several
+    /// consecutive failures the service gives up for the rest of the map rather than retrying forever.
+    /// </summary>
+    public float EntityRetryIntervalSeconds { get; set; } = 2f;
+
+    /// <summary>Build stamp written into the HUD's version label, so a client running a stale addon can
+    /// be told apart from one where the HUD is simply broken.</summary>
+    public string VersionStamp { get; set; } = "";
 }
 
 public class ChineseGrenadesConfig

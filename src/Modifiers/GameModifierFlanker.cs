@@ -5,6 +5,7 @@ using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -244,6 +245,25 @@ public sealed class GameModifierFlanker : GameModifierBase
                    statusLine;
 
         SetHud(player.Slot, html);
+    }
+
+    /// <summary>
+    /// Custom-HUD counterpart to the center-HTML cooldown line above. Reads the same dictionary, so the
+    /// two surfaces cannot drift apart; the center-HTML block is untouched.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        var now = Core.Engine.GlobalVars.CurrentTime;
+        var remaining = _nextAvailableTime.GetValueOrDefault(slot, now) - now;
+
+        return remaining > 0f
+            ? HudTimer.Countdown(remaining)
+            : HudTimer.Ready();
     }
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)

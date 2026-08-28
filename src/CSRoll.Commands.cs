@@ -5,6 +5,7 @@ using SwiftlyS2.Shared.Commands;
 using SwiftlyS2.Shared.Misc;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 using CSRoll.Modifiers;
 
 namespace CSRoll;
@@ -43,6 +44,7 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("rolldebug", Debounce("rolldebug", OnRollDebug), registerRaw: true, permission: AdminPermission, helpText: "Toggle whether per-player random-round assignments are reported to admins in chat."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollreload", Debounce("rollreload", OnRollReload), registerRaw: true, permission: AdminPermission, helpText: "Reload config.jsonc from disk without restarting the plugin or resetting active modifiers."));
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
+        _commandGuids.Add(Core.Command.RegisterCommand("hudstatus", Debounce("hudstatus", OnHudStatus), registerRaw: true, permission: AdminPermission, helpText: "Report the CS2 Custom HUD state, and draw a test row so you can confirm clients actually have the HUD addon."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollhelp", Debounce("rollhelp", OnRollHelp), registerRaw: true, helpText: "Prints every available CSRoll command."));
 
         InitializeMenu();
@@ -202,6 +204,46 @@ public partial class CSRoll
             var coloredCommand = SwiftlyS2.Shared.Helper.Colored($"[orange]!{command.CommandName}[default]");
             context.Sender?.SendChat($"{coloredCommand}{adminTag} - {command.HelpText}");
         }
+    }
+
+    /// <summary>
+    /// Pre-flight check for the custom HUD, and specifically for the one thing the server cannot
+    /// determine on its own.
+    ///
+    /// A live layout entity only proves the SERVER side works. Whether a given player actually has the
+    /// Workshop addon - and therefore whether they can see anything at all - is invisible from here.
+    /// So this reports the entity state AND draws a test row on the invoking admin's own HUD: if the
+    /// text below appears in chat but nothing appears on screen, the addon is not reaching clients,
+    /// which is exactly the situation that would make CustomHud.ReplaceCenterHtml hide every reveal.
+    /// </summary>
+    public void OnHudStatus(ICommandContext context)
+    {
+        CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Custom HUD: {Runtime.Hud.DescribeStatus()}");
+
+        if (context.Sender is not { IsValid: true } sender)
+        {
+            return;
+        }
+
+        if (!Runtime.Hud.Available)
+        {
+            CSRollUtils.PrintTitleToChat(Core, sender, "Nothing to draw - see tools/HUD_SETUP.md.");
+            return;
+        }
+
+        var slot = sender.Slot;
+        Runtime.Hud.ShowFor(slot, HudPanelIds.Track, true);
+        Runtime.Hud.SetTextFor(slot, HudPanelIds.TrackTitle, HudPanelIds.VarName, "CSROLL HUD TEST");
+        Runtime.Hud.ShowFor(slot, HudPanelIds.Row(0), true);
+        Runtime.Hud.SetTextFor(slot, HudPanelIds.RowIcon(0), HudPanelIds.VarName, HudClasses.GlyphFallback);
+        Runtime.Hud.SetTextFor(slot, HudPanelIds.RowName(0), HudPanelIds.VarName, "HUD test");
+        Runtime.Hud.SetClassGroupFor(slot, HudPanelIds.Row(0), HudClasses.GroupAccent, HudClasses.Accent("amber"));
+        Runtime.Hud.ShowFor(slot, HudPanelIds.RowBar(0), true);
+        Runtime.Hud.StartCountdownFor(slot, HudPanelIds.RowTime(0), HudPanelIds.VarTime, 10f);
+        Runtime.Hud.StartBarFor(slot, HudPanelIds.RowBarPair(0), 10f);
+
+        CSRollUtils.PrintTitleToChat(Core, sender,
+            "Drew a 10s test bar on your HUD. If you can't see it, your client doesn't have the HUD Workshop addon - do NOT enable CustomHud.ReplaceCenterHtml.");
     }
 
     public void OnRollDebug(ICommandContext context)

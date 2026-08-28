@@ -6,6 +6,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Config;
+using CSRoll.Hud;
 using CSRoll.Modifiers;
 using CSRoll.Services.Interfaces;
 
@@ -127,6 +128,10 @@ public sealed class ModifierRuntime
         _modifierHudSuppressedUntil = 0f;
         _lastSpectatorHudUpdateTime.Clear();
         _lastModifierHudUpdateTime.Clear();
+
+        // The custom HUD caches map-relative deadlines of its own (countdowns, entity retry backoff),
+        // so it has to be cleared through the same single reset point rather than growing a second one.
+        Hud.ResetAll();
     }
 
     /// <summary>Extends the HUD blackout to at least <paramref name="seconds"/> from now - never shortens an existing one, so overlapping reveals can't cut each other short.</summary>
@@ -165,14 +170,75 @@ public sealed class ModifierRuntime
         return total;
     }
 
+    /// <summary>
+    /// Just the eased spin frames, without the description wipe that <see cref="EstimateRevealAnimationSeconds"/>
+    /// adds on top.
+    ///
+    /// The custom HUD needs this separately because it does not push the description wipe as server
+    /// frames at all - a CSS mask sweep does that client-side - so its spin lasts exactly as long as the
+    /// name reel is travelling. Sharing the same eased sum keeps both surfaces on the identical timing
+    /// budget documented on SpinRevealConfig.SpinCount.
+    /// </summary>
+    internal float SpinAnimationSeconds()
+    {
+        if (!Config.SpinReveal.Enabled)
+        {
+            return 0f;
+        }
+
+        var total = 0f;
+        for (var i = 0; i < Config.SpinReveal.SpinCount; i++)
+        {
+            total += GetSpinFrameIntervalSeconds(i, Config.SpinReveal.SpinCount);
+        }
+
+        return total;
+    }
+
+    /// <summary>Per-frame interval of the eased spin, shared with the custom HUD's tick-sound chain.</summary>
+    internal float SpinFrameIntervalSeconds(int frameIndex, int totalFrames)
+        => GetSpinFrameIntervalSeconds(frameIndex, totalFrames);
+
+    /// <summary>How long a landed reveal is held on screen, shared with the custom HUD.</summary>
+    internal int RevealHoldMilliseconds() => RevealHoldMs();
+
     public IReadOnlyList<GameModifierBase> RegisteredModifiers => _registeredModifiers;
     public IReadOnlyList<GameModifierBase> ActiveModifiers => _activeModifiers;
 
-    public ModifierRuntime(ISwiftlyCore core, CSRollConfig config, ICvarRollbackService cvarService)
+    /// <summary>
+    /// The custom-HUD surface. Exposed rather than kept private so modifiers can reach it through
+    /// <see cref="GameModifierBase"/> without a second DI hop; every caller must gate on
+    /// <see cref="ICSRollHudService.Available"/>, which is false whenever the HUD is off or its layout
+    /// entity is missing.
+    /// </summary>
+    public ICSRollHudService Hud { get; }
+
+    private readonly HudTracker _hudTracker;
+    private readonly HudSequencer _hudSequencer;
+
+    /// <summary>Icon/accent lookup for drawing a modifier on the custom HUD.</summary>
+    public IHudPresentationCatalog HudPresentation { get; }
+
+    /// <summary>
+    /// Bumped by RemoveAllModifiers to invalidate reveals still animating from a superseded roll.
+    /// Exposed so HudSequencer can apply the same guard the center-HTML path already does.
+    /// </summary>
+    internal int RollGeneration => _rollGeneration;
+
+    public ModifierRuntime(
+        ISwiftlyCore core,
+        CSRollConfig config,
+        ICvarRollbackService cvarService,
+        ICSRollHudService hudService,
+        IHudPresentationCatalog hudPresentation)
     {
         _core = core;
         Config = config;
         _cvarService = cvarService;
+        Hud = hudService;
+        HudPresentation = hudPresentation;
+        _hudTracker = new HudTracker(core, this, hudService);
+        _hudSequencer = new HudSequencer(core, this, hudService);
         MinRandomRounds = config.MinRandomRounds;
         MaxRandomRounds = config.MaxRandomRounds;
     }
@@ -226,6 +292,7 @@ public sealed class ModifierRuntime
 
         _core.Event.OnTick += RefreshSpectatorHud;
         _core.Event.OnTick += RefreshModifierHud;
+        _core.Event.OnTick += _hudTracker.Refresh;
         _core.Event.OnClientDisconnected += OnClientDisconnected;
     }
 
@@ -293,7 +360,10 @@ public sealed class ModifierRuntime
     {
         _core.Event.OnTick -= RefreshSpectatorHud;
         _core.Event.OnTick -= RefreshModifierHud;
+        _core.Event.OnTick -= _hudTracker.Refresh;
         _core.Event.OnClientDisconnected -= OnClientDisconnected;
+
+        _hudTracker.Reset();
 
         RemoveAllModifiers();
 
@@ -338,6 +408,11 @@ public sealed class ModifierRuntime
         // have to go with them or the newcomer inherits a stale panel.
         _hudSections.Remove(@event.PlayerId);
         _lastModifierHudUpdateTime.Remove(@event.PlayerId);
+
+        // Same reasoning for the custom HUD's per-player row bookkeeping. The HUD service clears its own
+        // per-player overrides from its own disconnect subscription, so ordering between the two here
+        // does not matter.
+        _hudTracker.ForgetPlayer(@event.PlayerId);
 
         // Iterating a copy: an orphaned modifier is removed from _activeModifiers inside this loop.
         foreach (var modifier in _activeModifiers.ToList())
@@ -1535,7 +1610,8 @@ public sealed class ModifierRuntime
             PlaySpinThenRevealAll(
                 () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal),
                 Reveal,
-                progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress));
+                progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress),
+                modifiers);
         }
         else
         {
@@ -1601,7 +1677,8 @@ public sealed class ModifierRuntime
                     slot,
                     () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal),
                     Reveal,
-                    progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress));
+                    progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress),
+                    modifiers);
             }
             else
             {
@@ -1633,11 +1710,22 @@ public sealed class ModifierRuntime
     /// working in this codebase. Re-fetches the player by slot every frame (not a captured IPlayer
     /// reference) since a delayed scheduler callback can easily outlive a disconnecting player.
     /// </summary>
-    private void PlaySpinThenReveal(int slot, Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null)
+    private void PlaySpinThenReveal(int slot, Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null, IReadOnlyList<GameModifierBase>? modifiers = null)
     {
         // Claim the center-HTML surface for the whole animation plus the reveal it lands on, so
-        // modifier HUDs don't fight it - see IsModifierHudSuppressed.
+        // modifier HUDs don't fight it - see IsModifierHudSuppressed. Kept even on the custom-HUD path:
+        // the nine center-HTML modifier gauges still exist and still need to stand down for a reveal,
+        // whichever surface that reveal is drawn on.
         SuppressModifierHudFor(EstimateRevealAnimationSeconds() + Config.SpinReveal.RevealDurationSeconds);
+
+        // The custom HUD draws the whole spin and reveal itself, client-side. Running both surfaces at
+        // once would put two competing animations on screen, and there is no way to detect per-player
+        // whether a client has the Workshop addon - so this is an all-or-nothing server config choice.
+        if (modifiers is { Count: > 0 } && _hudSequencer.HandlesReveal)
+        {
+            _hudSequencer.PlayReveal(slot, modifiers, onRevealed);
+            return;
+        }
 
         if (!Config.SpinReveal.Enabled || _registeredModifiers.Count == 0)
         {
@@ -1743,11 +1831,19 @@ public sealed class ModifierRuntime
     }
 
     /// <summary>Broadcast counterpart to PlaySpinThenReveal, used for the shared/global (non-RandomizePlayers) activation path where every player sees the same spin land on the same result.</summary>
-    private void PlaySpinThenRevealAll(Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null)
+    private void PlaySpinThenRevealAll(Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null, IReadOnlyList<GameModifierBase>? modifiers = null)
     {
         // Claim the center-HTML surface for the whole animation plus the reveal it lands on, so
         // modifier HUDs don't fight it - see IsModifierHudSuppressed.
         SuppressModifierHudFor(EstimateRevealAnimationSeconds() + Config.SpinReveal.RevealDurationSeconds);
+
+        // See PlaySpinThenReveal. The broadcast path is where the custom HUD is cheapest: one write per
+        // panel for the entire server, rather than one per player per frame.
+        if (modifiers is { Count: > 0 } && _hudSequencer.HandlesReveal)
+        {
+            _hudSequencer.PlayRevealAll(modifiers, onRevealed);
+            return;
+        }
 
         if (!Config.SpinReveal.Enabled || _registeredModifiers.Count == 0)
         {

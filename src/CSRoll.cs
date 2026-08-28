@@ -8,6 +8,7 @@ using SwiftlyS2.Shared;
 
 using CSRoll.Config;
 using CSRoll.Core;
+using CSRoll.Hud;
 using CSRoll.Services.Impl;
 using CSRoll.Services.Interfaces;
 
@@ -18,10 +19,11 @@ public partial class CSRoll : BasePlugin
 {
     // Single source of truth for the version - also referenced in the PluginMetadata attribute
     // above and logged on every load, so the running build is always identifiable in the console.
-    private const string PluginVersion = "1.37.1";
+    private const string PluginVersion = "1.38.0";
 
     private IServiceProvider _serviceProvider = null!;
     private ICvarRollbackService _cvarService = null!;
+    private ICSRollHudService _hudService = null!;
     private bool _isLoaded;
     private IDisposable? _configChangeSubscription;
 
@@ -65,12 +67,19 @@ public partial class CSRoll : BasePlugin
         services.AddSwiftly(Core);
         services.AddSingleton(Config);
         services.AddSingleton<ICvarRollbackService, CvarRollbackService>();
+        services.AddSingleton<IHudPresentationCatalog, HudPresentationCatalog>();
+        services.AddSingleton<ICSRollHudService, CSRollHudService>();
         _serviceProvider = services.BuildServiceProvider();
 
         _cvarService = _serviceProvider.GetRequiredService<ICvarRollbackService>();
         _cvarService.Install();
 
-        Runtime = new ModifierRuntime(Core, Config, _cvarService);
+        // Installed before the runtime is built so ICSRollHudService.Available is already meaningful by
+        // the time the first roll can happen.
+        _hudService = _serviceProvider.GetRequiredService<ICSRollHudService>();
+        _hudService.Install();
+
+        Runtime = new ModifierRuntime(Core, Config, _cvarService, _hudService, _serviceProvider.GetRequiredService<IHudPresentationCatalog>());
         Runtime.Initialise(BuildModifierFactories());
 
         InitializeCommands();
@@ -85,6 +94,10 @@ public partial class CSRoll : BasePlugin
         UninitializeCommands();
         UninitializeGameEvents();
         Runtime?.Unregister();
+
+        // Before the cvar service, mirroring the install order in reverse: the HUD is the outermost
+        // layer and nothing else depends on it being alive during teardown.
+        _hudService?.Uninstall();
         _cvarService?.Uninstall();
         CSRollUtils.ClearXrayVision();
 
@@ -114,6 +127,10 @@ public partial class CSRoll : BasePlugin
 
         Config = newConfig;
         CSRollUtils.SetTitlePrefix(newConfig.BannerText);
+
+        // The HUD service caches its own config section, so it has to be told - same reason
+        // Runtime.Config is reassigned below.
+        _hudService?.OnConfigReloaded(newConfig);
         if (Runtime is not null)
         {
             Runtime.Config = newConfig;

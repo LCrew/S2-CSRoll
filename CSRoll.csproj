@@ -18,17 +18,33 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" ExcludeAssets="runtime" PrivateAssets="all" />
-    <PackageReference Include="SwiftlyS2.CS2" Version="*" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- CCSCustomHudLayout (the CS2 custom_hud_layout managed API this plugin's HUD layer is built
+         on) does not exist before 1.4.6 - 1.4.4 has zero CustomHud symbols. A floating "*" happily
+         resolves to a cached older package and then fails at compile with a confusing "does not
+         contain a definition for SetDialogVariableString", so pin the floor and fail at restore. -->
+    <PackageReference Include="SwiftlyS2.CS2" Version="[1.4.6,)" ExcludeAssets="runtime" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="resources/gamedata/**/*;resources/templates/**/*;resources/translations/**/*;resources/ConVarModifiers/**/*;resources/ModifierConfig/**/*">
+    <!-- resources/hud holds modifiers.jsonc: server-side data (which icon/accent class each modifier is
+         drawn with) that ships INSIDE the plugin zip. Not to be confused with the top-level hud/ folder,
+         which is the Panorama source for the Workshop addon and must never end up in the zip. -->
+    <Content Include="resources/gamedata/**/*;resources/templates/**/*;resources/translations/**/*;resources/ConVarModifiers/**/*;resources/ModifierConfig/**/*;resources/hud/**/*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="examples\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- hud/ and tools/ are the Workshop addon artifact and its build tooling. They are a SEPARATE
+         deliverable - compiled by CS2's resourcecompiler and published to the Steam Workshop, never
+         shipped to servers in CSRoll.zip. The Content whitelist above already excludes them by omission;
+         these removals make that explicit so a later glob edit can't sweep them in silently. -->
+    <None Remove="hud/**/*;tools/**/*" />
+    <Content Remove="hud/**/*;tools/**/*" />
   </ItemGroup>
 
   <Target Name="CreateZip" AfterTargets="Publish">
