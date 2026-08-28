@@ -25,6 +25,14 @@
    Palette
    ================================================================================================ */
 
+/* The outermost panel cannot carry an id - Panorama rejects the layout outright if it does - so this
+   unnamed wrapper is the real root, and #csr_root sits just inside it where it can be addressed. */
+.csr-root-outer
+{
+	width: 100%;
+	height: 100%;
+}
+
 #csr_root
 {
 	width: 100%;

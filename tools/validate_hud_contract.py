@@ -154,6 +154,16 @@ def layout_ids(xml_text: str, path: pathlib.Path) -> set[str]:
     ids: set[str] = set()
     seen: set[str] = set()
 
+    # resourcecompiler rejects the whole layout with "Found root panel with 'id' attribute, which is
+    # not permitted" if the outermost panel is named. Caught here because that is a hard compile
+    # failure discovered only on a Windows box with Workshop Tools - a long way from where the layout
+    # is written. Wrap the panel in an unnamed one and move the id inward.
+    for child in root:
+        if child.tag != "styles" and child.attrib.get("id"):
+            error(f"{path.name}: the outermost panel <{child.tag} id=\"{child.attrib['id']}\"> may not "
+                  "have an id - Panorama rejects the layout. Wrap it in an unnamed panel and put the "
+                  "id on the inner one.")
+
     for element in root.iter():
         if element.tag not in ALLOWED_ELEMENTS:
             error(f"{path.name}: <{element.tag}> is not one of the supported panel types "
