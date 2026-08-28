@@ -136,23 +136,25 @@
 	height: 44px;
 	ignore-parent-flow: true;
 	transform-origin: -200px 50%;
-	background-color: rgba(250, 250, 252, 0.94);
-	border: 3px solid #e5004c;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.92)), to(rgba(14, 22, 30, 0.80)));
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	border-left: 3px solid #e4ae39;
 	border-radius: 2px;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 17px;
 	font-weight: bold;
-	color: #16181d;
+	color: #e8edf3;
 	text-align: center;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
-	box-shadow: rgba(0, 0, 0, 0.55) 0px 3px 14px 0px;
+	box-shadow: rgba(0, 0, 0, 0.6) 0px 3px 14px 0px;
 }
 
 /* The card that is currently horizontal reads as the live one. */
 .csr-reel-landing
 {
-	background-color: #ffffff;
+	color: #ffffff;
+	border-left-color: #ffd479;
 }
 
 /* Retained because the layout still declares the element; the wheel needs no landing line. */
@@ -201,10 +203,14 @@
 	margin-bottom: 210px;
 	flow-children: down;
 	padding: 11px 14px 13px 14px;
-	background-color: rgba(250, 250, 252, 0.95);
-	border: 3px solid #e5004c;
+	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.94)), to(rgba(14, 22, 30, 0.94)));
+	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
+	background-size: 360px 360px;
+	background-img-opacity: 0.020;
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	border-left: 3px solid #e4ae39;
 	border-radius: 2px;
-	box-shadow: rgba(0, 0, 0, 0.6) 0px 4px 18px 0px;
+	box-shadow: rgba(0, 0, 0, 0.72) 0px 4px 22px 0px;
 	opacity: 0.0;
 	transform: scale3d( 0.97, 0.97, 1.0 );
 	transition-property: opacity, transform;
@@ -234,7 +240,7 @@
 	font-weight: bold;
 	letter-spacing: 1.6px;
 	text-transform: uppercase;
-	color: #e5004c;
+	color: #e4ae39;
 	margin-bottom: 5px;
 }
 
@@ -271,9 +277,10 @@
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 19px;
 	font-weight: bold;
-	color: #16181d;
+	color: #f3f6fb;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
+	text-shadow: 1px 1px 2px 2 rgba(0, 0, 0, 0.7);
 }
 
 .csr-card-desc
@@ -281,7 +288,7 @@
 	width: 100%;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 13px;
-	color: #4a5058;
+	color: #93a3b4;
 	margin-top: 7px;
 }
 
@@ -301,7 +308,7 @@
 {
 	font-family: Stratum2 Condensed, 'Arial Unicode MS';
 	font-size: 12px;
-	color: #7b818a;
+	color: #7d8b99;
 	margin-top: 2px;
 }
 
@@ -347,10 +354,11 @@
 	flow-children: right;
 	margin-bottom: 5px;
 	padding: 9px 13px;
-	background-color: rgba(250, 250, 252, 0.93);
-	border: 3px solid #e5004c;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.86)), to(rgba(8, 14, 20, 0.56)));
+	border: 1px solid rgba(255, 255, 255, 0.06);
+	border-left: 3px solid #8899aa;
 	border-radius: 2px;
-	box-shadow: rgba(0, 0, 0, 0.45) 0px 2px 10px 0px;
+	box-shadow: rgba(0, 0, 0, 0.5) 0px 2px 10px 0px;
 	transition-property: opacity;
 	transition-duration: 0.15s;
 	opacity: 1.0;
@@ -369,7 +377,7 @@
 	text-align: center;
 	font-family: 'Arial Unicode MS', Stratum2;
 	font-size: 14px;
-	color: #e5004c;
+	color: #8899aa;
 	margin-right: 9px;
 }
 
@@ -392,7 +400,7 @@
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 15px;
 	font-weight: bold;
-	color: #16181d;
+	color: #e8edf3;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	vertical-align: center;
@@ -402,7 +410,7 @@
 {
 	font-family: Stratum2 Condensed, 'Arial Unicode MS';
 	font-size: 13px;
-	color: #7b818a;
+	color: #93a3b4;
 	text-align: right;
 	vertical-align: center;
 }
@@ -421,7 +429,7 @@
 	width: 100%;
 	height: 4px;
 	margin-top: 4px;
-	background-color: rgba(22, 24, 29, 0.14);
+	background-color: rgba(0, 0, 0, 0.45);
 	border-radius: 2px;
 }
 
@@ -429,7 +437,7 @@
 {
 	width: 100%;
 	height: 100%;
-	background-color: #e5004c;
+	background-color: #8899aa;
 	border-radius: 2px;
 	clip: rect( 0%, 100%, 100%, 0% );
 	transition-property: clip;
@@ -656,11 +664,16 @@
    These describe what a modifier DOES, not how rare it is. Every modifier in this plugin comes from a
    uniform random pool, so a rarity gradient would be telling the player something untrue.
 
-   The frame stays a single colour across every card on purpose - the three states are meant to read
-   as one object changing shape, and a frame that changes colour per modifier breaks that. The accent
-   carries through the glyph and the bar instead, which is enough to tell families apart at a glance
-   without fragmenting the shape. Move `border-color` in here if you would rather tint the frame.
+   The accent stripe is the left border, matching how the rest of this plugin's panels are built, plus
+   the glyph and the bar. The other three edges stay a neutral hairline so the card shape reads
+   consistently across all three states.
    ------------------------------------------------------------------------------------------------ */
+.csr-row.accent-grey,
+.csr-card.accent-grey
+{
+	border-left-color: #8899aa;
+}
+
 .csr-row-icon.accent-grey,
 .csr-card-icon.accent-grey
 {
@@ -671,6 +684,12 @@
 .csr-card.accent-grey .csr-bar-fill
 {
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(#8899aa), to(#5a6a7a));
+}
+
+.csr-row.accent-red,
+.csr-card.accent-red
+{
+	border-left-color: #e05a4e;
 }
 
 .csr-row-icon.accent-red,
@@ -685,6 +704,12 @@
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e05a4e), to(#8f2d24));
 }
 
+.csr-row.accent-orange,
+.csr-card.accent-orange
+{
+	border-left-color: #e08a39;
+}
+
 .csr-row-icon.accent-orange,
 .csr-card-icon.accent-orange
 {
@@ -695,6 +720,12 @@
 .csr-card.accent-orange .csr-bar-fill
 {
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e08a39), to(#8f4c14));
+}
+
+.csr-row.accent-amber,
+.csr-card.accent-amber
+{
+	border-left-color: #e4ae39;
 }
 
 .csr-row-icon.accent-amber,
@@ -709,52 +740,76 @@
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(#e4ae39), to(#8f6a14));
 }
 
+.csr-row.accent-green,
+.csr-card.accent-green
+{
+	border-left-color: #5fc27e;
+}
+
 .csr-row-icon.accent-green,
 .csr-card-icon.accent-green
 {
-	color: #3fa05e;
+	color: #5fc27e;
 }
 
 .csr-row.accent-green .csr-bar-fill,
 .csr-card.accent-green .csr-bar-fill
 {
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(#3fa05e), to(#2c6f43));
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#5fc27e), to(#2c6f43));
+}
+
+.csr-row.accent-teal,
+.csr-card.accent-teal
+{
+	border-left-color: #3fc4c4;
 }
 
 .csr-row-icon.accent-teal,
 .csr-card-icon.accent-teal
 {
-	color: #2a9d9d;
+	color: #3fc4c4;
 }
 
 .csr-row.accent-teal .csr-bar-fill,
 .csr-card.accent-teal .csr-bar-fill
 {
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(#2a9d9d), to(#1c6b6b));
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#3fc4c4), to(#1c6b6b));
+}
+
+.csr-row.accent-blue,
+.csr-card.accent-blue
+{
+	border-left-color: #82d7ff;
 }
 
 .csr-row-icon.accent-blue,
 .csr-card-icon.accent-blue
 {
-	color: #3d7fa8;
+	color: #82d7ff;
 }
 
 .csr-row.accent-blue .csr-bar-fill,
 .csr-card.accent-blue .csr-bar-fill
 {
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(#3d7fa8), to(#2a6d8f));
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#82d7ff), to(#2a6d8f));
+}
+
+.csr-row.accent-violet,
+.csr-card.accent-violet
+{
+	border-left-color: #a98cf0;
 }
 
 .csr-row-icon.accent-violet,
 .csr-card-icon.accent-violet
 {
-	color: #7a5bc7;
+	color: #a98cf0;
 }
 
 .csr-row.accent-violet .csr-bar-fill,
 .csr-card.accent-violet .csr-bar-fill
 {
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(#7a5bc7), to(#553a94));
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(#a98cf0), to(#553a94));
 }
 
 /* ================================================================================================
