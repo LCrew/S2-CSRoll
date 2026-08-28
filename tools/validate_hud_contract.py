@@ -198,6 +198,33 @@ def stylesheet_classes(css_text: str) -> set[str]:
     return set(re.findall(r"\.([A-Za-z_][\w-]*)", selectors))
 
 
+def check_stylesheet_syntax(css_text: str, path: pathlib.Path) -> None:
+    """
+    Panorama-specific CSS rules that resourcecompiler does NOT enforce.
+
+    Worth being strict here. The compiler happily accepts this file and only the client's runtime
+    parser rejects it - and when it does, the failure is spectacular: the stylesheet fails to parse,
+    so the layout's <include> fails, so no panel is built at all, and the log fills with "Unable to
+    find panel with id ..." for every id in the layout. Nothing in that output points at the CSS.
+    """
+    stripped = re.sub(r"/\*.*?\*/", "", css_text, flags=re.S)
+
+    # Panorama requires the keyframe name to be quoted: @keyframes 'name'. Unquoted gives
+    # "Invalid @keyframe name (missing quotes or empty)" and takes the whole stylesheet with it.
+    for m in re.finditer(r"@keyframes\s+([^\s{'\"]\S*)", stripped):
+        error(f"{path.name}: @keyframes name {m.group(1)!r} must be quoted, e.g. @keyframes 'name' - "
+              "unquoted names fail to parse and the entire stylesheet is discarded")
+
+    for m in re.finditer(r"animation-name:\s*([^\s;'\"]+)\s*;", stripped):
+        error(f"{path.name}: animation-name {m.group(1)!r} must be quoted, e.g. animation-name: 'name';")
+
+    # 'noclip' means do NOT clip. A fixed-size viewport that is meant to mask its overflowing child
+    # needs 'clip clip'; noclip renders every child at full size instead.
+    for m in re.finditer(r"([.#][\w-]+)[^{}]*\{[^}]*overflow:\s*noclip", stripped):
+        warn(f"{path.name}: {m.group(1)} sets 'overflow: noclip', which disables clipping - "
+             "use 'clip clip' if this panel is meant to be a viewport")
+
+
 def stylesheet_style_includes(xml_text: str) -> list[str]:
     return re.findall(r'<include\s+src="s2r://panorama/styles/custom_game/([^"]+)\.vcss_c"', xml_text)
 
@@ -227,6 +254,7 @@ def main() -> int:
     declared_classes = expand_classes(classes_cs)
     xml_ids = layout_ids(layout_xml, layout_path)
     css_classes = stylesheet_classes(style_css)
+    check_stylesheet_syntax(style_css, style_path)
 
     # --- panel ids, both directions ---
     for missing in sorted(declared_ids - xml_ids):

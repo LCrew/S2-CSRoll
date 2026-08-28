@@ -89,7 +89,7 @@
 	width: 100%;
 	height: 56px;
 	vertical-align: center;
-	overflow: noclip;
+	overflow: clip clip;
 }
 
 .csr-spin-reel
@@ -97,7 +97,7 @@
 	width: 100%;
 	flow-children: down;
 	/* 20 rows x 56px, parked so row 0 sits in the window. */
-	transform: translateY(0px);
+	transform: translate3d( 0px, 0px, 0px );
 	transition-property: transform;
 	/* Fast out of the gate, long slow settle - the same shape as the eased server-side spin this
 	   mirrors, so both surfaces read identically. */
@@ -107,7 +107,7 @@
 /* Travels 19 rows so the landing row (csr_reel19) ends up in the window. */
 .csr-spin-reel.spinning
 {
-	transform: translateY(-1064px);
+	transform: translate3d( 0px, -1064px, 0px );
 }
 
 .csr-reel-row
@@ -156,7 +156,7 @@
 	border-radius: 3px;
 	box-shadow: rgba(0, 0, 0, 0.75) 0px 0px 32px 0px;
 	opacity: 0.0;
-	transform: scaleX(0.96) scaleY(0.96);
+	transform: scale3d( 0.96, 0.96, 1.0 );
 	transition-property: opacity, transform;
 	transition-duration: 0.22s;
 	transition-timing-function: ease-out;
@@ -166,13 +166,13 @@
 .csr-reveal.reveal-in
 {
 	opacity: 1.0;
-	transform: scaleX(1.0) scaleY(1.0);
+	transform: scale3d( 1.0, 1.0, 1.0 );
 }
 
 .csr-reveal.reveal-out
 {
 	opacity: 0.0;
-	transform: scaleX(1.0) scaleY(1.02);
+	transform: scale3d( 1.0, 1.02, 1.0 );
 	transition-duration: 0.3s;
 }
 
@@ -251,16 +251,16 @@
    with one client-side animation that cannot drop a frame. */
 .csr-card-desc.desc-wipe
 {
-	animation-name: csr-wipe;
+	animation-name: 'csr-wipe';
 	animation-duration: 0.55s;
 	animation-timing-function: ease-out;
 	animation-iteration-count: 1;
 }
 
-@keyframes csr-wipe
+@keyframes 'csr-wipe'
 {
-	from { opacity: 0.0; transform: translateX(-14px); }
-	to   { opacity: 1.0; transform: translateX(0px); }
+	from { opacity: 0.0; transform: translate3d( -14px, 0px, 0px ); }
+	to   { opacity: 1.0; transform: translate3d( 0px, 0px, 0px ); }
 }
 
 .csr-card-more
@@ -412,16 +412,16 @@
 /* Indeterminate "working" state. */
 .spin
 {
-	animation-name: csr-spin;
+	animation-name: 'csr-spin';
 	animation-duration: 1.1s;
 	animation-timing-function: linear;
 	animation-iteration-count: infinite;
 }
 
-@keyframes csr-spin
+@keyframes 'csr-spin'
 {
-	from { transform: rotateZ(0deg); }
-	to   { transform: rotateZ(360deg); }
+	from { transform: rotateZ( 0deg ); }
+	to   { transform: rotateZ( 360deg ); }
 }
 
 /* ------------------------------------------------------------------------------------------------
