@@ -63,23 +63,37 @@ and enforces the `Panel` / `Label` / `Image` / `Button` allowlist.
 
 ### 2a. VpkDirectories — read this one
 
-Open the addon's `AddonConfig` in Workshop Tools and make sure `VpkDirectories` includes:
+`VpkDirectories` lives inside the `AddonConfig` block of
+`<CS2>\game\csgo\gameinfo.gi` - **not** in a per-addon file. Add these inside it:
 
 ```
-"include"   "panorama/layout/custom_game"
-"include"   "panorama/styles/custom_game"
-"include"   "panorama/images/custom_game"
+"include"       "panorama/layout/custom_game"
+"include"       "panorama/styles/custom_game"
+"include"       "panorama/images/custom_game"
 ```
 
-> **This is the single most common way to lose an afternoon.** Without these entries the VPK builds
-> successfully and simply contains none of the Panorama files. Every step downstream keeps reporting
-> success, the addon publishes fine, clients download it, and the HUD never appears — with no error
-> anywhere to explain why.
+> **This is the single most common way to lose an afternoon.** Without these entries the published
+> item builds successfully and simply contains none of the Panorama files. Every step downstream keeps
+> reporting success, the item publishes fine, clients download it, and the HUD never appears - with no
+> error anywhere to explain why. The preview check in step 5 is what catches it.
 
-`VpkDirectories` controls what Workshop Tools *collects*. It is unrelated to `FileSystem/SearchPaths`,
-which controls what a local install *mounts*. You need both, for different reasons.
+Two distinct blocks in the same file are easy to confuse, and they do opposite things:
 
----
+| Block | Purpose | Flags your client? |
+| --- | --- | --- |
+| `AddonConfig` -> `VpkDirectories` | what Workshop Tools **collects** when publishing | No |
+| `FileSystem` -> `SearchPaths` | what your local install **mounts** | Yes - see below |
+
+Back the file up first, and revert the edit once you have published.
+
+### 2b. Local mounting makes your client insecure
+
+Adding a custom VPK or addon folder to `FileSystem` -> `SearchPaths` (the local-override route in
+step 4) marks the installation as modified, and **VAC-secured servers will refuse the connection**.
+
+That makes the local route useful only against a server with VAC disabled. For testing against a
+normal server - including a 5stack one - publish to the Workshop and deliver via AddonsManager
+instead. Subscribed Workshop content is legitimate Steam content and does not flag the client.
 
 ## 3. Compile and pack
 
@@ -128,7 +142,10 @@ that is the VpkDirectories problem above, caught early.
 
 ---
 
-## 4. Test locally before publishing
+## 4. Test locally before publishing (insecure clients only)
+
+> Read 2b first. This route makes your client insecure and cannot be used against a VAC-secured
+> server. Skip straight to step 5 unless you have a server with VAC disabled.
 
 ```powershell
 .\tools\build_hud_resources.ps1 -Action Install -CS2Root "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
@@ -149,11 +166,17 @@ This route is for iterating on your own machine only. It changes nothing for any
 
 ## 5. Publish to the Workshop
 
-1. Workshop Tools → **Publish** the addon.
-2. Before publishing, confirm the preview lists at least `[vxml_c]: 1 Files` and `[vcss_c]: 1 Files`.
-   If either is zero, go back to step 2a.
-3. Set visibility to **Public**. Friends-only and Hidden items cannot be downloaded by your players.
-4. Record the Workshop ID from the item's URL.
+1. Launch **Counter-Strike 2 Workshop Tools**, then open **Counter-Strike 2 Workshop Manager**.
+2. Click **New** and select `csroll_hud` as the addon folder.
+3. **Check the contents preview before submitting.** It must list at least `[vxml_c]: 1 Files` and
+   `[vcss_c]: 1 Files`. If either is 0, step 2a did not take - fix it rather than publishing an empty
+   item.
+4. Fill in title, description and a preview image (Steam requires one).
+5. Set visibility to **Public**. Friends-only and Hidden items cannot be downloaded by your players.
+6. Submit, then record the Workshop ID from the item's URL.
+
+Do not manually upload a `.vpk` in this dialog - the Manager builds one from the addon folder. Nothing
+from step 3's Pack action is used on this path.
 
 ---
 
