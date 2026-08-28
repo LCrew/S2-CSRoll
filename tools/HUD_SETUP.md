@@ -83,33 +83,43 @@ which controls what a local install *mounts*. You need both, for different reaso
 
 ## 3. Compile and pack
 
-Windows ships **Windows PowerShell 5.1** as `powershell`; `pwsh` is PowerShell 7 and is a separate
-install. The script runs on either. From a plain `cmd.exe` prompt, **as Administrator** (see below):
+Run these from an **elevated PowerShell** prompt, in the repo root.
 
-```bat
-powershell -ExecutionPolicy Bypass -File tools\build_hud_resources.ps1 ^
-    -Action Build ^
-    -CS2Root "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive" ^
-    -VpkEditCli "C:\Tools\VPKEdit\vpkeditcli.exe"
-```
+> Commands below are deliberately single-line. Line continuations differ between shells - `^` in
+> cmd.exe, a backtick in PowerShell - and pasting the wrong one makes the continuation character
+> itself get parsed as an argument value.
 
-`-ExecutionPolicy Bypass` is needed because the script is unsigned; `-File` is needed so the arguments
-are passed to the script rather than to PowerShell itself.
-
-Or, from inside a PowerShell prompt:
+Allow the unsigned script for this session:
 
 ```powershell
-$cs2 = "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
-
-.\tools\build_hud_resources.ps1 -Action Build `
-    -CS2Root $cs2 `
-    -VpkEditCli "C:\Tools\VPKEdit\vpkeditcli.exe"
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 ```
 
+Then, one step at a time - each has different prerequisites, so running them separately tells you
+exactly which one you are missing:
+
+```powershell
+.\tools\build_hud_resources.ps1 -Action Compile -CS2Root "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
+```
+
+```powershell
+.\tools\build_hud_resources.ps1 -Action Pack -CS2Root "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive" -VpkEditCli "C:\path\to\vpkeditcli.exe"
+```
+
+`-Action Build` chains Validate + Compile + Pack in one go, but it needs Python and VPKEdit present
+up front; the separate steps above need only `resourcecompiler.exe` for Compile and VPKEdit for Pack.
+
+From `cmd.exe` instead of PowerShell, prefix with
+`powershell -ExecutionPolicy Bypass -File ` and keep it on one line.
+
 > **Run elevated.** CS2 lives under `C:\Program Files (x86)`, and `Compile`, `Pack` and `Install` all
-> write there — staging sources into `content\csgo_addons\`, copying the VPK into `game\csgo\overrides\`,
+> write there - staging sources into `content\csgo_addons\`, copying the VPK into `game\csgo\overrides\`,
 > and editing `gameinfo.gi`. Without an Administrator prompt these fail with access-denied part-way
 > through, which is messier than failing up front.
+
+> **For a local test you can ignore step 2a entirely.** VpkDirectories governs Workshop Tools' own
+> publish flow; the Pack action above builds the VPK directly from the compiled folder with VPKEdit,
+> so it does not care. That section only matters when you publish (step 5).
 
 `Build` = `Validate` → `Compile` → `Pack`, and produces `build/hud/csroll_hud.vpk`.
 
@@ -120,10 +130,8 @@ that is the VpkDirectories problem above, caught early.
 
 ## 4. Test locally before publishing
 
-```bat
-powershell -ExecutionPolicy Bypass -File tools\build_hud_resources.ps1 ^
-    -Action Install ^
-    -CS2Root "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
+```powershell
+.\tools\build_hud_resources.ps1 -Action Install -CS2Root "C:\Program Files (x86)\Steam\steamapps\common\Counter-Strike Global Offensive"
 ```
 
 This copies the VPK into `game\csgo\overrides\` and prints the `gameinfo.gi` line to add under
