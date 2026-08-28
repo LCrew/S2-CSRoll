@@ -218,11 +218,27 @@ def check_stylesheet_syntax(css_text: str, path: pathlib.Path) -> None:
     for m in re.finditer(r"animation-name:\s*([^\s;'\"]+)\s*;", stripped):
         error(f"{path.name}: animation-name {m.group(1)!r} must be quoted, e.g. animation-name: 'name';")
 
-    # 'noclip' means do NOT clip. A fixed-size viewport that is meant to mask its overflowing child
-    # needs 'clip clip'; noclip renders every child at full size instead.
+    # 'noclip' means do NOT clip. A fixed-size viewport meant to mask an overflowing child needs
+    # 'clip clip'. It IS correct on the outermost panel, which has to let children draw past it.
     for m in re.finditer(r"([.#][\w-]+)[^{}]*\{[^}]*overflow:\s*noclip", stripped):
-        warn(f"{path.name}: {m.group(1)} sets 'overflow: noclip', which disables clipping - "
-             "use 'clip clip' if this panel is meant to be a viewport")
+        if "root" not in m.group(1):
+            warn(f"{path.name}: {m.group(1)} sets 'overflow: noclip', which disables clipping - "
+                 "use 'clip clip' if this panel is meant to be a viewport")
+
+    # Transitioning `width` is a trap here. Writing ANY dialog variable in the same subtree re-measures
+    # the label, re-lays-out the row, re-resolves `width: 100%` and restarts the transition - so a bar
+    # sitting next to its own countdown text resets itself every time that text ticks. `clip` is
+    # documented as having no impact on layout and being supported for transitions, so it is immune.
+    for m in re.finditer(r"transition-property:\s*([^;]*width[^;]*);", stripped):
+        error(f"{path.name}: transition-property includes 'width' ({m.group(1).strip()!r}). A dialog-"
+              "variable write anywhere in the same subtree restarts a width transition - use "
+              "clip: rect(...) for bars and gauges instead")
+
+    # z-index only orders siblings within one parent, so it has to be on the outermost panel to lift
+    # the layout above the built-in HUD. On an inner panel it does nothing at any value.
+    if "z-index" not in stripped:
+        warn(f"{path.name}: no z-index anywhere. Without a large z-index on the OUTERMOST panel the "
+             "layout can paint underneath the built-in CS2 HUD")
 
 
 def stylesheet_style_includes(xml_text: str) -> list[str]:
