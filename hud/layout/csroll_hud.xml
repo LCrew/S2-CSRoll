@@ -39,6 +39,9 @@
 			     name the way the center-HTML spin has to.
 			     ========================================================================================== -->
 			<Panel id="csr_spin" class="csr-spin hidden" hittest="false">
+				<!-- Decorative rotating ring. No id on purpose: the server never addresses it, it just
+				     spins for as long as the spin panel is visible. -->
+				<Panel class="csr-spin-ring" hittest="false" />
 				<Panel class="csr-spin-window" hittest="false">
 					<Panel id="csr_spin_reel" class="csr-spin-reel" hittest="false">
 						<Label id="csr_reel0" class="csr-reel-row" text="{s:name}" />

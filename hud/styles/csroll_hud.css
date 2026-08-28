@@ -76,25 +76,48 @@
    the tick sound until it lands.
    ================================================================================================ */
 
+/* Left column, sitting directly above the tracker. Spin and reveal are never on screen together, so
+   they deliberately share the same slot - one replaces the other in place. */
 .csr-spin
 {
-	width: 460px;
-	height: 128px;
-	horizontal-align: center;
+	width: 320px;
+	horizontal-align: left;
 	vertical-align: center;
-	margin-bottom: 180px;
-	flow-children: down;
-	background-color: gradient(linear, 0% 0%, 0% 100%, from(rgba(10, 16, 22, 0.0)), color-stop(0.5, rgba(10, 16, 22, 0.86)), to(rgba(10, 16, 22, 0.0)));
+	margin-left: 26px;
+	margin-bottom: 220px;
+	flow-children: right;
+	padding: 8px 12px;
+	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.88)), to(rgba(8, 14, 20, 0.55)));
+	border-left: 3px solid #e4ae39;
+	border-radius: 2px;
 	transition-property: opacity;
 	transition-duration: 0.15s;
 	opacity: 1.0;
 }
 
+/* The rotating ring. Purely decorative and purely client-side: it has no id, the server never touches
+   it, and it spins for as long as the spin panel is visible. Uncoloured on three sides so the
+   rotation actually reads - a full ring spinning looks static. */
+.csr-spin-ring
+{
+	width: 20px;
+	height: 20px;
+	margin-right: 12px;
+	vertical-align: center;
+	border: 2px solid rgba(228, 174, 57, 0.18);
+	border-top: 2px solid #e4ae39;
+	border-radius: 10px;
+	animation-name: csr-spin;
+	animation-duration: 0.85s;
+	animation-timing-function: linear;
+	animation-iteration-count: infinite;
+}
+
 /* Fixed-height viewport. Exactly one reel row is visible at a time. */
 .csr-spin-window
 {
-	width: 100%;
-	height: 56px;
+	width: fill-parent-flow(1);
+	height: 34px;
 	vertical-align: center;
 	overflow: clip clip;
 }
@@ -111,20 +134,21 @@
 	transition-timing-function: cubic-bezier(0.12, 0.72, 0.10, 1.0);
 }
 
-/* Travels 19 rows so the landing row (csr_reel19) ends up in the window. */
+/* Travels 19 rows so the landing row (csr_reel19) ends up in the window. 19 x 34px = 646px - keep
+   this in step with .csr-reel-row's height or the reel lands off-centre. */
 .csr-spin-reel.spinning
 {
-	transform: translate3d( 0px, -1064px, 0px );
+	transform: translate3d( 0px, -646px, 0px );
 }
 
 .csr-reel-row
 {
 	width: 100%;
-	height: 56px;
-	text-align: center;
+	height: 34px;
+	text-align: left;
 	vertical-align: center;
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 34px;
+	font-size: 19px;
 	font-weight: bold;
 	color: #c8d4e0;
 	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.8);
@@ -135,12 +159,12 @@
 	color: #ffffff;
 }
 
-/* The line the reel lands against. */
+/* Retained so the layout's element still has a rule, but the compact reel does not need a landing
+   line - the ring and the border already mark it. */
 .csr-spin-marker
 {
-	width: 100%;
-	height: 2px;
-	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(228, 174, 57, 0.0)), color-stop(0.5, rgba(228, 174, 57, 0.9)), to(rgba(228, 174, 57, 0.0)));
+	width: 0px;
+	height: 0px;
 }
 
 /* ================================================================================================
@@ -149,10 +173,11 @@
 
 .csr-reveal
 {
-	width: 620px;
-	horizontal-align: center;
+	width: 340px;
+	horizontal-align: left;
 	vertical-align: center;
-	margin-bottom: 150px;
+	margin-left: 26px;
+	margin-bottom: 200px;
 	flow-children: down;
 	padding: 18px 22px 20px;
 	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.94)), to(rgba(14, 22, 30, 0.94)));
@@ -215,13 +240,13 @@
 
 .csr-card-icon
 {
-	width: 46px;
-	height: 46px;
+	width: 34px;
+	height: 34px;
 	vertical-align: center;
 	text-align: center;
 	/* Unicode first: these are symbols, and Stratum2 does not carry most of them. */
 	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 26px;
+	font-size: 19px;
 	color: #8899aa;
 	background-color: rgba(0, 0, 0, 0.28);
 	border: 1px solid rgba(255, 255, 255, 0.07);
@@ -239,7 +264,7 @@
 .csr-card-name
 {
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 24px;
+	font-size: 19px;
 	font-weight: bold;
 	color: #f3f6fb;
 	text-shadow: 1px 1px 2px 2 rgba(0, 0, 0, 0.7);
@@ -249,7 +274,7 @@
 {
 	width: 100%;
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 15px;
+	font-size: 13px;
 	color: #93a3b4;
 	margin-top: 2px;
 }
