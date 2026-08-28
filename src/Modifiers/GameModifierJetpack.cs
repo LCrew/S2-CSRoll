@@ -9,6 +9,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -328,4 +329,22 @@ public sealed class GameModifierJetpack : GameModifierBase
         _nextGaugeUpdateTime.Remove(@event.PlayerId);
         _lastBigBoostTime.Remove(@event.PlayerId);
     }
+
+    /// <summary>
+    /// Fuel level. A gauge rather than a countdown: it drains and refills at different rates, so there
+    /// is no fixed duration a CSS transition could be handed.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        var maxFuel = Math.Max(0.01f, Runtime.Config.Jetpack.MaxFuel);
+        var fuel = _fuel.GetValueOrDefault(slot, maxFuel);
+
+        return HudTimer.Gauge(fuel / maxFuel, $"{(int)Math.Round(fuel / maxFuel * 100f)}%");
+    }
+
 }

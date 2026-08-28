@@ -8,6 +8,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -442,4 +443,27 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         _lastAlphaUpdateTime.Remove(@event.PlayerId);
         _lastHtmlUpdateTime.Remove(@event.PlayerId);
     }
+
+    /// <summary>
+    /// Concealment, as a gauge. Reads the same live alpha the center-HTML gauge draws, so the two
+    /// surfaces cannot disagree.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        // The base class tracks alpha as visibility; concealment is its inverse.
+        var alpha = Math.Clamp(_currentAlpha.GetValueOrDefault(slot, 1f), 0f, 1f);
+        var concealment = 1f - alpha;
+
+        var status = concealment >= 0.99f ? "HIDDEN"
+                   : concealment <= 0.01f ? "VISIBLE"
+                   : "FADING";
+
+        return HudTimer.Gauge(concealment, status);
+    }
+
 }

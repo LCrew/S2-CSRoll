@@ -2,6 +2,7 @@ using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -152,4 +153,22 @@ public sealed class GameModifierRegeneration : GameModifierBase
         _lastRampStepTime.Remove(@event.PlayerId);
         _lastHtmlUpdateTime.Remove(@event.PlayerId);
     }
+
+    /// <summary>
+    /// The current heal rate, shown as a gauge against the stationary maximum plus the rate itself as
+    /// text - the number is what the player actually cares about here, not the proportion.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        var max = Math.Max(0.01f, Runtime.Config.Regeneration.StationaryRatePerSecond);
+        var rate = _displayedRate.GetValueOrDefault(slot, 0f);
+
+        return HudTimer.Gauge(rate / max, $"{rate:0.#} HP/s".Replace('.', ','));
+    }
+
 }

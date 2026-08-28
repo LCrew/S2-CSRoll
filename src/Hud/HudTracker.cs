@@ -83,12 +83,15 @@ public sealed class HudTracker
 
         _hud.ShowFor(slot, HudPanelIds.Track, true);
 
-        // Modifiers with a live timer first (they're the ones the player actually needs to watch), then
-        // by name so the list is stable frame to frame rather than reshuffling as timers come and go.
+        // Ordered by name and NOTHING else. Sorting timered modifiers to the top seemed friendlier, but
+        // "has a timer" changes as cooldowns start and finish, so rows reshuffled mid-round - and a
+        // modifier landing on a different row inherits that row's bar, which restarts the transition.
+        // On screen that reads as a countdown running down and then abruptly jumping back up. Row
+        // identity has to be stable for the whole round, so the only safe sort key is one that cannot
+        // change while the round is running.
         var ordered = modifiers
             .Select(modifier => (Modifier: modifier, Timer: SafeTimer(modifier, slot)))
-            .OrderByDescending(entry => entry.Timer is not null)
-            .ThenBy(entry => entry.Modifier.Name, StringComparer.Ordinal)
+            .OrderBy(entry => entry.Modifier.Name, StringComparer.Ordinal)
             .ToList();
 
         // When the list is longer than the budget, the last usable row becomes a "+N more" counter -

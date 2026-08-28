@@ -2,6 +2,7 @@ using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -326,4 +327,30 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
         _nextSwapTime.Remove(@event.PlayerId);
         _spins.Remove(@event.PlayerId);
     }
+
+    /// <summary>
+    /// Time until the next modifier swap, with whatever is currently granted as the readout.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        if (_spins.ContainsKey(slot))
+        {
+            return HudTimer.Ready("ROLLING");
+        }
+
+        var remaining = _nextSwapTime.GetValueOrDefault(slot, 0f) - Core.Engine.GlobalVars.CurrentTime;
+        if (remaining <= 0f)
+        {
+            var granted = _granted.TryGetValue(slot, out var g) ? CSRollUtils.GetModifierDisplayName(Core, g) : "READY";
+            return HudTimer.Ready(granted);
+        }
+
+        return HudTimer.Countdown(remaining);
+    }
+
 }

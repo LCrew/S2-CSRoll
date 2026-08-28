@@ -5,6 +5,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -435,4 +436,30 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         _lastHtmlUpdateTime.Remove(@event.PlayerId);
         _spins.Remove(@event.PlayerId);
     }
+
+    /// <summary>
+    /// Time until the next weapon reroll, with the current weapon as the readout. _nextRerollTime is a
+    /// single server-wide deadline rather than per-slot, so every assigned player sees the same clock.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        if (_spins.ContainsKey(slot))
+        {
+            return HudTimer.Ready("ROLLING");
+        }
+
+        var remaining = _nextRerollTime - Core.Engine.GlobalVars.CurrentTime;
+        if (remaining <= 0f || _nextRerollTime < 0f)
+        {
+            return HudTimer.Ready(_currentWeaponName.GetValueOrDefault(slot, "READY"));
+        }
+
+        return HudTimer.Countdown(remaining);
+    }
+
 }

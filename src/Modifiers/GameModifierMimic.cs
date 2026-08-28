@@ -4,6 +4,7 @@ using SwiftlyS2.Shared.Misc;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -196,4 +197,21 @@ public sealed class GameModifierMimic : GameModifierBase
             CSRollUtils.PrintTitleToChatColored(Core, thief, $"Mimicked [gold]{CSRollUtils.GetModifierDisplayName(Core, stolen)}[default] from [gold]{victim.Name}[default]!");
         }
     }
+
+    /// <summary>
+    /// Mimic has no clock - it shows whatever modifier has been stolen, or nothing yet. Returning a
+    /// Ready timer rather than null gives the row a readout without a bar.
+    /// </summary>
+    public override HudTimer? GetHudTimer(int slot)
+    {
+        if (!IsAssignedTo(slot))
+        {
+            return null;
+        }
+
+        return _stolen.TryGetValue(slot, out var stolen)
+            ? HudTimer.Ready(CSRollUtils.GetModifierDisplayName(Core, stolen))
+            : HudTimer.Ready("NONE");
+    }
+
 }

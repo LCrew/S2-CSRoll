@@ -98,121 +98,90 @@
    ================================================================================================ */
 
 /* ================================================================================================
-   Spin wheel
+   Spin reel
 
-   A rotary carousel rather than a vertical strip: the cards hang off a pivot away to the LEFT, so
-   rotating the wheel swings each one up through the horizontal reading position and away again. The
-   cards either side sit at an angle and run off the screen edge, which is what gives it the "rolling
-   dial" read rather than a list scrolling past.
+   A vertical strip behind a one-row window, NOT a rotary wheel. The wheel version (cards on spokes
+   around an off-panel transform-origin) never rendered in game - most likely the negative
+   transform-origin, though it was never pinned down. It is not worth more cycles: this mechanism is
+   already proven, and the reel reads the same way from the front.
 
-   The geometry is only two numbers, and they have to agree with each other:
-     * every card shares transform-origin -200px 50%  - the wheel's hub
-     * card N is parked at N x 16 degrees
-     * so the wheel rotates -304 degrees to bring the last card (the real result) to horizontal
-   Change the angle or the row count and the sweep has to change with it.
+   Two numbers that must agree: the row height and the travel distance. Travel = row x (rows - 1), so
+   the last card - the real result - ends up in the window. Change one and change the other.
    ================================================================================================ */
 
 .csr-spin
 {
-	width: 320px;
+	width: 300px;
 	horizontal-align: left;
 	vertical-align: center;
 	margin-left: 26px;
-	margin-bottom: 210px;
-	overflow: noclip;
 	opacity: 1.0;
 	transition-property: opacity;
 	transition-duration: 0.15s;
 }
 
-/* noclip: the angled cards are meant to overhang and run off the screen edge. */
+/* The mask. Exactly one card is visible at a time. */
 .csr-spin-window
 {
 	width: 100%;
 	height: 46px;
-	overflow: noclip;
+	overflow: clip clip;
 }
 
 .csr-spin-reel
 {
 	width: 100%;
-	height: 100%;
-	transform-origin: -200px 50%;
-	transform: rotatez( 0deg );
+	flow-children: down;
+	transform: translate3d( 0px, 0px, 0px );
 	transition-property: transform;
-	/* Fast away, long settle - the wheel should coast into its landing, not stop dead. */
+	/* Fast away, long settle - it should coast into the landing rather than stop dead. */
 	transition-timing-function: cubic-bezier(0.10, 0.75, 0.10, 1.0);
 }
 
 .csr-spin-reel.spinning
 {
-	transform: rotatez( -304deg );
+	transform: translate3d( 0px, -874px, 0px );
 }
 
-/* Each card. Every one is absolutely stacked on the same spot and then rotated out to its own spoke,
-   so ignore-parent-flow keeps them from laying out in a column first. */
 .csr-reel-row
 {
-	width: 230px;
-	height: 44px;
-	ignore-parent-flow: true;
-	transform-origin: -200px 50%;
+	width: 100%;
+	height: 46px;
+	padding: 0px 13px;
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.92)), to(rgba(14, 22, 30, 0.80)));
 	border: 1px solid rgba(255, 255, 255, 0.07);
 	border-left: 3px solid #e4ae39;
 	border-radius: 2px;
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 17px;
+	font-size: 16px;
 	font-weight: bold;
 	color: #e8edf3;
-	text-align: center;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
+	vertical-align: center;
 	box-shadow: rgba(0, 0, 0, 0.6) 0px 3px 14px 0px;
 }
 
-/* The card that is currently horizontal reads as the live one. */
 .csr-reel-landing
 {
 	color: #ffffff;
 	border-left-color: #ffd479;
 }
 
-/* Retained because the layout still declares the element; the wheel needs no landing line. */
+/* Retained because the layout still declares the element. */
 .csr-spin-marker
 {
 	width: 0px;
 	height: 0px;
 }
 
-/* Each card's parked angle on the wheel. */
-#csr_reel0 { transform: rotatez( 0deg ); }
-#csr_reel1 { transform: rotatez( 16deg ); }
-#csr_reel2 { transform: rotatez( 32deg ); }
-#csr_reel3 { transform: rotatez( 48deg ); }
-#csr_reel4 { transform: rotatez( 64deg ); }
-#csr_reel5 { transform: rotatez( 80deg ); }
-#csr_reel6 { transform: rotatez( 96deg ); }
-#csr_reel7 { transform: rotatez( 112deg ); }
-#csr_reel8 { transform: rotatez( 128deg ); }
-#csr_reel9 { transform: rotatez( 144deg ); }
-#csr_reel10 { transform: rotatez( 160deg ); }
-#csr_reel11 { transform: rotatez( 176deg ); }
-#csr_reel12 { transform: rotatez( 192deg ); }
-#csr_reel13 { transform: rotatez( 208deg ); }
-#csr_reel14 { transform: rotatez( 224deg ); }
-#csr_reel15 { transform: rotatez( 240deg ); }
-#csr_reel16 { transform: rotatez( 256deg ); }
-#csr_reel17 { transform: rotatez( 272deg ); }
-#csr_reel18 { transform: rotatez( 288deg ); }
-#csr_reel19 { transform: rotatez( 304deg ); }
-
 /* ================================================================================================
    Reveal card
 
-   State two of three: the wheel lands, and the winning card grows downward into a panel carrying the
-   name plus its description. Same left edge, same border, same fill as the card it came from - the
-   continuity is the point, it should read as the card expanding rather than a new panel appearing.
+   State two of three. Everything shared with the reel card and the tracker chip is deliberately
+   identical - same width, same left edge, same vertical anchor, same 16px Stratum2 name, same 22px
+   glyph column. The three states are meant to read as ONE object changing shape, and any difference
+   in type size or offset breaks that: the panel appears to jump rather than grow.
    ================================================================================================ */
 
 .csr-reveal
@@ -221,9 +190,8 @@
 	horizontal-align: left;
 	vertical-align: center;
 	margin-left: 26px;
-	margin-bottom: 210px;
 	flow-children: down;
-	padding: 11px 14px 13px 14px;
+	padding: 11px 13px 13px 13px;
 	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.94)), to(rgba(14, 22, 30, 0.94)));
 	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
 	background-size: 360px 360px;
@@ -252,8 +220,6 @@
 	transition-duration: 0.3s;
 }
 
-/* The mock has no header above the name, so this is kept minimal rather than removed - the layout
-   still declares the panel and the sequencer still writes to it. */
 .csr-reveal-title
 {
 	font-family: Stratum2 Condensed, 'Arial Unicode MS';
@@ -262,7 +228,7 @@
 	letter-spacing: 1.6px;
 	text-transform: uppercase;
 	color: #e4ae39;
-	margin-bottom: 5px;
+	margin-bottom: 6px;
 }
 
 .csr-reveal-rule
@@ -271,37 +237,40 @@
 	height: 0px;
 }
 
+/* Icon column + copy, exactly as a tracker chip is built. */
 .csr-card
 {
 	width: 100%;
-	flow-children: down;
+	flow-children: right;
 	margin-bottom: 6px;
 }
 
-/* The glyph badge sits inline with the name rather than in its own column - the mock is a plain text
-   block, and a 46px badge beside 300px of panel dominated it. */
 .csr-card-icon
 {
-	width: 0px;
-	height: 0px;
-	font-size: 0px;
+	width: 22px;
+	height: 22px;
+	margin-right: 10px;
+	margin-top: 1px;
+	text-align: center;
+	font-family: 'Arial Unicode MS', Stratum2;
+	font-size: 17px;
+	color: #8899aa;
 }
 
 .csr-card-copy
 {
-	width: 100%;
+	width: fill-parent-flow(1);
 	flow-children: down;
 }
 
 .csr-card-name
 {
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 19px;
+	font-size: 16px;
 	font-weight: bold;
 	color: #f3f6fb;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
-	text-shadow: 1px 1px 2px 2 rgba(0, 0, 0, 0.7);
 }
 
 .csr-card-desc
@@ -310,11 +279,9 @@
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 13px;
 	color: #93a3b4;
-	margin-top: 7px;
+	margin-top: 6px;
 }
 
-/* Replaces the twenty server-pushed scramble frames the center-HTML path needs with one client-side
-   animation that cannot drop a frame. */
 .csr-card-desc.desc-wipe
 {
 	animation-name: 'csr-wipe';
@@ -322,7 +289,6 @@
 	animation-timing-function: ease-out;
 	animation-iteration-count: 1;
 }
-
 
 .csr-card-more
 {
@@ -373,7 +339,7 @@
 	width: 100%;
 	flow-children: right;
 	margin-bottom: 5px;
-	padding: 9px 13px;
+	padding: 11px 13px;
 	background-color: gradient(linear, 0% 0%, 100% 0%, from(rgba(8, 14, 20, 0.86)), to(rgba(8, 14, 20, 0.56)));
 	border: 1px solid rgba(255, 255, 255, 0.06);
 	border-left: 3px solid #8899aa;
@@ -391,14 +357,14 @@
 
 .csr-row-icon
 {
-	width: 19px;
-	height: 19px;
+	width: 22px;
+	height: 22px;
 	vertical-align: center;
 	text-align: center;
 	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 14px;
+	font-size: 17px;
 	color: #8899aa;
-	margin-right: 9px;
+	margin-right: 10px;
 }
 
 .csr-row-copy
@@ -418,7 +384,7 @@
 {
 	width: fill-parent-flow(1);
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 15px;
+	font-size: 16px;
 	font-weight: bold;
 	color: #e8edf3;
 	text-transform: uppercase;
