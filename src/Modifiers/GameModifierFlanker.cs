@@ -217,6 +217,11 @@ public sealed class GameModifierFlanker : GameModifierBase
 
         _lastFailureMessageTime[player.Slot] = now;
         CSRollUtils.PrintTitleToChat(Core, player, message);
+
+        // Also put it on the HUD. A failed teleport happens mid-fight, which is exactly when a chat line
+        // is least likely to be read; the notice sits in the same bottom slot the roll uses, so the
+        // player's eye is already trained on it. Chat stays as-is for servers without the HUD addon.
+        Runtime.Hud.ShowNoticeFor(player.Slot, message);
     }
 
     private void RefreshStatusHtml(IPlayer player, float now)

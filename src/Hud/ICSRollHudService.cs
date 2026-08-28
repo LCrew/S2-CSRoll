@@ -122,6 +122,22 @@ public interface ICSRollHudService
     // --- lifecycle --------------------------------------------------------------------------------
 
     /// <summary>
+    /// Shows a short-lived message to one player in the HUD's bottom slot - "no enemy to flank", "out
+    /// of fuel", anything a modifier needs to say in the moment.
+    ///
+    /// Repeated calls replace the current message and restart its timer, so a modifier that fires this
+    /// on every failed attempt cannot stack notices or make one linger. Safe to call at any rate; it is
+    /// throttled internally against the identical message.
+    /// </summary>
+    /// <param name="slot">The player who sees it.</param>
+    /// <param name="message">Plain text. Chat colour tokens are not parsed here - strip them first.</param>
+    /// <param name="seconds">How long it stays up.</param>
+    void ShowNoticeFor(int slot, string message, float seconds = 2.5f);
+
+    /// <summary>Hides a player's notice immediately.</summary>
+    void ClearNoticeFor(int slot);
+
+    /// <summary>
     /// Drops every per-player override for a slot. Slots are recycled by the next player to connect, so
     /// without this a joiner inherits the previous occupant's tracker rows and countdowns - the same
     /// hazard ModifierRuntime already handles for its center-HTML sections.

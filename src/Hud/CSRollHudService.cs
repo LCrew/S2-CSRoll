@@ -74,6 +74,9 @@ public sealed class CSRollHudService : ICSRollHudService
     private readonly Dictionary<(int Slot, string FillA), float> _barEndsAt = [];
     private readonly Dictionary<(int Slot, string Panel, string Variable), float> _countdowns = [];
 
+    /// <summary>Slot -> when its notice should disappear. Cleared by the same pump that drives countdowns.</summary>
+    private readonly Dictionary<int, float> _noticeUntil = [];
+
     public CSRollHudService(ISwiftlyCore core, CSRollConfig config)
     {
         _core = core;
@@ -351,7 +354,14 @@ public sealed class CSRollHudService : ICSRollHudService
     {
         EnsureEntity();
 
-        if (!Available || _countdowns.Count == 0)
+        if (!Available)
+        {
+            return;
+        }
+
+        ExpireNotices();
+
+        if (_countdowns.Count == 0)
         {
             return;
         }
@@ -382,6 +392,27 @@ public sealed class CSRollHudService : ICSRollHudService
             if (remaining <= 0f)
             {
                 _countdowns.Remove(key);
+            }
+        }
+    }
+
+    /// <summary>Retires notices whose time is up. Runs every tick; the dictionary is almost always empty.</summary>
+    private void ExpireNotices()
+    {
+        if (_noticeUntil.Count == 0)
+        {
+            return;
+        }
+
+        var now = _core.Engine.GlobalVars.CurrentTime;
+
+        foreach (var (slot, until) in _noticeUntil.ToList())
+        {
+            // "now < until - lifetime" would be a stale deadline from the previous map, whose clock ran
+            // higher - same guard as everywhere else in this file.
+            if (now >= until || now < until - 60f)
+            {
+                ClearNoticeFor(slot);
             }
         }
     }
@@ -683,6 +714,40 @@ public sealed class CSRollHudService : ICSRollHudService
         => _countdowns.Remove((slot, panelId, variable));
 
     // -------------------------------------------------------------------------------------------------
+    // Notices
+    // -------------------------------------------------------------------------------------------------
+
+    public void ShowNoticeFor(int slot, string message, float seconds = 2.5f)
+    {
+        if (!Available || string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        // The text write is dirty-cached, so re-showing the same message costs nothing; the deadline is
+        // refreshed regardless, which is what makes a notice fired repeatedly behave as one that simply
+        // stays up rather than one that flickers.
+        SetTextFor(slot, HudPanelIds.SelfLine(0), HudPanelIds.VarName, message);
+        ShowFor(slot, HudPanelIds.Self, true);
+        SetClassFor(slot, HudPanelIds.Self, HudClasses.Active, true);
+
+        _noticeUntil[slot] = _core.Engine.GlobalVars.CurrentTime + Math.Max(0.1f, seconds);
+    }
+
+    public void ClearNoticeFor(int slot)
+    {
+        _noticeUntil.Remove(slot);
+
+        if (!Available)
+        {
+            return;
+        }
+
+        SetClassFor(slot, HudPanelIds.Self, HudClasses.Active, false);
+        ShowFor(slot, HudPanelIds.Self, false);
+    }
+
+    // -------------------------------------------------------------------------------------------------
     // Reset
     // -------------------------------------------------------------------------------------------------
 
@@ -710,6 +775,7 @@ public sealed class CSRollHudService : ICSRollHudService
         RemoveWhere(_barStarts, k => k.Slot == slot);
         RemoveWhere(_barEndsAt, k => k.Slot == slot);
         RemoveWhere(_countdowns, k => k.Slot == slot);
+        _noticeUntil.Remove(slot);
     }
 
     public void ResetAll()
@@ -722,6 +788,7 @@ public sealed class CSRollHudService : ICSRollHudService
         _barStarts.Clear();
         _barEndsAt.Clear();
         _countdowns.Clear();
+        _noticeUntil.Clear();
         _lastCountdownPumpTime = 0f;
         _nextCreateAttemptAt = 0f;
     }
