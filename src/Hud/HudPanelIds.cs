@@ -53,8 +53,8 @@ public static class HudPanelIds
 
     /// <summary>
     /// Reel row count. The spin runs ~4s (SpinRevealConfig.SpinCount x the eased interval), so 20 rows
-    /// is roughly one name per 200ms of travel - enough for the strip to read as a blur rather than a
-    /// list. The last row is always the real result.
+    /// is roughly one name per 200ms of travel - enough for the strip to read as movement rather than a
+    /// list. The result sits at <see cref="ReelLandingIndex"/>, not the last row.
     /// </summary>
     public const int ReelRows = 20;
 
@@ -62,8 +62,16 @@ public static class HudPanelIds
 
     public static string ReelRow(int index) => _reelRows[index];
 
-    /// <summary>The reel row the spin lands on - always the last one, and the only one holding a real result.</summary>
-    public static string ReelLandingRow() => _reelRows[ReelRows - 1];
+    /// <summary>
+    /// The row the reel stops on. Deliberately NOT the last one: the window shows three rows at a
+    /// time, so the result has to land in the middle slot with rows left over to fill the slot below -
+    /// otherwise the reel visibly runs out of cards as it stops. Must match the travel distance in
+    /// csroll_hud.css, which is row height x (this - 1).
+    /// </summary>
+    public const int ReelLandingIndex = 18;
+
+    /// <summary>The reel row the spin lands on - the only one holding a real result.</summary>
+    public static string ReelLandingRow() => _reelRows[ReelLandingIndex];
 
     // ---------------------------------------------------------------------------------------------
     // Reveal card

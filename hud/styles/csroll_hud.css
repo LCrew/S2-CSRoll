@@ -92,20 +92,19 @@
 /* ================================================================================================
    SCREEN POSITION - read this before moving anything
 
-   All three states sit centred horizontally and below the crosshair, roughly where CS2's own
-   center-HTML messages appear. There is ONE number behind that: DROP, currently 280px below screen
-   centre. The three margin-top values are derived from it and are NOT independent:
+   All three states are anchored to the BOTTOM, 250px up, centred horizontally. On a 1080p screen that
+   puts them just under the crosshair, about where CS2's own center-HTML messages sit.
 
-       track   margin-top: 280px     (DROP)
-       reveal  margin-top: 178px     (DROP - (trackHeight - revealHeight) / 2)
-       spin    margin-top: 147px     (DROP - (trackHeight - rowHeight) / 2)
+   Bottom-anchored rather than centre-anchored, for one reason that matters: with vertical-align:bottom
+   and the same margin-bottom, all three panels share a bottom edge automatically. Centre-anchoring
+   does not - it places each panel's CENTRE at the offset, so panels of different heights end up with
+   different edges, and the earlier attempt to derive per-panel margins from their heights put the
+   whole block on the crosshair.
 
-   vertical-align:center places a panel's CENTRE at screen centre + margin-top, so panels of different
-   heights need different margins for their TOPS to coincide. Their tops must coincide, because the
-   reveal collapses down onto the first tracker chip - if the tops differ, the collapse lands beside
-   the chip instead of on it and the morph falls apart.
+   A shared bottom edge is what the morph needs: the reveal collapses from its full height down to a
+   chip's height with its bottom pinned, so it folds upward and lands exactly on the chip.
 
-   To move the block, change all three by the same amount.
+   To move the block, change margin-bottom on .csr-spin, .csr-reveal and .csr-track by the same amount.
    ================================================================================================ */
 
 /* ================================================================================================
@@ -116,27 +115,45 @@
    transform-origin, though it was never pinned down. It is not worth more cycles: this mechanism is
    already proven, and the reel reads the same way from the front.
 
-   Two numbers that must agree: the row height and the travel distance. Travel = row x (rows - 1), so
-   the last card - the real result - ends up in the window. Change one and change the other.
+   Three numbers that must agree, and HudPanelIds.ReelLandingIndex in C# is the fourth:
+     row height        46px
+     landing index     18   (the row holding the real result)
+     travel            782px = row x (landing - 1), which puts that row in the MIDDLE of three
+   The landing row is deliberately not the last one: rows after it fill the slot below, so the reel
+   does not appear to run out of cards as it stops.
    ================================================================================================ */
 
 .csr-spin
 {
-	width: 400px;
 	horizontal-align: center;
-	vertical-align: center;
-	margin-top: 147px;
+	vertical-align: bottom;
+	margin-bottom: 250px;
+	width: 400px;
 	opacity: 1.0;
 	transition-property: opacity;
 	transition-duration: 0.15s;
 }
 
-/* The mask. Exactly one card is visible at a time. */
+/* The mask. THREE cards visible at once, not one.
+   A single-row window cannot read as a reel: all you see is one label changing, which looks like text
+   being replaced rather than anything moving. Three rows means cards are visibly travelling through
+   the window, with the one in the middle being the result. */
 .csr-spin-window
 {
 	width: 100%;
-	height: 46px;
+	height: 138px;
 	overflow: clip clip;
+}
+
+/* Marks the landing slot - the middle of the three. Decorative, no id, never touched by the server. */
+.csr-spin-highlight
+{
+	width: 100%;
+	height: 46px;
+	ignore-parent-flow: true;
+	margin-top: 46px;
+	border-top: 1px solid rgba(228, 174, 57, 0.55);
+	border-bottom: 1px solid rgba(228, 174, 57, 0.55);
 }
 
 .csr-spin-reel
@@ -151,7 +168,7 @@
 
 .csr-spin-reel.spinning
 {
-	transform: translate3d( 0px, -874px, 0px );
+	transform: translate3d( 0px, -782px, 0px );
 }
 
 .csr-reel-row
@@ -198,10 +215,10 @@
 
 .csr-reveal
 {
-	width: 400px;
 	horizontal-align: center;
-	vertical-align: center;
-	margin-top: 178px;
+	vertical-align: bottom;
+	margin-bottom: 250px;
+	width: 400px;
 	flow-children: down;
 	padding: 12px 16px 14px 16px;
 	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.94)), to(rgba(14, 22, 30, 0.94)));
@@ -341,15 +358,11 @@
 
 .csr-track
 {
-	width: 400px;
-	/* Fixed height so the column's TOP is deterministic under vertical-align:center. Without it the
-	   container height tracks the number of visible chips, the top drifts as chips come and go, and
-	   the reveal no longer collapses onto the first chip. */
-	height: 312px;
 	horizontal-align: center;
-	vertical-align: center;
+	vertical-align: bottom;
+	margin-bottom: 250px;
+	width: 400px;
 	flow-children: down;
-	margin-top: 280px;
 	transition-property: opacity;
 	/* Short on purpose. The chip is meant to appear at the instant the collapsing reveal reaches chip
 	   height, so a slow fade-in here would show the chip ghosting through the card and undo the

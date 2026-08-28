@@ -178,8 +178,13 @@ public sealed class HudSequencer
     {
         var pool = _runtime.RegisteredModifiers;
 
-        for (var row = 0; row < HudPanelIds.ReelRows - 1; row++)
+        for (var row = 0; row < HudPanelIds.ReelRows; row++)
         {
+            if (row == HudPanelIds.ReelLandingIndex)
+            {
+                continue;
+            }
+
             var name = pool.Count > 0
                 ? CSRollUtils.GetModifierDisplayName(_core, pool[Random.Shared.Next(pool.Count)])
                 : string.Empty;
