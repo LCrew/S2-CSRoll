@@ -41,6 +41,16 @@ public sealed class CSRollHudService : ICSRollHudService
     /// </summary>
     private const float DeadlineResyncToleranceSeconds = 0.35f;
 
+    /// <summary>
+    /// Gap between showing a bar at full and arming its drain, in seconds.
+    ///
+    /// Same constraint as the reel reset: class state reaches the client as an entity netvar diff, so
+    /// the "full" state and the "drain" target cannot be written in one tick - the element would have
+    /// no previous state to animate from and would render already empty. Measured minimum for the gap
+    /// to take is around 0.3s, well above a tick, so a NextTick hop does not do it.
+    /// </summary>
+    private const float BarArmDelaySeconds = 0.3f;
+
     private readonly ISwiftlyCore _core;
 
     private CSRollConfig _config;
@@ -518,28 +528,42 @@ public sealed class CSRollHudService : ICSRollHudService
 
         var key = (slot, bar.FillA);
         _barStarts.TryGetValue(key, out var startCount);
+        var epoch = startCount + 1;
 
-        var fill = bar.Fill(startCount);
-        var spare = bar.Other(startCount);
+        var fill = bar.FillA;
 
-        // The element being animated is always one that was reset to full on the PREVIOUS start, while
-        // it was hidden. That matters: resetting to full and draining in the same frame is exactly the
-        // pair a client can coalesce, which makes the bar jump to empty instead of animating. Doing the
-        // reset a cycle early means the animating element only ever receives its duration and target in
-        // one go, which is the ordinary, safe way to drive a CSS transition.
+        // PHASE 1: make the fill visible and snap it to full, instantly.
+        //
+        // Making a panel visible and giving it a transition target in the same tick does not animate:
+        // the element has no previous state to move from, so the client simply renders it at the end
+        // state. That is what made a cooldown bar invisible for its whole duration and then pop to full
+        // the moment it finished - the drain had already "completed" before it was ever on screen.
+        ShowFor(slot, bar.FillB, false);
         ShowFor(slot, fill, true);
         SetClassGroupFor(slot, fill, HudClasses.GroupWidth, null);
-        SetClassGroupFor(slot, fill, HudClasses.GroupDuration, HudClasses.Duration(seconds));
-        SetClassFor(slot, fill, HudClasses.Drain, true);
+        SetClassGroupFor(slot, fill, HudClasses.GroupDuration, HudClasses.DurationInstant);
+        SetClassFor(slot, fill, HudClasses.Drain, false);
 
-        // Prepare the other element for next time, out of sight.
-        ShowFor(slot, spare, false);
-        SetClassFor(slot, spare, HudClasses.Drain, false);
-        SetClassGroupFor(slot, spare, HudClasses.GroupWidth, null);
-        SetClassGroupFor(slot, spare, HudClasses.GroupDuration, HudClasses.DurationInstant);
-
-        _barStarts[key] = startCount + 1;
+        _barStarts[key] = epoch;
         _barEndsAt[key] = _core.Engine.GlobalVars.CurrentTime + Math.Max(0f, seconds);
+
+        // PHASE 2: arm the drain, once the full state has actually reached the client.
+        //
+        // Class state travels as an entity netvar diff, so this cannot be collapsed into the tick
+        // above - and a NextTick hop is not enough either; the measured minimum is around 0.3s. The
+        // bar therefore starts draining fractionally late, which against a multi-second cooldown is
+        // invisible, and is the difference between an animated bar and no bar at all.
+        _core.Scheduler.DelayBySeconds(BarArmDelaySeconds, () =>
+        {
+            // A newer start (or a stop) supersedes this one.
+            if (!_barStarts.TryGetValue(key, out var current) || current != epoch || !Available)
+            {
+                return;
+            }
+
+            SetClassGroupFor(slot, fill, HudClasses.GroupDuration, HudClasses.Duration(Math.Max(0f, seconds) - BarArmDelaySeconds));
+            SetClassFor(slot, fill, HudClasses.Drain, true);
+        });
     }
 
     /// <summary>
