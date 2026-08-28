@@ -37,6 +37,17 @@ public sealed class HudSequencer
     /// </summary>
     private const float RevealFadeOutSeconds = 0.28f;
 
+    /// <summary>
+    /// Gap between parking the reel at the top and arming the spin, in seconds.
+    ///
+    /// Class state reaches the client as an entity netvar diff, so clearing and re-setting the same
+    /// class inside one tick is a zero diff and ships nothing - the reel would never rewind and the
+    /// roll would show its result immediately. Live measurement in the reference notes puts the
+    /// smallest gap that reliably works at about 0.3s, far more than a 15.6ms tick would explain, so
+    /// this is a real delay rather than a NextTick hop. It is added to the reveal's total length.
+    /// </summary>
+    private const float ReelResetSettleSeconds = 0.3f;
+
     private readonly ISwiftlyCore _core;
     private readonly ModifierRuntime _runtime;
     private readonly ICSRollHudService _hud;
@@ -98,19 +109,39 @@ public sealed class HudSequencer
             return;
         }
 
+        // Park the reel back at the top BEFORE anything else. Without this the second and every
+        // subsequent roll shows its result immediately and never animates: the reel is still sitting at
+        // the previous roll's end position, so re-adding `spinning` asks it to travel to where it
+        // already is. Instant duration so the rewind is not itself visible.
+        SetClassGroup(slot, broadcast, HudPanelIds.SpinReel, HudClasses.GroupDuration, HudClasses.DurationInstant);
+        SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, false);
+
         FillReel(slot, broadcast, landing);
 
         SetText(slot, broadcast, HudPanelIds.RevealTitle, HudPanelIds.VarName, "ROLLING");
         Show(slot, broadcast, HudPanelIds.Spin, true);
-        SetClassGroup(slot, broadcast, HudPanelIds.SpinReel, HudClasses.GroupDuration, HudClasses.Duration(spinSeconds));
-        SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, true);
 
-        // The reel travels client-side, but the tick sound still has to be emitted per frame - that is
-        // the only way it is audible. This chain sends no text, only sound, on the same eased schedule
-        // the center-HTML spin uses.
-        PlayTickSound(slot, broadcast, 0, Config.SpinReveal.SpinCount, generation);
+        // The reset needs its own trip to the client before the spin is armed. Class state travels as
+        // an entity netvar diff, so removing and re-adding `spinning` within one tick is a zero diff
+        // and ships nothing at all - and measurements from live testing put the minimum usable gap at
+        // roughly 0.3s, well above a tick. Hence a real delay rather than a NextTick hop.
+        _core.Scheduler.DelayBySeconds(ReelResetSettleSeconds, () =>
+        {
+            if (_runtime.RollGeneration != generation || (!broadcast && !IsPlayerPresent(slot!.Value)))
+            {
+                return;
+            }
 
-        _core.Scheduler.DelayBySeconds(spinSeconds, () =>
+            SetClassGroup(slot, broadcast, HudPanelIds.SpinReel, HudClasses.GroupDuration, HudClasses.Duration(spinSeconds));
+            SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, true);
+
+            // The reel travels client-side, but the tick sound still has to be emitted per frame - that
+            // is the only way it is audible. This chain sends no text, only sound, on the same eased
+            // schedule the center-HTML spin uses.
+            PlayTickSound(slot, broadcast, 0, Config.SpinReveal.SpinCount, generation);
+        });
+
+        _core.Scheduler.DelayBySeconds(ReelResetSettleSeconds + spinSeconds, () =>
         {
             if (_runtime.RollGeneration != generation)
             {
@@ -127,6 +158,10 @@ public sealed class HudSequencer
             // the reveal rather than after it.
             onRevealed();
 
+            // Duration to instant BEFORE clearing `spinning`, so the reel snaps back to the top rather
+            // than slowly rewinding under a hidden panel and leaving the next roll to start from an
+            // unknown position.
+            SetClassGroup(slot, broadcast, HudPanelIds.SpinReel, HudClasses.GroupDuration, HudClasses.DurationInstant);
             SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, false);
             Show(slot, broadcast, HudPanelIds.Spin, false);
             ShowCard(slot, broadcast, modifiers, generation);
