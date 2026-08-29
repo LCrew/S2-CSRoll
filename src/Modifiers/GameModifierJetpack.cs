@@ -344,7 +344,11 @@ public sealed class GameModifierJetpack : GameModifierBase
         var maxFuel = Math.Max(0.01f, Runtime.Config.Jetpack.MaxFuel);
         var fuel = _fuel.GetValueOrDefault(slot, maxFuel);
 
-        return HudTimer.Gauge(fuel / maxFuel, $"{(int)Math.Round(fuel / maxFuel * 100f)}%");
+        var ratio = fuel / maxFuel;
+        var tone = ratio >= 0.5f ? HudTone.Good : ratio >= 0.2f ? HudTone.Warn : HudTone.Bad;
+
+        return HudTimer.Gauge(ratio, $"{(int)Math.Round(ratio * 100f)}%",
+                              detail: ratio <= 0.01f ? "NO FUEL" : null, tone: tone);
     }
 
 }

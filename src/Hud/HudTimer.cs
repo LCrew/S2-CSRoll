@@ -27,24 +27,49 @@ public enum HudTimerKind
 /// </param>
 /// <param name="Fraction">Fill level 0..1, for <see cref="HudTimerKind.Gauge"/>.</param>
 /// <param name="Status">
-/// Short word shown instead of a number when there is no meaningful time to display - "READY",
-/// "ACTIVE", "CHARGING". Null means show the numeric readout.
+/// Short word shown in the row's right-hand readout instead of a number - "READY", "ACTIVE". Null
+/// means show the numeric countdown there.
 /// </param>
+/// <param name="Detail">
+/// A full-width line below the bar, at the same size as the modifier's name. For state that genuinely
+/// does not fit in the right-hand readout: the weapon WeaponRoulette has handed you, whether
+/// ConditionalInvisibility currently has you hidden. Null hides the line and the row stays compact.
+/// </param>
+/// <param name="Tone">Colour for <paramref name="Detail"/>.</param>
 public readonly record struct HudTimer(
     HudTimerKind Kind,
     float SecondsRemaining,
     float Fraction,
-    string? Status)
+    string? Status,
+    string? Detail = null,
+    HudTone Tone = HudTone.Neutral)
 {
     /// <summary>A cooldown or duration counting down to zero.</summary>
-    public static HudTimer Countdown(float secondsRemaining, string? status = null)
-        => new(HudTimerKind.Countdown, Math.Max(0f, secondsRemaining), 0f, status);
+    public static HudTimer Countdown(float secondsRemaining, string? status = null, string? detail = null, HudTone tone = HudTone.Neutral)
+        => new(HudTimerKind.Countdown, Math.Max(0f, secondsRemaining), 0f, status, detail, tone);
 
     /// <summary>A level that moves in both directions - fuel, concealment, a ramping rate.</summary>
-    public static HudTimer Gauge(float fraction, string? status = null)
-        => new(HudTimerKind.Gauge, 0f, Math.Clamp(fraction, 0f, 1f), status);
+    public static HudTimer Gauge(float fraction, string? status = null, string? detail = null, HudTone tone = HudTone.Neutral)
+        => new(HudTimerKind.Gauge, 0f, Math.Clamp(fraction, 0f, 1f), status, detail, tone);
 
     /// <summary>Nothing is counting; the modifier is simply available.</summary>
-    public static HudTimer Ready(string status = "READY")
-        => new(HudTimerKind.Countdown, 0f, 1f, status);
+    public static HudTimer Ready(string status = "READY", string? detail = null, HudTone tone = HudTone.Neutral)
+        => new(HudTimerKind.Countdown, 0f, 1f, status, detail, tone);
+}
+
+/// <summary>Colour for a tracker row's detail line. Deliberately semantic rather than named colours,
+/// so the palette can change in one place in the stylesheet.</summary>
+public enum HudTone
+{
+    /// <summary>Informational - the default.</summary>
+    Neutral,
+
+    /// <summary>Something is working in the player's favour: hidden, healing, ready.</summary>
+    Good,
+
+    /// <summary>Transitional or degrading: fading, low fuel.</summary>
+    Warn,
+
+    /// <summary>Actively bad or exposed: visible, out of fuel.</summary>
+    Bad,
 }

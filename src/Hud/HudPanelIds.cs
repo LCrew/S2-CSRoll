@@ -120,6 +120,7 @@ public static class HudPanelIds
     private static readonly string[] _rowIcons = Build(Rows, i => $"csr_row{i}_icon");
     private static readonly string[] _rowNames = Build(Rows, i => $"csr_row{i}_name");
     private static readonly string[] _rowTimes = Build(Rows, i => $"csr_row{i}_time");
+    private static readonly string[] _rowDetails = Build(Rows, i => $"csr_row{i}_detail");
     private static readonly string[] _rowBars = Build(Rows, i => $"csr_row{i}_bar");
     private static readonly string[] _rowBarsA = Build(Rows, i => $"csr_row{i}_bar_a");
     private static readonly string[] _rowBarsB = Build(Rows, i => $"csr_row{i}_bar_b");
@@ -128,6 +129,13 @@ public static class HudPanelIds
     public static string RowIcon(int index) => _rowIcons[index];
     public static string RowName(int index) => _rowNames[index];
     public static string RowTime(int index) => _rowTimes[index];
+
+    /// <summary>
+    /// Full-width line below a row's bar, for state that does not fit the right-hand readout - the
+    /// weapon WeaponRoulette handed you, whether ConditionalInvisibility has you hidden. Hidden unless
+    /// the modifier supplies one, so rows without detail stay compact.
+    /// </summary>
+    public static string RowDetail(int index) => _rowDetails[index];
     public static string RowBar(int index) => _rowBars[index];
 
     /// <summary>
@@ -197,6 +205,7 @@ public static class HudPanelIds
         all.AddRange(_rowIcons);
         all.AddRange(_rowNames);
         all.AddRange(_rowTimes);
+        all.AddRange(_rowDetails);
         all.AddRange(_rowBars);
         all.AddRange(_rowBarsA);
         all.AddRange(_rowBarsB);

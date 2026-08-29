@@ -340,17 +340,17 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
 
         if (_spins.ContainsKey(slot))
         {
-            return HudTimer.Ready("ROLLING");
+            return HudTimer.Ready("ROLLING", detail: "ROLLING", tone: HudTone.Warn);
         }
+
+        var detail = _granted.TryGetValue(slot, out var granted)
+            ? $"ACTIVE: {CSRollUtils.GetModifierDisplayName(Core, granted)}"
+            : null;
 
         var remaining = _nextSwapTime.GetValueOrDefault(slot, 0f) - Core.Engine.GlobalVars.CurrentTime;
-        if (remaining <= 0f)
-        {
-            var granted = _granted.TryGetValue(slot, out var g) ? CSRollUtils.GetModifierDisplayName(Core, g) : "READY";
-            return HudTimer.Ready(granted);
-        }
-
-        return HudTimer.Countdown(remaining);
+        return remaining <= 0f
+            ? HudTimer.Ready("READY", detail)
+            : HudTimer.Countdown(remaining, detail: detail);
     }
 
 }

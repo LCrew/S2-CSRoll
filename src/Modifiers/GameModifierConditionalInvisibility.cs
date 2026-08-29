@@ -459,11 +459,14 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         var alpha = Math.Clamp(_currentAlpha.GetValueOrDefault(slot, 1f), 0f, 1f);
         var concealment = 1f - alpha;
 
-        var status = concealment >= 0.99f ? "HIDDEN"
-                   : concealment <= 0.01f ? "VISIBLE"
-                   : "FADING";
+        // The state is the whole point of this modifier, so it goes on the detail line at full size and
+        // in colour rather than as a small word beside the bar. Whether you are currently hidden is not
+        // something a player should have to squint at.
+        var (detail, tone) = concealment >= 0.99f ? ("INVISIBLE", HudTone.Good)
+                           : concealment <= 0.01f ? ("VISIBLE", HudTone.Bad)
+                           : ("FADING", HudTone.Warn);
 
-        return HudTimer.Gauge(concealment, status);
+        return HudTimer.Gauge(concealment, status: null, detail: detail, tone: tone);
     }
 
 }

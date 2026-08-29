@@ -129,6 +129,7 @@
 							<Panel id="csr_row0_bar_a" class="csr-bar-fill" hittest="false" />
 							<Panel id="csr_row0_bar_b" class="csr-bar-fill hidden" hittest="false" />
 						</Panel>
+						<Label id="csr_row0_detail" class="csr-row-detail hidden" text="{s:name}" />
 					</Panel>
 				</Panel>
 
@@ -143,6 +144,7 @@
 							<Panel id="csr_row1_bar_a" class="csr-bar-fill" hittest="false" />
 							<Panel id="csr_row1_bar_b" class="csr-bar-fill hidden" hittest="false" />
 						</Panel>
+						<Label id="csr_row1_detail" class="csr-row-detail hidden" text="{s:name}" />
 					</Panel>
 				</Panel>
 
@@ -157,6 +159,7 @@
 							<Panel id="csr_row2_bar_a" class="csr-bar-fill" hittest="false" />
 							<Panel id="csr_row2_bar_b" class="csr-bar-fill hidden" hittest="false" />
 						</Panel>
+						<Label id="csr_row2_detail" class="csr-row-detail hidden" text="{s:name}" />
 					</Panel>
 				</Panel>
 
@@ -171,6 +174,7 @@
 							<Panel id="csr_row3_bar_a" class="csr-bar-fill" hittest="false" />
 							<Panel id="csr_row3_bar_b" class="csr-bar-fill hidden" hittest="false" />
 						</Panel>
+						<Label id="csr_row3_detail" class="csr-row-detail hidden" text="{s:name}" />
 					</Panel>
 				</Panel>
 
@@ -185,6 +189,7 @@
 							<Panel id="csr_row4_bar_a" class="csr-bar-fill" hittest="false" />
 							<Panel id="csr_row4_bar_b" class="csr-bar-fill hidden" hittest="false" />
 						</Panel>
+						<Label id="csr_row4_detail" class="csr-row-detail hidden" text="{s:name}" />
 					</Panel>
 				</Panel>
 
@@ -199,6 +204,7 @@
 							<Panel id="csr_row5_bar_a" class="csr-bar-fill" hittest="false" />
 							<Panel id="csr_row5_bar_b" class="csr-bar-fill hidden" hittest="false" />
 						</Panel>
+						<Label id="csr_row5_detail" class="csr-row-detail hidden" text="{s:name}" />
 					</Panel>
 				</Panel>
 			</Panel>

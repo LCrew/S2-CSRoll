@@ -210,8 +210,8 @@ public sealed class GameModifierMimic : GameModifierBase
         }
 
         return _stolen.TryGetValue(slot, out var stolen)
-            ? HudTimer.Ready(CSRollUtils.GetModifierDisplayName(Core, stolen))
-            : HudTimer.Ready("NONE");
+            ? HudTimer.Ready(string.Empty, $"STOLEN: {CSRollUtils.GetModifierDisplayName(Core, stolen)}", HudTone.Good)
+            : HudTimer.Ready(string.Empty, "NOTHING STOLEN");
     }
 
 }

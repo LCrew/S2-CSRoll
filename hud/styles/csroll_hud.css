@@ -419,6 +419,45 @@
 	vertical-align: center;
 }
 
+/*
+   Detail line - the row's second line, under the bar.
+
+   Same size as the modifier's name because it carries state of the same importance: which weapon
+   WeaponRoulette has handed you, whether ConditionalInvisibility currently has you hidden. That does
+   not fit in the right-hand readout, and shrinking it to fit would bury the one thing the player is
+   actually looking for. Rows without detail keep the label hidden and stay compact.
+*/
+.csr-row-detail
+{
+	width: 100%;
+	margin-top: 6px;
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 16px;
+	font-weight: bold;
+	color: #cdd5de;
+	text-shadow: 1px 1px 4px 3 rgba(0, 0, 0, 0.95);
+	text-align: center;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* Semantic tones, so the palette lives here rather than being hard-coded in each modifier. */
+.csr-row-detail.tone-good
+{
+	color: #6ee08a;
+}
+
+.csr-row-detail.tone-warn
+{
+	color: #e4ae39;
+}
+
+.csr-row-detail.tone-bad
+{
+	color: #ff6a55;
+}
+
+
 /* ================================================================================================
    Bars
 

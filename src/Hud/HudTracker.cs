@@ -147,6 +147,8 @@ public sealed class HudTracker
         _hud.SetClassGroupFor(slot, HudPanelIds.RowIcon(row), HudClasses.GroupAccent, presentation.AccentClass);
         _hud.SetClassGroupFor(slot, HudPanelIds.Row(row), HudClasses.GroupAccent, presentation.AccentClass);
 
+        DrawDetail(slot, row, timer);
+
         if (timer is not { } live)
         {
             // A passive modifier: name and icon only, no bar, no timer text.
@@ -193,6 +195,25 @@ public sealed class HudTracker
         }
     }
 
+    /// <summary>
+    /// The row's optional second line. Hidden unless the modifier supplies one, so a passive modifier's
+    /// row stays a single compact line.
+    /// </summary>
+    private void DrawDetail(int slot, int row, HudTimer? timer)
+    {
+        var detail = timer?.Detail;
+
+        if (string.IsNullOrEmpty(detail))
+        {
+            _hud.ShowFor(slot, HudPanelIds.RowDetail(row), false);
+            return;
+        }
+
+        _hud.SetTextFor(slot, HudPanelIds.RowDetail(row), HudPanelIds.VarName, detail);
+        _hud.SetClassGroupFor(slot, HudPanelIds.RowDetail(row), HudClasses.GroupTone, HudClasses.Tone(timer!.Value.Tone));
+        _hud.ShowFor(slot, HudPanelIds.RowDetail(row), true);
+    }
+
     private void DrawOverflowRow(int slot, int row, int hiddenCount)
     {
         var bar = HudPanelIds.RowBarPair(row);
@@ -205,6 +226,7 @@ public sealed class HudTracker
         _hud.SetTextFor(slot, HudPanelIds.RowIcon(row), HudPanelIds.VarName, "…");
         _hud.SetClassGroupFor(slot, HudPanelIds.RowIcon(row), HudClasses.GroupAccent, HudClasses.AccentFallback);
         _hud.ShowFor(slot, HudPanelIds.RowBar(row), false);
+        _hud.ShowFor(slot, HudPanelIds.RowDetail(row), false);
         _hud.StopCountdownFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime);
         _hud.StopBarFor(slot, bar);
     }
@@ -217,6 +239,7 @@ public sealed class HudTracker
         for (var row = firstUnused; row < previouslyUsed; row++)
         {
             _hud.ShowFor(slot, HudPanelIds.Row(row), false);
+            _hud.ShowFor(slot, HudPanelIds.RowDetail(row), false);
             _hud.SetClassFor(slot, HudPanelIds.Row(row), HudClasses.Active, false);
             _hud.StopCountdownFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime);
             _hud.StopBarFor(slot, HudPanelIds.RowBarPair(row));

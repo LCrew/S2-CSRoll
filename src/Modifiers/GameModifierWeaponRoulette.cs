@@ -450,16 +450,22 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 
         if (_spins.ContainsKey(slot))
         {
-            return HudTimer.Ready("ROLLING");
+            return HudTimer.Ready("ROLLING", detail: "ROLLING", tone: HudTone.Warn);
         }
+
+        // The weapon goes on the detail line rather than in the right-hand readout, so it does not have
+        // to compete with the countdown - which one you are holding and how long you keep it are both
+        // worth knowing, and the readout only has room for one of them.
+        var weapon = _currentWeaponName.GetValueOrDefault(slot, string.Empty);
+        var detail = string.IsNullOrEmpty(weapon) ? null : $"ACTIVE: {weapon}";
 
         var remaining = _nextRerollTime - Core.Engine.GlobalVars.CurrentTime;
         if (remaining <= 0f || _nextRerollTime < 0f)
         {
-            return HudTimer.Ready(_currentWeaponName.GetValueOrDefault(slot, "READY"));
+            return HudTimer.Ready("READY", detail, HudTone.Neutral);
         }
 
-        return HudTimer.Countdown(remaining);
+        return HudTimer.Countdown(remaining, detail: detail);
     }
 
 }

@@ -20,6 +20,9 @@ public static class HudClasses
     // ---------------------------------------------------------------------------------------------
 
     public const string GroupAccent = "accent";
+
+    /// <summary>Group key for the detail line's tone classes.</summary>
+    public const string GroupTone = "tone";
     public const string GroupDuration = "dur";
     public const string GroupWidth = "w";
 
@@ -55,6 +58,20 @@ public static class HudClasses
 
     /// <summary>Outlines every panel. Set by !rollhudtest so an unaddressed panel is visible.</summary>
     public const string Debug = "debug";
+
+    /// <summary>Tone classes for a tracker row's detail line.</summary>
+    public const string ToneGood = "tone-good";
+    public const string ToneWarn = "tone-warn";
+    public const string ToneBad = "tone-bad";
+
+    /// <summary>The class for a tone, or null for the neutral default.</summary>
+    public static string? Tone(HudTone tone) => tone switch
+    {
+        HudTone.Good => ToneGood,
+        HudTone.Warn => ToneWarn,
+        HudTone.Bad => ToneBad,
+        _ => null,
+    };
 
     // ---------------------------------------------------------------------------------------------
     // Bars
@@ -157,7 +174,7 @@ public static class HudClasses
         var all = new List<string>
         {
             Hidden, RevealActive, RevealIn, RevealOut, Spinning, Spin, DescWipe, Overflow, Active, Debug,
-            Drain, Fill,
+            Drain, Fill, ToneGood, ToneWarn, ToneBad,
         };
 
         all.AddRange(DurationLadder.Select(FormatDuration));
