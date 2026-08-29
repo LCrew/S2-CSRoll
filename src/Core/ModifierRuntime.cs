@@ -223,10 +223,7 @@ public sealed class ModifierRuntime
     public string DescribeHudSubject(SwiftlyS2.Shared.Players.IPlayer viewer) => _hudTracker.DescribeSubject(viewer);
 
     /// <summary>Diagnostic passthrough for !hudprobe - see HudTracker.Probe.</summary>
-    public string ProbeHud(int slot) => _hudTracker.Probe(slot);
-
-    /// <inheritdoc cref="ProbeHud"/>
-    public string ProbeHudReadback(int slot) => _hudTracker.ProbeReadback(slot);
+    public string ProbeHud(SwiftlyS2.Shared.Players.IPlayer viewer) => _hudTracker.Probe(viewer);
 
     /// <summary>Icon/accent lookup for drawing a modifier on the custom HUD.</summary>
     public IHudPresentationCatalog HudPresentation { get; }

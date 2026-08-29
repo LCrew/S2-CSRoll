@@ -299,13 +299,11 @@ public partial class CSRoll
                 return;
             }
 
-            var token = Runtime.ProbeHud(sender.Slot);
-            var readback = Runtime.ProbeHudReadback(sender.Slot);
-
+            CSRollUtils.PrintTitleToChat(Core, sender, $"HUD id probe - {Runtime.ProbeHud(sender)}");
             CSRollUtils.PrintTitleToChat(Core, sender,
-                $"Wrote \"{token}\" into your tracker's FIRST ROW and froze the tracker for 12s. Entity reads back \"{readback}\".");
+                "Read the tracker under the radar for 15s. Each row was addressed with a DIFFERENT candidate player id; the row that shows its own label is the id the HUD actually keys per-player overrides by.");
             CSRollUtils.PrintTitleToChat(Core, sender,
-                "Look at the tracker chip under the radar. If it says the same token, per-player writes reach you and the bug is in what the tracker draws. If it still shows a modifier name, per-player writes are not being applied to your client at all.");
+                "The last row is written globally and must appear. If only it appears, per-player overrides do not reach your client at all. If it is missing too, the probe never ran.");
         });
     }
 

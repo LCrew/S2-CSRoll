@@ -250,43 +250,97 @@ public sealed class HudTracker
     private readonly Dictionary<int, float> _probeHoldUntil = [];
 
     /// <summary>
-    /// Writes a known, unique value into tracker row 0 for one viewer and stops the tracker touching
-    /// their rows for <paramref name="seconds"/>.
+    /// Writes a differently-addressed token into each tracker row and freezes them there, to find out
+    /// which player id the custom HUD's per-player overrides are actually keyed by.
     ///
-    /// This is the one measurement that separates the two remaining explanations for a stale spectator
-    /// tracker, and it does it without any inference. If the probe token appears on screen, per-player
-    /// writes reach this client and the fault is in what the tracker decides to draw. If the row keeps
-    /// showing whatever it showed before, per-player overrides are not being applied to this client at
-    /// all, and no amount of changing what we send can fix that.
+    /// The previous probe wrote one value addressed by <c>IPlayer.Slot</c>, it did not appear, and that
+    /// ruled out nothing: a write that lands on the wrong player looks identical to a write the client
+    /// ignores. This one writes five candidate ids into five different rows at once, so whichever row
+    /// shows its own token names the correct id - and if none of them do, per-player overrides really
+    /// are not reaching this client and the answer is equally definite.
+    ///
+    /// Row visibility and the sixth row are written GLOBALLY, deliberately. Global writes are known to
+    /// work - the layout is on screen at all - so they can make the rows visible without depending on
+    /// the very mechanism under test, and the global row is the control that proves the probe itself
+    /// ran. Without it, a blank result would be ambiguous between "no id works" and "the probe never
+    /// executed".
     /// </summary>
-    /// <returns>The token written, so the caller can print the same string and the two can be compared.</returns>
-    public string Probe(int slot, float seconds = 12f)
+    public string Probe(IPlayer viewer, float seconds = 15f)
     {
-        var token = $"PROBE {(int)(_core.Engine.GlobalVars.CurrentTime * 10f) % 10000}";
+        var slot = viewer.Slot;
+        var stamp = (int)(_core.Engine.GlobalVars.CurrentTime * 10f) % 1000;
 
         _probeHoldUntil[slot] = _core.Engine.GlobalVars.CurrentTime + seconds;
 
-        _hud.ShowFor(slot, HudPanelIds.Track, true);
-        _hud.ShowFor(slot, HudPanelIds.TrackTitle, false);
-        _hud.ShowFor(slot, HudPanelIds.Row(0), true);
-        _hud.ShowFor(slot, HudPanelIds.RowDetail(0), false);
-        _hud.StopCountdownFor(slot, HudPanelIds.RowTime(0), HudPanelIds.VarTime);
-        _hud.StopBarFor(slot, HudPanelIds.RowBarPair(0));
-        _hud.SetTextFor(slot, HudPanelIds.RowTime(0), HudPanelIds.VarTime, string.Empty, force: true);
-        _hud.SetTextFor(slot, HudPanelIds.RowIcon(0), HudPanelIds.VarName, "?", force: true);
-        _hud.SetTextFor(slot, HudPanelIds.RowName(0), HudPanelIds.VarName, token, force: true);
+        var controllerIndex = viewer.Controller is { IsValid: true } controller ? (int)controller.Index : -1;
+        var pawnIndex = viewer.Pawn is { IsValid: true } pawn ? (int)pawn.Index : -1;
 
-        for (var row = 1; row < HudPanelIds.Rows; row++)
+        // Row index -> (label, the id to address the write with). Keep this the same length as Rows.
+        var candidates = new (string Label, int Id)[]
         {
-            _hud.ShowFor(slot, HudPanelIds.Row(row), false);
+            ("SLOT", slot),
+            ("PLAYERID", viewer.PlayerID),
+            ("PAWNIDX", pawnIndex),
+            ("CTRLIDX", controllerIndex),
+            ("SLOT+1", slot + 1),
+        };
+
+        // Global, so the rows are visible regardless of what per-player overrides do.
+        _hud.Show(HudPanelIds.Track, true);
+        _hud.Show(HudPanelIds.TrackTitle, false);
+
+        for (var row = 0; row < HudPanelIds.Rows; row++)
+        {
+            _hud.Show(HudPanelIds.Row(row), true);
+            _hud.Show(HudPanelIds.RowDetail(row), false);
+            _hud.SetText(HudPanelIds.RowIcon(row), HudPanelIds.VarName, "?");
+            _hud.SetText(HudPanelIds.RowTime(row), HudPanelIds.VarTime, string.Empty);
+
+            // Blank globally first: a row whose candidate id is wrong must show EMPTY, not the last
+            // thing that happened to be in it, or a stale value would read as a landed write.
+            _hud.SetText(HudPanelIds.RowName(row), HudPanelIds.VarName, string.Empty);
         }
 
-        return token;
+        for (var row = 0; row < candidates.Length && row < HudPanelIds.Rows; row++)
+        {
+            var (label, id) = candidates[row];
+
+            if (id < 0)
+            {
+                _hud.SetText(HudPanelIds.RowName(row), HudPanelIds.VarName, $"{label} N/A");
+                continue;
+            }
+
+            _hud.SetTextFor(id, HudPanelIds.RowName(row), HudPanelIds.VarName, $"{label} {stamp}", force: true);
+        }
+
+        // The control: written globally, so it MUST appear. If it does not, nothing below it means
+        // anything and the fault is upstream of per-player addressing entirely.
+        if (HudPanelIds.Rows > candidates.Length)
+        {
+            _hud.SetText(HudPanelIds.RowName(candidates.Length), HudPanelIds.VarName, $"GLOBAL {stamp}");
+        }
+
+        // Put the globals back once the probe is over, so a debug command does not leave the rows
+        // pinned for everyone on the server.
+        _core.Scheduler.DelayBySeconds(seconds + 0.5f, () =>
+        {
+            for (var row = 0; row < HudPanelIds.Rows; row++)
+            {
+                _hud.SetText(HudPanelIds.RowName(row), HudPanelIds.VarName, string.Empty);
+                _hud.SetText(HudPanelIds.RowIcon(row), HudPanelIds.VarName, string.Empty);
+                _hud.Show(HudPanelIds.Row(row), false);
+            }
+
+            _hud.Show(HudPanelIds.Track, false);
+        });
+
+        var described = string.Join(", ", candidates.Select(c => $"{c.Label}={c.Id}"));
+        return $"stamp {stamp}; you are {described}; rows 0-{candidates.Length - 1} in that order, "
+             + $"row {candidates.Length} is the global control";
     }
 
-    /// <summary>The entity's own value for the probe row, for comparison against what was written.</summary>
-    public string ProbeReadback(int slot)
-        => _hud.GetLiveTextFor(slot, HudPanelIds.RowName(0), HudPanelIds.VarName) ?? "<unset>";
+
 
     private void RefreshPlayer(IPlayer viewer)
     {
