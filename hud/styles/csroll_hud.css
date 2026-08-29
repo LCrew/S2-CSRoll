@@ -112,107 +112,39 @@
    ================================================================================================ */
 
 /* ================================================================================================
-   Spin reel
+   Spin reel - RETIRED
 
-   A vertical strip behind a one-row window, NOT a rotary wheel. The wheel version (cards on spokes
-   around an off-panel transform-origin) never rendered in game - most likely the negative
-   transform-origin, though it was never pinned down. It is not worth more cycles: this mechanism is
-   already proven, and the reel reads the same way from the front.
+   The three-row reel is no longer used. The roll and the result are now the same card: it opens short
+   with a cycling name, then grows to add the description. That removed the two things wrong with the
+   reel - neighbour rows that read as equally important as the result, and a row height that had to be
+   tall enough to be legible while being too tall to sit unobtrusively.
 
-   Three numbers that must agree, and HudPanelIds.ReelLandingIndex in C# is the fourth:
-     row height        46px
-     landing index     18   (the row holding the real result)
-     travel            782px = row x (landing - 1), which puts that row in the MIDDLE of three
-   The landing row is deliberately not the last one: rows after it fill the slot below, so the reel
-   does not appear to run out of cards as it stops.
+   The panels stay in the layout because the DOM is static and ships inside a Workshop addon: deleting
+   them saves nothing and would cost a republish to reinstate. They are simply never shown - the
+   service hides csr_spin when the layout is created.
    ================================================================================================ */
 
 .csr-spin
 {
-	horizontal-align: center;
-	vertical-align: bottom;
-	margin-bottom: 110px;
-	width: 400px;
-	opacity: 1.0;
-	transition-property: opacity;
-	transition-duration: 0.15s;
+	width: 0px;
+	height: 0px;
 }
 
-/* The mask. THREE cards visible at once, not one.
-   A single-row window cannot read as a reel: all you see is one label changing, which looks like text
-   being replaced rather than anything moving. Three rows means cards are visibly travelling through
-   the window, with the one in the middle being the result. */
-.csr-spin-window
-{
-	width: 100%;
-	height: 138px;
-	overflow: clip clip;
-}
-
-/* Marks the landing slot - the middle of the three. Decorative, no id, never touched by the server. */
-.csr-spin-highlight
-{
-	width: 100%;
-	height: 46px;
-	ignore-parent-flow: true;
-	margin-top: 46px;
-	border-top: 1px solid rgba(228, 174, 57, 0.55);
-	border-bottom: 1px solid rgba(228, 174, 57, 0.55);
-}
-
-/* The strip no longer moves - the server rewrites the three visible rows per frame. See
-   HudSequencer.PlaySpinFrame for why a client-side transform was abandoned. */
-.csr-spin-reel
-{
-	width: 100%;
-	flow-children: down;
-}
-
-/* Live state while a roll is running. Purely a tint now, no motion. */
-.csr-spin-reel.spinning /* The result. Everything the neighbours give up, this gets back. */
-.csr-reel-landing
-{
-	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.45)), to(rgba(14, 22, 30, 0.45)));
-	border: 1px solid rgba(255, 255, 255, 0.10);
-	border-left: 3px solid #e4ae39;
-	font-size: 21px;
-	font-weight: bold;
-	color: #ffffff;
-	text-shadow: 1px 1px 4px 3 rgba(0, 0, 0, 0.95);
-	opacity: 1.0;
-	box-shadow: rgba(0, 0, 0, 0.42) 0px 3px 14px 0px;
-}
-
-/* Neighbours, NOT the result. Deliberately dimmed and stripped of the accent stripe: with all three
-   rows styled alike there was no way to tell which one the reel had actually landed on. */
-.csr-reel-row
-{
-	width: 100%;
-	height: 46px;
-	padding: 0px 13px;
-	border: 1px solid rgba(255, 255, 255, 0.04);
-	border-radius: 2px;
-	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 15px;
-	color: #8f9aa6;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	text-align: center;
-	vertical-align: center;
-	opacity: 0.30;
-}
-
-.csr-reel-landing
-{
-	color: #ffffff;
-	border-left-color: #ffd479;
-}
-
-/* Retained because the layout still declares the element. */
+.csr-spin-window,
+.csr-spin-reel,
+.csr-spin-highlight,
 .csr-spin-marker
 {
 	width: 0px;
 	height: 0px;
+}
+
+.csr-reel-row,
+.csr-reel-landing
+{
+	width: 0px;
+	height: 0px;
+	font-size: 0px;
 }
 
 /* ================================================================================================
@@ -257,6 +189,23 @@
 {
 	opacity: 1.0;
 	height: 122px;
+}
+
+/*
+   Rolling: the SAME card, just short.
+
+   While the roll runs the panel carries only its title and the cycling name + glyph, so it opens at
+   62px with the description clipped out. Dropping `spinning` at the landing grows it to full height,
+   which is what brings the description into view - the reveal is this panel finishing its move rather
+   than a second panel appearing. Height, not opacity, for the same reason the collapse uses height:
+   fading would read as a swap.
+
+   Safe to transition here because nothing writes into this panel between the landing and the growth -
+   the name and description are set once, immediately before the class changes.
+*/
+.csr-reveal.reveal-in.spinning
+{
+	height: 62px;
 }
 
 /*

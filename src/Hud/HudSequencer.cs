@@ -98,29 +98,34 @@ public sealed class HudSequencer
             return;
         }
 
-        Show(slot, broadcast, HudPanelIds.Spin, true);
-        SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, true);
-        SetText(slot, broadcast, HudPanelIds.RevealTitle, HudPanelIds.VarName, "ROLLING");
+        // The roll and the result are the SAME card, not a separate reel. It opens in its short form
+        // showing only a cycling name and glyph, then grows to add the description once it lands.
+        ShowCardChrome(slot, broadcast);
+        SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.Spinning, true);
+        SetText(slot, broadcast, HudPanelIds.RevealTitle, HudPanelIds.VarName, "ROLLING MODIFIER");
+        SetText(slot, broadcast, HudPanelIds.CardDesc(0), HudPanelIds.VarDesc, string.Empty);
 
-        PlaySpinFrame(slot, broadcast, 0, Config.SpinReveal.SpinCount, modifiers, landing, onRevealed, generation);
+        Show(slot, broadcast, HudPanelIds.Reveal, true);
+        SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealOut, false);
+        SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealIn, true);
+
+        PlaySpinFrame(slot, broadcast, 0, Config.SpinReveal.SpinCount, modifiers, onRevealed, generation);
     }
 
     /// <summary>
-    /// One frame of the spin: shuffle the three visible rows and play the tick.
+    /// One frame of the roll: swap the card's name and glyph for a random modifier, and tick.
     ///
-    /// This pushes text per frame rather than animating a CSS transform, which is a deliberate step
-    /// back. Two separate attempts at a client-side animation - a rotary wheel on spokes, then a
-    /// translating strip - both failed to render in game and neither was diagnosable from outside it.
-    /// Dialog-variable writes are the one mechanism here proven to work every time; the tracker runs on
-    /// them constantly. Three writes per frame for one panel is nothing next to the center-HTML path's
-    /// full panel rebuild per message, which is what made that approach fragile.
+    /// Pushing text per frame rather than animating client-side is deliberate. Two attempts at a CSS
+    /// animation - a rotary wheel, then a translating strip - both failed to render in game and neither
+    /// was diagnosable from outside it. Dialog-variable writes are the one mechanism here proven to work
+    /// every time. Two writes per frame against one panel is also far cheaper than the center-HTML path
+    /// this replaces, which rebuilds an entire panel per message.
     ///
     /// The eased interval comes from the same GetSpinFrameIntervalSeconds the center-HTML spin uses, so
-    /// the reel slows into its landing on the identical curve and the freeze-time budget is unchanged.
+    /// the roll slows into its landing on an identical curve and the freeze-time budget is unchanged.
     /// </summary>
     private void PlaySpinFrame(int? slot, bool broadcast, int frameIndex, int totalFrames,
-                               IReadOnlyList<GameModifierBase> modifiers, string landing,
-                               Action onRevealed, int generation)
+                               IReadOnlyList<GameModifierBase> modifiers, Action onRevealed, int generation)
     {
         if (_runtime.RollGeneration != generation)
         {
@@ -129,30 +134,31 @@ public sealed class HudSequencer
 
         if (!broadcast && !IsPlayerPresent(slot!.Value))
         {
-            // Matches the center-HTML path: a player who left mid-spin never commits.
+            // Matches the center-HTML path: a player who left mid-roll never commits.
             return;
         }
 
         if (frameIndex >= totalFrames)
         {
-            // Landing. The real result goes in the centre row, with fresh neighbours either side so the
-            // reel does not appear to have run out of cards.
-            SetText(slot, broadcast, HudPanelIds.ReelRow(0), HudPanelIds.VarName, RandomName());
-            SetText(slot, broadcast, HudPanelIds.ReelLandingRow(), HudPanelIds.VarName, landing);
-            SetText(slot, broadcast, HudPanelIds.ReelRow(2), HudPanelIds.VarName, RandomName());
-
             // Commit FIRST, before any presentation, so the mechanical effect lands with the reveal.
             onRevealed();
 
-            SetClass(slot, broadcast, HudPanelIds.SpinReel, HudClasses.Spinning, false);
-            Show(slot, broadcast, HudPanelIds.Spin, false);
+            // Dropping `spinning` grows the card to its full height, which is what brings the
+            // description into view - the reveal is the same panel finishing its move, not a new one.
+            SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.Spinning, false);
             ShowCard(slot, broadcast, modifiers, generation);
             return;
         }
 
-        SetText(slot, broadcast, HudPanelIds.ReelRow(0), HudPanelIds.VarName, RandomName());
-        SetText(slot, broadcast, HudPanelIds.ReelLandingRow(), HudPanelIds.VarName, RandomName());
-        SetText(slot, broadcast, HudPanelIds.ReelRow(2), HudPanelIds.VarName, RandomName());
+        if (_runtime.RegisteredModifiers.Count > 0)
+        {
+            var candidate = _runtime.RegisteredModifiers[Random.Shared.Next(_runtime.RegisteredModifiers.Count)];
+            var presentation = _runtime.HudPresentation.For(candidate.Name);
+
+            SetText(slot, broadcast, HudPanelIds.CardName(0), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, candidate));
+            SetText(slot, broadcast, HudPanelIds.CardIcon(0), HudPanelIds.VarName, presentation.Glyph);
+            SetClassGroup(slot, broadcast, HudPanelIds.CardIcon(0), HudClasses.GroupAccent, presentation.AccentClass);
+        }
 
         if (!string.IsNullOrEmpty(Config.SpinReveal.TickSoundEventName))
         {
@@ -168,16 +174,20 @@ public sealed class HudSequencer
 
         var interval = _runtime.SpinFrameIntervalSeconds(frameIndex, totalFrames);
         _core.Scheduler.DelayBySeconds(interval, () =>
-            PlaySpinFrame(slot, broadcast, frameIndex + 1, totalFrames, modifiers, landing, onRevealed, generation));
+            PlaySpinFrame(slot, broadcast, frameIndex + 1, totalFrames, modifiers, onRevealed, generation));
     }
 
-    /// <summary>A random registered modifier's display name, for the reel's filler rows.</summary>
-    private string RandomName()
+    /// <summary>Hides the extra cards and the overflow row, leaving just card 0 - the roll's single slot.</summary>
+    private void ShowCardChrome(int? slot, bool broadcast)
     {
-        var pool = _runtime.RegisteredModifiers;
-        return pool.Count > 0
-            ? CSRollUtils.GetModifierDisplayName(_core, pool[Random.Shared.Next(pool.Count)])
-            : string.Empty;
+        Show(slot, broadcast, HudPanelIds.Card(0), true);
+
+        for (var card = 1; card < HudPanelIds.Cards; card++)
+        {
+            Show(slot, broadcast, HudPanelIds.Card(card), false);
+        }
+
+        Show(slot, broadcast, HudPanelIds.CardOverflow, false);
     }
 
     /// <summary>Populates and shows the reveal card, then schedules its fade-out.</summary>
