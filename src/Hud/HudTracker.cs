@@ -326,6 +326,24 @@ public sealed class HudTracker
         _rowsInUse[slot] = overflowing ? listedCount + 1 : listedCount;
         _lastOutcome[slot] = $"drew {listedCount} row(s) for subject {subject}";
 
+        // Spectators get the modifier card drawn from scratch, every refresh, rather than inheriting one
+        // mirrored from the roll.
+        //
+        // Mirroring only ever worked if you happened to be watching that player AT THE MOMENT they
+        // rolled - switch to them a second later and there was no card, because nothing recreates one
+        // after the fact. Drawing it here makes it a property of who you are watching rather than of
+        // when you started watching, which is what "always visible" actually requires.
+        if (spectating)
+        {
+            DrawSpectatorCard(slot, ordered);
+        }
+        else if (!_hud.IsClassSetFor(slot, HudPanelIds.Reveal, HudClasses.Hidden))
+        {
+            // Respawned, or switched back to themselves, while a held spectator card was still up. It
+            // never closes on its own, so something has to close it.
+            ClearMirroredReveal(slot);
+        }
+
         // Shown while spectating too - it describes the subject's ability and how long until they can
         // use it, which is exactly what someone watching them wants.
         //
@@ -580,6 +598,55 @@ public sealed class HudTracker
         }
 
         _rowsInUse[slot] = firstUnused;
+    }
+
+    /// <summary>
+    /// Fills and holds the reveal card with the spectated player's modifiers.
+    ///
+    /// Uses the same panels the roll's own reveal uses, so a spectator watching a live roll sees it
+    /// animate and then simply keeps the finished card - there is no second card and no handover.
+    /// </summary>
+    private void DrawSpectatorCard(int slot, List<(GameModifierBase Modifier, HudTimer? Timer)> ordered)
+    {
+        var shown = Math.Min(ordered.Count, HudPanelIds.Cards);
+
+        _hud.SetTextFor(slot, HudPanelIds.RevealTitle, HudPanelIds.VarName,
+            shown == 1 ? "SPECTATING" : "SPECTATING");
+
+        for (var card = 0; card < HudPanelIds.Cards; card++)
+        {
+            if (card >= shown)
+            {
+                _hud.ShowFor(slot, HudPanelIds.Card(card), false);
+                continue;
+            }
+
+            var modifier = ordered[card].Modifier;
+            var presentation = _runtime.HudPresentation.For(modifier.Name);
+
+            _hud.ShowFor(slot, HudPanelIds.Card(card), true);
+            _hud.SetTextFor(slot, HudPanelIds.CardName(card), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier));
+            _hud.SetTextFor(slot, HudPanelIds.CardIcon(card), HudPanelIds.VarName, presentation.Glyph);
+            _hud.SetClassGroupFor(slot, HudPanelIds.CardIcon(card), HudClasses.GroupAccent, presentation.AccentClass);
+            _hud.SetClassGroupFor(slot, HudPanelIds.Card(card), HudClasses.GroupAccent, presentation.AccentClass);
+
+            // Chat colour tokens would render literally in a Panorama label - same strip the sequencer does.
+            var description = CSRollUtils.PlainTextFromChatColors(CSRollUtils.GetModifierDescription(_core, modifier));
+            _hud.SetTextFor(slot, HudPanelIds.CardDesc(card), HudPanelIds.VarDesc, description);
+        }
+
+        var hidden = ordered.Count - shown;
+        _hud.ShowFor(slot, HudPanelIds.CardOverflow, hidden > 0);
+        if (hidden > 0)
+        {
+            _hud.SetTextFor(slot, HudPanelIds.CardOverflow, HudPanelIds.VarName, $"+{hidden} more");
+        }
+
+        // Full height, never collapsed, never faded out - the spectator's card does not close.
+        _hud.SetClassFor(slot, HudPanelIds.Reveal, HudClasses.Spinning, false);
+        _hud.SetClassFor(slot, HudPanelIds.Reveal, HudClasses.RevealOut, false);
+        _hud.SetClassFor(slot, HudPanelIds.Reveal, HudClasses.RevealIn, true);
+        _hud.ShowFor(slot, HudPanelIds.Reveal, true);
     }
 
     /// <summary>
