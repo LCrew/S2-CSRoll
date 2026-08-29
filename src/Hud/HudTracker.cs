@@ -241,9 +241,76 @@ public sealed class HudTracker
              + $"{_hud.DescribeLoad()}";
     }
 
+    /// <summary>
+    /// Slots whose tracker is frozen while a probe value is on screen, and until when.
+    ///
+    /// The tracker rewrites row 0 ten times a second, so a test value written into it would be gone
+    /// before it could be read. Freezing the refresh is what makes the probe legible.
+    /// </summary>
+    private readonly Dictionary<int, float> _probeHoldUntil = [];
+
+    /// <summary>
+    /// Writes a known, unique value into tracker row 0 for one viewer and stops the tracker touching
+    /// their rows for <paramref name="seconds"/>.
+    ///
+    /// This is the one measurement that separates the two remaining explanations for a stale spectator
+    /// tracker, and it does it without any inference. If the probe token appears on screen, per-player
+    /// writes reach this client and the fault is in what the tracker decides to draw. If the row keeps
+    /// showing whatever it showed before, per-player overrides are not being applied to this client at
+    /// all, and no amount of changing what we send can fix that.
+    /// </summary>
+    /// <returns>The token written, so the caller can print the same string and the two can be compared.</returns>
+    public string Probe(int slot, float seconds = 12f)
+    {
+        var token = $"PROBE {(int)(_core.Engine.GlobalVars.CurrentTime * 10f) % 10000}";
+
+        _probeHoldUntil[slot] = _core.Engine.GlobalVars.CurrentTime + seconds;
+
+        _hud.ShowFor(slot, HudPanelIds.Track, true);
+        _hud.ShowFor(slot, HudPanelIds.TrackTitle, false);
+        _hud.ShowFor(slot, HudPanelIds.Row(0), true);
+        _hud.ShowFor(slot, HudPanelIds.RowDetail(0), false);
+        _hud.StopCountdownFor(slot, HudPanelIds.RowTime(0), HudPanelIds.VarTime);
+        _hud.StopBarFor(slot, HudPanelIds.RowBarPair(0));
+        _hud.SetTextFor(slot, HudPanelIds.RowTime(0), HudPanelIds.VarTime, string.Empty, force: true);
+        _hud.SetTextFor(slot, HudPanelIds.RowIcon(0), HudPanelIds.VarName, "?", force: true);
+        _hud.SetTextFor(slot, HudPanelIds.RowName(0), HudPanelIds.VarName, token, force: true);
+
+        for (var row = 1; row < HudPanelIds.Rows; row++)
+        {
+            _hud.ShowFor(slot, HudPanelIds.Row(row), false);
+        }
+
+        return token;
+    }
+
+    /// <summary>The entity's own value for the probe row, for comparison against what was written.</summary>
+    public string ProbeReadback(int slot)
+        => _hud.GetLiveTextFor(slot, HudPanelIds.RowName(0), HudPanelIds.VarName) ?? "<unset>";
+
     private void RefreshPlayer(IPlayer viewer)
     {
         var slot = viewer.Slot;
+
+        // A probe is on screen; leave every row exactly as the probe left it until it expires.
+        if (_probeHoldUntil.TryGetValue(slot, out var heldUntil))
+        {
+            var now = _core.Engine.GlobalVars.CurrentTime;
+
+            // The "now >= heldUntil" half is the map-clock guard used everywhere else in this plugin: a
+            // restarted clock must not strand a hold for the rest of the session.
+            if (now < heldUntil && now >= heldUntil - 60f)
+            {
+                _lastOutcome[slot] = "held for !hudprobe";
+                return;
+            }
+
+            _probeHoldUntil.Remove(slot);
+
+            // Force the next refresh to be a real change rather than one the cache can coalesce away.
+            _shownSubject.Remove(slot);
+        }
+
         _lastDrawnAt[slot] = _core.Engine.GlobalVars.CurrentTime;
 
         var (subject, spectatingName) = ResolveSubject(viewer);

@@ -577,9 +577,20 @@ public sealed class CSRollHudService : ICSRollHudService
 
         // Remove only the member that was actually applied. Clearing the whole group instead would mean
         // 47 network writes to change one icon.
+        //
+        // DROPPED, not pinned off. This is the difference between a group swap costing one override
+        // entry and costing one PER MEMBER EVER APPLIED, and it is what was quietly filling the layout
+        // entity: a bar sweeps w0..w100 one percent at a time, so every cooldown a player ran left up to
+        // a hundred permanent "does not have class w37" entries behind it. Seven players had 445 class
+        // overrides between them and the number climbed all round, until writes stopped landing and the
+        // tracker froze on whatever it had last managed to apply.
+        //
+        // Undefined means "follow the global", and no group member - no w*, icon-*, accent-*, dur-* or
+        // tone-* class - is ever set globally, so dropping the override and pinning it off look
+        // identical on screen. Only one of them leaves nothing behind.
         if (!string.IsNullOrEmpty(previous))
         {
-            ApplyClass(scope, panelId, previous, on: false);
+            DropClass(scope, panelId, previous);
         }
 
         if (!string.IsNullOrEmpty(className))
@@ -590,6 +601,34 @@ public sealed class CSRollHudService : ICSRollHudService
         else
         {
             _groupState.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// Removes a per-player class override entirely, so the panel follows the global state again.
+    ///
+    /// The distinction from <c>SetClassFor(..., on: false)</c> matters: that one writes an override
+    /// saying the class is absent, which is a lasting entry in the entity's networked state. This one
+    /// writes nothing lasting at all. Use it wherever there is no global value to override - which is
+    /// every class this plugin swaps within a group.
+    /// </summary>
+    private void DropClass(int scope, string panelId, string className)
+    {
+        if (scope == GlobalScope)
+        {
+            SetClass(panelId, className, false);
+            return;
+        }
+
+        // Drop the cache entry rather than recording "false": an entry that is not there is exactly what
+        // the entity now holds, and keeping one would misreport the override count and make ResetPlayer
+        // issue removals for overrides that no longer exist.
+        RemoveWhere(_classState, k => k.Scope == scope && k.Panel == panelId && k.Class == className);
+
+        if (Available)
+        {
+            Guard(panelId, () => _layout!.SetHasClassForPlayer(
+                scope, panelId, className, EHudPanelClassStatus_t.k_eHudPanelClassStatus_Undefined));
         }
     }
 

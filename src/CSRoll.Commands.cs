@@ -45,6 +45,7 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("rollreload", Debounce("rollreload", OnRollReload), registerRaw: true, permission: AdminPermission, helpText: "Reload config.jsonc from disk without restarting the plugin or resetting active modifiers."));
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
         _commandGuids.Add(Core.Command.RegisterCommand("hudstatus", Debounce("hudstatus", OnHudStatus), registerRaw: true, permission: AdminPermission, helpText: "Report the CS2 Custom HUD state, and draw a test row so you can confirm clients actually have the HUD addon."));
+        _commandGuids.Add(Core.Command.RegisterCommand("hudprobe", Debounce("hudprobe", OnHudProbe), registerRaw: true, permission: AdminPermission, helpText: "Write a known value into your tracker's first row and freeze it there, to prove whether per-player HUD writes reach your client."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollhelp", Debounce("rollhelp", OnRollHelp), registerRaw: true, helpText: "Prints every available CSRoll command."));
 
         InitializeMenu();
@@ -249,6 +250,37 @@ public partial class CSRoll
         var revealActive = Runtime.Hud.IsClassSetFor(sender.Slot, HudPanelIds.Root, HudClasses.RevealActive);
         CSRollUtils.PrintTitleToChat(Core, sender,
             $"reveal-active on your root: {revealActive} (true here means the tracker is being hidden on purpose)");
+    }
+
+    /// <summary>
+    /// Writes a unique token into tracker row 0 and holds the tracker off it for twelve seconds.
+    ///
+    /// Every other diagnostic here reports what the SERVER did, and all of them have come back clean
+    /// while the screen stayed wrong - which narrows the fault to the one link none of them cross. This
+    /// one is read off the screen by a person, so it cannot agree with the server's own bookkeeping by
+    /// construction. Row 0 is used rather than the notice line precisely because row 0 is the panel that
+    /// goes stale; testing a panel that works would prove nothing about the one that does not.
+    /// </summary>
+    public void OnHudProbe(ICommandContext context)
+    {
+        if (context.Sender is not { IsValid: true } sender)
+        {
+            return;
+        }
+
+        if (!Runtime.Hud.Available)
+        {
+            CSRollUtils.PrintTitleToChat(Core, sender, "HUD is not available - nothing to probe.");
+            return;
+        }
+
+        var token = Runtime.ProbeHud(sender.Slot);
+        var readback = Runtime.ProbeHudReadback(sender.Slot);
+
+        CSRollUtils.PrintTitleToChat(Core, sender,
+            $"Wrote \"{token}\" into your tracker's FIRST ROW and froze the tracker for 12s. Entity reads back \"{readback}\".");
+        CSRollUtils.PrintTitleToChat(Core, sender,
+            "Look at the tracker chip under the radar. If it says the same token, per-player writes reach you and the bug is in what the tracker draws. If it still shows a modifier name, per-player writes are not being applied to your client at all.");
     }
 
     public void OnRollDebug(ICommandContext context)
