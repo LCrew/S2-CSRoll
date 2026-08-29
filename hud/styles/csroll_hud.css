@@ -256,12 +256,16 @@
 .csr-card-icon
 {
 	width: 30px;
-	height: 30px;
+	/* Height matches the NAME's line box, not the whole row, and the glyph is top-aligned.
+	   vertical-align:center centred it against the entire copy column - name plus description, or name
+	   plus bar plus detail - so it floated at the midpoint of the block instead of sitting beside the
+	   name it belongs to. The taller the row got, the further adrift it looked. */
+	height: 24px;
 	margin-right: 12px;
+	vertical-align: top;
 	text-align: center;
-	vertical-align: center;
 	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 24px;
+	font-size: 22px;
 	color: #b8c4d0;
 	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
 }
@@ -379,11 +383,16 @@
 .csr-row-icon
 {
 	width: 30px;
-	height: 30px;
-	vertical-align: center;
+	/* Height matches the NAME's line box, not the whole row, and the glyph is top-aligned.
+	   vertical-align:center centred it against the entire copy column - name plus description, or name
+	   plus bar plus detail - so it floated at the midpoint of the block instead of sitting beside the
+	   name it belongs to. The taller the row got, the further adrift it looked. */
+	height: 24px;
+	margin-right: 12px;
+	vertical-align: top;
 	text-align: center;
 	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 24px;
+	font-size: 22px;
 	color: #b8c4d0;
 	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
 	margin-right: 10px;
