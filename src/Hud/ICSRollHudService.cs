@@ -51,19 +51,14 @@ public interface ICSRollHudService
 
     /// <summary>
     /// Sets a dialog-variable string that only this player sees, overriding the global value.
+    ///
+    /// Dirty-tracked: a write whose value the client already has is dropped. There was briefly a `force`
+    /// flag to bypass that, added on the theory that lost writes needed re-sending. The real cause was
+    /// clients that receive nothing at all - see CustomHudConfig.SpectatorFallbackCenterHtml - and no
+    /// amount of re-sending reaches those. For clients that do receive, the cache is simply correct, so
+    /// the flag only bought four redundant writes per row per second.
     /// </summary>
-    /// <param name="force">
-    /// Re-send even when the cache says the value is unchanged.
-    ///
-    /// The cache exists so an idle HUD costs nothing, and it assumes every write it issues arrives. When
-    /// one does not, it becomes the reason the client never recovers: it believes the client already has
-    /// the value and skips the write forever. That is exactly what left a spectator looking at the
-    /// previous player's modifier while the server reported having sent the right one.
-    ///
-    /// Use it where correctness matters more than the write count - the spectator view, which is
-    /// re-derived from scratch each refresh anyway - and leave it off everywhere else.
-    /// </param>
-    void SetTextFor(int slot, string panelId, string variable, string value, bool force = false);
+    void SetTextFor(int slot, string panelId, string variable, string value);
 
     // --- classes ----------------------------------------------------------------------------------
 
@@ -130,13 +125,6 @@ public interface ICSRollHudService
 
     // --- countdown text ---------------------------------------------------------------------------
 
-    /// <summary>
-    /// Drives a numeric countdown into a dialog variable from the service's own pump, so callers do not
-    /// each grow a scheduler chain. Formatting is whole seconds above five, one decimal below, then
-    /// "READY" - which, combined with dirty tracking, means roughly one network write per second for
-    /// most of a cooldown's life.
-    /// </summary>
-    void StartCountdownFor(int slot, string panelId, string variable, float seconds);
 
     void StopCountdownFor(int slot, string panelId, string variable);
 
@@ -185,17 +173,6 @@ public interface ICSRollHudService
     HudRevealOwner RevealOwnerOf(int slot);
 
     // --- diagnostics ------------------------------------------------------------------------------
-
-    /// <summary>
-    /// Reads a per-player dialog variable back OUT of the layout entity.
-    ///
-    /// Unlike <see cref="GetSentTextFor"/>, which reports what this service believes it sent, this is
-    /// the value the entity itself is holding. Comparing the two splits the one question that has been
-    /// impossible to answer from the server side: when the screen shows the wrong text, did the write
-    /// never reach the entity, or did it reach the entity and never reach the client? Those have
-    /// completely different fixes and nothing else distinguishes them.
-    /// </summary>
-    string? GetLiveTextFor(int slot, string panelId, string variable);
 
     /// <summary>
     /// How much per-player state the HUD is currently holding: override counts by kind, and the number

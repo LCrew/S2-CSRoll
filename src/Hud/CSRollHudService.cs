@@ -503,18 +503,9 @@ public sealed class CSRollHudService : ICSRollHudService
         Guard(panelId, () => _layout!.SetDialogVariableString(panelId, variable, value));
     }
 
-    public void SetTextFor(int slot, string panelId, string variable, string value, bool force = false)
+    public void SetTextFor(int slot, string panelId, string variable, string value)
     {
-        if (!Available || !IsAddressablePlayer(slot))
-        {
-            return;
-        }
-
-        // TrySetDirty still runs when forcing, so the cache stays accurate for anything that reads it -
-        // it just no longer decides whether the write happens.
-        var changed = TrySetDirty(_textState, (slot, panelId, variable), value);
-
-        if (!changed && !force)
+        if (!Available || !IsAddressablePlayer(slot) || !TrySetDirty(_textState, (slot, panelId, variable), value))
         {
             return;
         }
@@ -791,17 +782,6 @@ public sealed class CSRollHudService : ICSRollHudService
     // Countdowns
     // -------------------------------------------------------------------------------------------------
 
-    public void StartCountdownFor(int slot, string panelId, string variable, float seconds)
-    {
-        if (!Available)
-        {
-            return;
-        }
-
-        _countdowns[(slot, panelId, variable)] = _core.Engine.GlobalVars.CurrentTime + Math.Max(0f, seconds);
-        SetTextFor(slot, panelId, variable, FormatCountdown(seconds));
-    }
-
     public void StopCountdownFor(int slot, string panelId, string variable)
         => _countdowns.Remove((slot, panelId, variable));
 
@@ -896,23 +876,6 @@ public sealed class CSRollHudService : ICSRollHudService
 
     public HudRevealOwner RevealOwnerOf(int slot)
         => _revealOwner.GetValueOrDefault(slot, HudRevealOwner.None);
-
-    public string? GetLiveTextFor(int slot, string panelId, string variable)
-    {
-        if (!Available || !IsAddressablePlayer(slot))
-        {
-            return null;
-        }
-
-        try
-        {
-            return _layout!.GetDialogVariableStringForPlayer(slot, panelId, variable);
-        }
-        catch (Exception ex)
-        {
-            return $"<read failed: {ex.GetType().Name}>";
-        }
-    }
 
     public string DescribeLoad()
     {

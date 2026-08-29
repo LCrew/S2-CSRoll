@@ -22,7 +22,7 @@ namespace CSRoll.Hud;
 /// to attribute. The <see cref="GameModifierBase.GetHudTimer"/> hook is the migration path; the
 /// center-HTML gauges are untouched.
 /// </summary>
-public sealed class HudTracker
+public sealed partial class HudTracker
 {
     private readonly ISwiftlyCore _core;
     private readonly ModifierRuntime _runtime;
@@ -172,199 +172,6 @@ public sealed class HudTracker
         return (viewer.Slot, null);
     }
 
-    /// <summary>
-    /// Every step of the spectator lookup, as text, for !hudstatus.
-    ///
-    /// The lookup has several places it can silently return nothing - no pawn, no observer services, a
-    /// target that resolves to no player - and all of them look identical from outside: the tracker
-    /// simply shows the viewer's own modifiers instead. Rather than guess which one, report all of them.
-    /// </summary>
-    public string DescribeSubject(IPlayer viewer)
-    {
-        var pawn = viewer.Pawn;
-        if (pawn is null)
-        {
-            return $"alive={viewer.IsAlive}; Pawn is NULL - cannot read observer state";
-        }
-
-        var services = pawn.ObserverServices;
-        if (services is null)
-        {
-            return $"alive={viewer.IsAlive}; Pawn ok, ObserverServices is NULL - not spectating, or the "
-                 + "observer pawn is not the one Pawn returns";
-        }
-
-        var target = services.ObserverTarget.Value;
-        if (target is null)
-        {
-            var (heldSlot, heldName) = ResolveSubject(viewer);
-            return $"alive={viewer.IsAlive}; ObserverServices ok, mode={services.ObserverMode}, "
-                 + $"ObserverTarget is NULL this tick - holding slot {heldSlot} ({heldName ?? "<self>"})";
-        }
-
-        var resolved = _core.PlayerManager.GetPlayerFromPawn(target.As<CBasePlayerPawn>());
-        if (resolved is null)
-        {
-            return $"alive={viewer.IsAlive}; mode={services.ObserverMode}; target entity #{target.Index} "
-                 + "found but GetPlayerFromPawn returned NULL";
-        }
-
-        var name = resolved.Controller is { IsValid: true } c ? c.PlayerName : "<no controller>";
-        var (subject, spectatingName) = ResolveSubject(viewer);
-
-        var drawn = _shownSubject.TryGetValue(viewer.Slot, out var shown) ? shown.ToString() : "<never>";
-        var age = _lastDrawnAt.TryGetValue(viewer.Slot, out var at)
-            ? $"{_core.Engine.GlobalVars.CurrentTime - at:0.0}s ago"
-            : "NEVER - the refresh loop is not reaching you";
-
-        // What the subject SHOULD show, and what was last actually sent to this viewer's row 0. If those
-        // disagree the drawing is wrong; if they agree and the screen still differs, the write is not
-        // arriving - and nothing short of comparing them can tell which.
-        var expected = _runtime.GetModifiersForSlot(subject)
-            .Select(m => CSRollUtils.GetModifierDisplayName(_core, m))
-            .ToList();
-
-        var sent = _hud.GetSentTextFor(viewer.Slot, HudPanelIds.RowName(0), HudPanelIds.VarName) ?? "<nothing>";
-
-        // The value the ENTITY is holding, not the one this plugin believes it sent. When those two
-        // agree and the screen still disagrees, the write reached the entity and the client did not
-        // apply it - and no amount of re-sending from here will change that. When they disagree, the
-        // setter is dropping the write and the fix is on the server side. Nothing else separates them.
-        var live = _hud.GetLiveTextFor(viewer.Slot, HudPanelIds.RowName(0), HudPanelIds.VarName) ?? "<unset>";
-
-        return $"alive={viewer.IsAlive}; mode={services.ObserverMode}; target=slot {resolved.Slot} "
-             + $"({name}); resolved=slot {subject} ({spectatingName ?? "<self>"}); "
-             + $"their modifiers=[{string.Join(", ", expected)}]; "
-             + $"row0 sent=\"{sent}\" entity=\"{live}\"; reveal owner={_hud.RevealOwnerOf(viewer.Slot)}; "
-             + $"last drew subject={drawn}, {age}; "
-             + $"outcome={_lastOutcome.GetValueOrDefault(viewer.Slot, "<none>")}; "
-             + $"{_hud.DescribeLoad()}";
-    }
-
-    /// <summary>
-    /// Slots whose tracker is frozen while a probe value is on screen, and until when.
-    ///
-    /// The tracker rewrites row 0 ten times a second, so a test value written into it would be gone
-    /// before it could be read. Freezing the refresh is what makes the probe legible.
-    /// </summary>
-    private readonly Dictionary<int, float> _probeHoldUntil = [];
-
-    /// <summary>
-    /// Writes a differently-addressed token into each tracker row and freezes them there, to find out
-    /// which player id the custom HUD's per-player overrides are actually keyed by.
-    ///
-    /// The previous probe wrote one value addressed by <c>IPlayer.Slot</c>, it did not appear, and that
-    /// ruled out nothing: a write that lands on the wrong player looks identical to a write the client
-    /// ignores. This one writes five candidate ids into five different rows at once, so whichever row
-    /// shows its own token names the correct id - and if none of them do, per-player overrides really
-    /// are not reaching this client and the answer is equally definite.
-    ///
-    /// Row visibility and the sixth row are written GLOBALLY, deliberately. Global writes are known to
-    /// work - the layout is on screen at all - so they can make the rows visible without depending on
-    /// the very mechanism under test, and the global row is the control that proves the probe itself
-    /// ran. Without it, a blank result would be ambiguous between "no id works" and "the probe never
-    /// executed".
-    /// </summary>
-    public string Probe(IPlayer viewer, float seconds = 15f)
-    {
-        var slot = viewer.Slot;
-        var stamp = (int)(_core.Engine.GlobalVars.CurrentTime * 10f) % 1000;
-
-        _probeHoldUntil[slot] = _core.Engine.GlobalVars.CurrentTime + seconds;
-
-
-        // Row index -> (label, the id to address the write with). Keep this the same length as Rows.
-        //
-        // ENTITY INDICES ARE NOT CANDIDATES. An earlier version of this probe tried the controller and
-        // pawn entity indices, which run into the hundreds, and passed them where the engine expects a
-        // player id. If that indexes a fixed player array without a bounds check it is an out-of-bounds
-        // native write, and a crashing server is exactly what that looks like from outside. No
-        // diagnostic is worth writing past the end of an array; every candidate here is inside the
-        // player-id range, and SetTextFor rejects anything that is not.
-        var candidates = new (string Label, int Id)[]
-        {
-            ("SLOT", slot),
-            ("PLAYERID", viewer.PlayerID),
-            ("SLOT+1", slot + 1),
-        };
-
-        // Global, so the rows are visible regardless of what per-player overrides do.
-        _hud.Show(HudPanelIds.Track, true);
-        _hud.Show(HudPanelIds.TrackTitle, false);
-
-        for (var row = 0; row < HudPanelIds.Rows; row++)
-        {
-            _hud.Show(HudPanelIds.Row(row), true);
-            _hud.Show(HudPanelIds.RowDetail(row), false);
-            _hud.SetText(HudPanelIds.RowIcon(row), HudPanelIds.VarName, "?");
-            _hud.SetText(HudPanelIds.RowTime(row), HudPanelIds.VarTime, string.Empty);
-
-            // Blank globally first: a row whose candidate id is wrong must show EMPTY, not the last
-            // thing that happened to be in it, or a stale value would read as a landed write.
-            _hud.SetText(HudPanelIds.RowName(row), HudPanelIds.VarName, string.Empty);
-        }
-
-        for (var row = 0; row < candidates.Length && row < HudPanelIds.Rows; row++)
-        {
-            var (label, id) = candidates[row];
-
-            if (id < 0)
-            {
-                _hud.SetText(HudPanelIds.RowName(row), HudPanelIds.VarName, $"{label} N/A");
-                continue;
-            }
-
-            _hud.SetTextFor(id, HudPanelIds.RowName(row), HudPanelIds.VarName, $"{label} {stamp}", force: true);
-        }
-
-        // The control: written globally, so it MUST appear. If it does not, nothing below it means
-        // anything and the fault is upstream of per-player addressing entirely.
-        if (HudPanelIds.Rows > candidates.Length)
-        {
-            _hud.SetText(HudPanelIds.RowName(candidates.Length), HudPanelIds.VarName, $"GLOBAL {stamp}");
-        }
-
-        // Put the globals back once the probe is over, so a debug command does not leave the rows
-        // pinned for everyone on the server.
-        _core.Scheduler.DelayBySeconds(seconds + 0.5f, () =>
-        {
-            for (var row = 0; row < HudPanelIds.Rows; row++)
-            {
-                _hud.SetText(HudPanelIds.RowName(row), HudPanelIds.VarName, string.Empty);
-                _hud.SetText(HudPanelIds.RowIcon(row), HudPanelIds.VarName, string.Empty);
-                _hud.Show(HudPanelIds.Row(row), false);
-            }
-
-            _hud.Show(HudPanelIds.Track, false);
-        });
-
-        var described = string.Join(", ", candidates.Select(c => $"{c.Label}={c.Id}"));
-        return $"stamp {stamp}; you are {described}; rows 0-{candidates.Length - 1} in that order, "
-             + $"row {candidates.Length} is the global control";
-    }
-
-
-
-    /// <summary>
-    /// Viewers on the spectator team, and whether their panels have already been told to clear.
-    ///
-    /// See <see cref="CustomHudConfig.SpectatorFallbackCenterHtml"/> - CS2 stops delivering custom HUD
-    /// state to a client that is not on a playing team, so anything drawn for them from here is
-    /// discarded and they keep whatever they last received while alive.
-    /// </summary>
-    private readonly HashSet<int> _clearedForSpectatorTeam = [];
-
-    /// <summary>
-    /// True when this viewer is on the spectator team, where custom HUD writes do not reach them.
-    ///
-    /// Deliberately NOT "is dead". A dead player on a playing team still receives HUD state, and
-    /// treating them as unreachable would take the tracker away from most of the server for most of
-    /// every round.
-    /// </summary>
-    private static bool IsOnSpectatorTeam(IPlayer viewer)
-        => viewer.Controller is { IsValid: true } controller
-        && controller.Team is not (Team.T or Team.CT);
-
     private void RefreshPlayer(IPlayer viewer)
     {
         var slot = viewer.Slot;
@@ -390,25 +197,6 @@ public sealed class HudTracker
 
         _clearedForSpectatorTeam.Remove(slot);
 
-        // A probe is on screen; leave every row exactly as the probe left it until it expires.
-        if (_probeHoldUntil.TryGetValue(slot, out var heldUntil))
-        {
-            var now = _core.Engine.GlobalVars.CurrentTime;
-
-            // The "now >= heldUntil" half is the map-clock guard used everywhere else in this plugin: a
-            // restarted clock must not strand a hold for the rest of the session.
-            if (now < heldUntil && now >= heldUntil - 60f)
-            {
-                _lastOutcome[slot] = "held for !hudprobe";
-                return;
-            }
-
-            _probeHoldUntil.Remove(slot);
-
-            // Force the next refresh to be a real change rather than one the cache can coalesce away.
-            _shownSubject.Remove(slot);
-        }
-
         _lastDrawnAt[slot] = _core.Engine.GlobalVars.CurrentTime;
 
         var (subject, spectatingName) = ResolveSubject(viewer);
@@ -427,23 +215,18 @@ public sealed class HudTracker
                 ClearMirroredReveal(slot);
             }
 
-            // Blank the rows and skip drawing for one tick before repopulating them.
+            // Reset the per-row TIMERS, then fall through and draw the new subject in this same pass.
             //
-            // Without this, switching target frequently left the previous player's modifier on screen.
-            // Panel state reaches the client as an entity diff, so a write whose value equals what the
-            // field already holds ships NOTHING - and the service's dirty cache, which exists to avoid
-            // re-sending unchanged values, then believes the client is up to date and never retries. Any
-            // update the client missed became permanent, and the only way out was switching to a player
-            // whose modifier happened to differ from the cached one, which is exactly why rotating two
-            // or three times eventually worked.
+            // This used to blank every row and skip a tick, to defeat a dirty cache that was believed to
+            // be swallowing writes. It was not - the viewers whose rows never updated were spectators,
+            // who receive no HUD state at all, and no cache behaviour was ever involved. All the blank
+            // tick bought was a frame of empty rows on every target switch.
             //
-            // Blanking first guarantees the next write is a real change in both the entity field and the
-            // cache, so it cannot be coalesced away. The cost is one refresh interval of empty rows on a
-            // target switch, which reads as a transition rather than a fault.
-            BlankRows(slot);
-            _shownSubject[slot] = subject;
-            _lastOutcome[slot] = $"blanked (subject {previous} -> {subject})";
-            return;
+            // What genuinely does need clearing is the bars: SyncBarFor deliberately ignores a countdown
+            // it is already animating, so a row moving from one player's 10-second cooldown to another's
+            // 25-second one would keep animating the first. Stopping them makes the next Sync* a fresh
+            // start.
+            ResetRowTimers(slot);
         }
 
         _shownSubject[slot] = subject;
@@ -537,14 +320,11 @@ public sealed class HudTracker
             ClearMirroredReveal(slot);
         }
 
-        // Shown while spectating too - it describes the subject's ability and how long until they can
-        // use it, which is exactly what someone watching them wants.
+        // Drawn while spectating too - it describes the subject's ability and how long until they can use
+        // it, which is exactly what someone watching them wants.
         //
-        // Except while a held reveal card is still up. Spectators keep that card rather than watching it
-        // collapse, and it occupies the same slot as the helper, so drawing both would stack two panels
-        // on the same pixels.
-        // Any owned card occupies the helper's slot, whether it is a live roll or a held spectator card,
-        // so the helper stands down for both rather than stacking two panels on the same pixels.
+        // It stands down for any OWNED reveal card, live roll or held spectator card alike: both occupy
+        // the helper's slot, so drawing them together would stack two panels on the same pixels.
         var revealStillUp = _hud.RevealOwnerOf(slot) != HudRevealOwner.None;
 
         if (revealStillUp)
@@ -677,11 +457,9 @@ public sealed class HudTracker
         _hud.ShowFor(slot, HudPanelIds.Row(row), true);
         _hud.SetClassFor(slot, HudPanelIds.Row(row), HudClasses.Active, true);
         _hud.SetClassFor(slot, HudPanelIds.Row(row), HudClasses.Overflow, false);
-        // Forced for the same reason as the spectator card: a lost write must repair itself rather than
-        // being masked by the cache. Row content is a handful of strings, so re-sending costs little.
-        _hud.SetTextFor(slot, HudPanelIds.RowName(row), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier), force: true);
+        _hud.SetTextFor(slot, HudPanelIds.RowName(row), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier));
 
-        _hud.SetTextFor(slot, HudPanelIds.RowIcon(row), HudPanelIds.VarName, presentation.Glyph, force: true);
+        _hud.SetTextFor(slot, HudPanelIds.RowIcon(row), HudPanelIds.VarName, presentation.Glyph);
         _hud.SetClassGroupFor(slot, HudPanelIds.RowIcon(row), HudClasses.GroupAccent, presentation.AccentClass);
         _hud.SetClassGroupFor(slot, HudPanelIds.Row(row), HudClasses.GroupAccent, presentation.AccentClass);
 
@@ -807,10 +585,7 @@ public sealed class HudTracker
     {
         var shown = Math.Min(ordered.Count, HudPanelIds.Cards);
 
-        // Every text write here is FORCED. The spectator view is re-derived from scratch on each
-        // refresh, so re-sending is cheap, and it means a single lost write repairs itself on the next
-        // tick instead of persisting until something else happens to change the value.
-        _hud.SetTextFor(slot, HudPanelIds.RevealTitle, HudPanelIds.VarName, "SPECTATING", force: true);
+        _hud.SetTextFor(slot, HudPanelIds.RevealTitle, HudPanelIds.VarName, "SPECTATING");
 
         for (var card = 0; card < HudPanelIds.Cards; card++)
         {
@@ -824,14 +599,14 @@ public sealed class HudTracker
             var presentation = _runtime.HudPresentation.For(modifier.Name);
 
             _hud.ShowFor(slot, HudPanelIds.Card(card), true);
-            _hud.SetTextFor(slot, HudPanelIds.CardName(card), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier), force: true);
-            _hud.SetTextFor(slot, HudPanelIds.CardIcon(card), HudPanelIds.VarName, presentation.Glyph, force: true);
+            _hud.SetTextFor(slot, HudPanelIds.CardName(card), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier));
+            _hud.SetTextFor(slot, HudPanelIds.CardIcon(card), HudPanelIds.VarName, presentation.Glyph);
             _hud.SetClassGroupFor(slot, HudPanelIds.CardIcon(card), HudClasses.GroupAccent, presentation.AccentClass);
             _hud.SetClassGroupFor(slot, HudPanelIds.Card(card), HudClasses.GroupAccent, presentation.AccentClass);
 
             // Chat colour tokens would render literally in a Panorama label - same strip the sequencer does.
             var description = CSRollUtils.PlainTextFromChatColors(CSRollUtils.GetModifierDescription(_core, modifier));
-            _hud.SetTextFor(slot, HudPanelIds.CardDesc(card), HudPanelIds.VarDesc, description, force: true);
+            _hud.SetTextFor(slot, HudPanelIds.CardDesc(card), HudPanelIds.VarDesc, description);
         }
 
         var hidden = ordered.Count - shown;
@@ -849,8 +624,25 @@ public sealed class HudTracker
     }
 
     /// <summary>
-    /// Empties every tracker row and the helper card for one viewer, so the values written on the next
-    /// refresh are guaranteed to differ from what the entity currently holds. See the call site.
+    /// Stops every row's bar and countdown, without touching the text.
+    ///
+    /// Used when a viewer changes subject: text is dirty-tracked and corrects itself on the same pass,
+    /// but a bar is stateful - see the call site.
+    /// </summary>
+    private void ResetRowTimers(int slot)
+    {
+        for (var row = 0; row < HudPanelIds.Rows; row++)
+        {
+            _hud.StopCountdownFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime);
+            _hud.StopBarFor(slot, HudPanelIds.RowBarPair(row));
+        }
+
+        _hud.StopBarFor(slot, HudPanelIds.HelpBarPair());
+    }
+
+    /// <summary>
+    /// Empties every tracker row and the helper card for one viewer. Used when the tracker hands a
+    /// viewer over to another surface entirely - see the spectator-team branch in RefreshPlayer.
     /// </summary>
     private void BlankRows(int slot)
     {

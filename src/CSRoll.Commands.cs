@@ -44,8 +44,7 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("rolldebug", Debounce("rolldebug", OnRollDebug), registerRaw: true, permission: AdminPermission, helpText: "Toggle whether per-player random-round assignments are reported to admins in chat."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollreload", Debounce("rollreload", OnRollReload), registerRaw: true, permission: AdminPermission, helpText: "Reload config.jsonc from disk without restarting the plugin or resetting active modifiers."));
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
-        _commandGuids.Add(Core.Command.RegisterCommand("hudstatus", Debounce("hudstatus", OnHudStatus), registerRaw: true, permission: AdminPermission, helpText: "Report the CS2 Custom HUD state, and draw a test row so you can confirm clients actually have the HUD addon."));
-        _commandGuids.Add(Core.Command.RegisterCommand("hudprobe", Debounce("hudprobe", OnHudProbe), registerRaw: true, permission: AdminPermission, helpText: "Write a known value into your tracker's first row and freeze it there, to prove whether per-player HUD writes reach your client."));
+        _commandGuids.Add(Core.Command.RegisterCommand("hudstatus", Debounce("hudstatus", OnHudStatus), registerRaw: true, permission: AdminPermission, helpText: "Report the CS2 Custom HUD state, spectator resolution, and per-player override load."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollhelp", Debounce("rollhelp", OnRollHelp), registerRaw: true, helpText: "Prints every available CSRoll command."));
 
         InitializeMenu();
@@ -264,46 +263,6 @@ public partial class CSRoll
             var revealActive = Runtime.Hud.IsClassSetFor(sender.Slot, HudPanelIds.Root, HudClasses.RevealActive);
             CSRollUtils.PrintTitleToChat(Core, sender,
                 $"reveal-active on your root: {revealActive} (true here means the tracker is being hidden on purpose)");
-        });
-    }
-
-    /// <summary>
-    /// Writes a unique token into tracker row 0 and holds the tracker off it for twelve seconds.
-    ///
-    /// Every other diagnostic here reports what the SERVER did, and all of them have come back clean
-    /// while the screen stayed wrong - which narrows the fault to the one link none of them cross. This
-    /// one is read off the screen by a person, so it cannot agree with the server's own bookkeeping by
-    /// construction. Row 0 is used rather than the notice line precisely because row 0 is the panel that
-    /// goes stale; testing a panel that works would prove nothing about the one that does not.
-    /// </summary>
-    public void OnHudProbe(ICommandContext context)
-    {
-        if (context.Sender is not { IsValid: true } sender)
-        {
-            return;
-        }
-
-        if (!Runtime.Hud.Available)
-        {
-            CSRollUtils.PrintTitleToChat(Core, sender, "HUD is not available - nothing to probe.");
-            return;
-        }
-
-        // Main thread, for the same reason as !hudstatus - and this command is the one that most needs
-        // it, since a probe that silently writes nothing looks exactly like a client that ignores what
-        // it is sent.
-        Core.Scheduler.NextWorldUpdate(() =>
-        {
-            if (!sender.IsValid)
-            {
-                return;
-            }
-
-            CSRollUtils.PrintTitleToChat(Core, sender, $"HUD id probe - {Runtime.ProbeHud(sender)}");
-            CSRollUtils.PrintTitleToChat(Core, sender,
-                "Read the tracker under the radar for 15s. Each row was addressed with a DIFFERENT candidate player id; the row that shows its own label is the id the HUD actually keys per-player overrides by.");
-            CSRollUtils.PrintTitleToChat(Core, sender,
-                "The last row is written globally and must appear. If only it appears, per-player overrides do not reach your client at all. If it is missing too, the probe never ran.");
         });
     }
 
