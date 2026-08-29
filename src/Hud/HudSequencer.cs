@@ -262,8 +262,12 @@ public sealed class HudSequencer
                 return;
             }
 
-            SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealIn, false);
-            SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealOut, true);
+            // The collapse is for the ROLLING PLAYER only. A spectator keeps the card up: they are
+            // watching to learn what someone rolled, and a card that folds away after a few seconds is
+            // exactly the information they came for disappearing. The player themselves has the
+            // tracker chip and the helper card from here, so they lose nothing by it closing.
+            SetClassSelf(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealIn, false);
+            SetClassSelf(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealOut, true);
 
             _core.Scheduler.DelayBySeconds(RevealFadeOutSeconds, () =>
             {
@@ -272,7 +276,7 @@ public sealed class HudSequencer
                     return;
                 }
 
-                HideReveal(slot, broadcast);
+                HideRevealSelf(slot, broadcast);
 
                 // The tracker stays suppressed for a beat after the card has gone - see
                 // TrackerReturnDelaySeconds. reveal-active is what holds it back, so it is cleared
@@ -300,6 +304,43 @@ public sealed class HudSequencer
         Show(slot, broadcast, HudPanelIds.Spin, false);
         SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealIn, false);
         SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealOut, false);
+    }
+
+    /// <summary>As <see cref="HideReveal"/>, but only for the rolling player - spectators keep the card.</summary>
+    private void HideRevealSelf(int? slot, bool broadcast)
+    {
+        ShowSelf(slot, broadcast, HudPanelIds.Reveal, false);
+        ShowSelf(slot, broadcast, HudPanelIds.Spin, false);
+        SetClassSelf(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealIn, false);
+        SetClassSelf(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealOut, false);
+    }
+
+    // Self-only variants. Everything else in this file mirrors to spectators; these deliberately do not,
+    // because closing the reveal is the one thing a spectator should NOT inherit from the player.
+    // Broadcast rolls are unaffected: there is one shared card and no per-viewer distinction to make.
+
+    private void SetClassSelf(int? slot, bool broadcast, string panelId, string className, bool on)
+    {
+        if (broadcast)
+        {
+            _hud.SetClass(panelId, className, on);
+        }
+        else
+        {
+            _hud.SetClassFor(slot!.Value, panelId, className, on);
+        }
+    }
+
+    private void ShowSelf(int? slot, bool broadcast, string panelId, bool visible)
+    {
+        if (broadcast)
+        {
+            _hud.Show(panelId, visible);
+        }
+        else
+        {
+            _hud.ShowFor(slot!.Value, panelId, visible);
+        }
     }
 
     /// <summary>

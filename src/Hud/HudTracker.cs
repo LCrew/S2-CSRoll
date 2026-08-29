@@ -312,10 +312,23 @@ public sealed class HudTracker
 
         _rowsInUse[slot] = overflowing ? listedCount + 1 : listedCount;
 
-        // Shown while spectating too. It describes the subject's ability - which key they have and how
-        // long until they can use it - and a spectator watching someone about to blink across the map
-        // wants exactly that. "See what the player sees" includes the parts you cannot act on.
-        DrawHelper(slot, ordered);
+        // Shown while spectating too - it describes the subject's ability and how long until they can
+        // use it, which is exactly what someone watching them wants.
+        //
+        // Except while a held reveal card is still up. Spectators keep that card rather than watching it
+        // collapse, and it occupies the same slot as the helper, so drawing both would stack two panels
+        // on the same pixels.
+        var revealStillUp = !_hud.IsClassSetFor(slot, HudPanelIds.Reveal, HudClasses.Hidden);
+
+        if (revealStillUp && spectating)
+        {
+            _hud.ShowFor(slot, HudPanelIds.Help, false);
+            _hud.StopBarFor(slot, HudPanelIds.HelpBarPair());
+        }
+        else
+        {
+            DrawHelper(slot, ordered);
+        }
     }
 
     /// <summary>
