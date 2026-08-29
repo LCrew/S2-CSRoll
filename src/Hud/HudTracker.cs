@@ -30,6 +30,17 @@ public sealed class HudTracker
 
     private float _lastRefreshTime;
 
+    /// <summary>
+    /// The last subject each viewer successfully resolved.
+    ///
+    /// The observer lookup is intermittent - it reads as null on some ticks even while spectating the
+    /// same player continuously. The center-HTML spectator HUD never noticed because it simply skips a
+    /// failed tick and leaves its previous message up; this tracker actively hides on failure, which
+    /// turned the same flicker into a panel that appeared about half the time. Remembering the last
+    /// good subject and reusing it while the viewer is still dead makes it as resilient as the old one.
+    /// </summary>
+    private readonly Dictionary<int, int> _lastSubject = [];
+
     /// <summary>Rows currently showing something, per slot - so a row that empties gets cleared exactly
     /// once instead of being rewritten as blank on every refresh.</summary>
     private readonly Dictionary<int, int> _rowsInUse = [];
@@ -83,18 +94,31 @@ public sealed class HudTracker
     /// </summary>
     private (int Slot, string? SpectatingName) ResolveSubject(IPlayer viewer)
     {
-        if (viewer.Pawn?.ObserverServices?.ObserverTarget.Value is not { } targetEntity)
+        var targetEntity = viewer.Pawn?.ObserverServices?.ObserverTarget.Value;
+        var target = targetEntity is null
+            ? null
+            : _core.PlayerManager.GetPlayerFromPawn(targetEntity.As<CBasePlayerPawn>());
+
+        if (target is { IsValid: true, Controller: { IsValid: true } controller } && target.Slot != viewer.Slot)
         {
-            return (viewer.Slot, null);
+            _lastSubject[viewer.Slot] = target.Slot;
+            return (target.Slot, controller.PlayerName);
         }
 
-        var target = _core.PlayerManager.GetPlayerFromPawn(targetEntity.As<CBasePlayerPawn>());
-        if (target is not { IsValid: true, Controller: { IsValid: true } controller } || target.Slot == viewer.Slot)
+        // Lookup failed this tick. While the viewer is still dead they are almost certainly still
+        // spectating someone, so hold the last known subject rather than snapping back to their own
+        // (usually empty) modifiers and hiding the panel. Only a living player genuinely means "self".
+        if (!viewer.IsAlive && _lastSubject.TryGetValue(viewer.Slot, out var remembered))
         {
-            return (viewer.Slot, null);
+            var held = _core.PlayerManager.GetPlayer(remembered);
+            if (held is { IsValid: true, Controller: { IsValid: true } heldController })
+            {
+                return (remembered, heldController.PlayerName);
+            }
         }
 
-        return (target.Slot, controller.PlayerName);
+        _lastSubject.Remove(viewer.Slot);
+        return (viewer.Slot, null);
     }
 
     /// <summary>
@@ -122,8 +146,9 @@ public sealed class HudTracker
         var target = services.ObserverTarget.Value;
         if (target is null)
         {
+            var (heldSlot, heldName) = ResolveSubject(viewer);
             return $"alive={viewer.IsAlive}; ObserverServices ok, mode={services.ObserverMode}, "
-                 + "ObserverTarget is NULL";
+                 + $"ObserverTarget is NULL this tick - holding slot {heldSlot} ({heldName ?? "<self>"})";
         }
 
         var resolved = _core.PlayerManager.GetPlayerFromPawn(target.As<CBasePlayerPawn>());
@@ -455,12 +480,24 @@ public sealed class HudTracker
     }
 
     /// <summary>Forgets a slot's row bookkeeping. The HUD service clears the actual per-player state.</summary>
-    public void ForgetPlayer(int slot) => _rowsInUse.Remove(slot);
+    public void ForgetPlayer(int slot)
+    {
+        _rowsInUse.Remove(slot);
+        _lastSubject.Remove(slot);
+
+        // Also drop this slot as anyone else's remembered subject - a spectator watching someone who
+        // disconnects must not keep showing their modifiers to a slot the next joiner will occupy.
+        foreach (var viewer in _lastSubject.Where(entry => entry.Value == slot).Select(entry => entry.Key).ToList())
+        {
+            _lastSubject.Remove(viewer);
+        }
+    }
 
     /// <summary>Forgets all row bookkeeping, on map change or a full modifier clear.</summary>
     public void Reset()
     {
         _rowsInUse.Clear();
+        _lastSubject.Clear();
         _lastRefreshTime = 0f;
     }
 }
