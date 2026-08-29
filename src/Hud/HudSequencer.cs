@@ -277,15 +277,19 @@ public sealed class HudSequencer
                 // The tracker stays suppressed for a beat after the card has gone - see
                 // TrackerReturnDelaySeconds. reveal-active is what holds it back, so it is cleared
                 // late rather than here.
+                //
+                // DELIBERATELY NOT generation-guarded, unlike everything else in this file. This class
+                // is the only thing keeping the tracker hidden, so failing to clear it does not abandon
+                // a stale reveal - it hides the tracker for the REST OF THE ROUND. A roll superseded
+                // mid-reveal (a re-roll, or the double EventRoundStart at warmup->live that
+                // CSRoll.OnRoundStart documents) stranded exactly this write, which is why the
+                // spectator tracker appeared only about half the time.
+                //
+                // Clearing it late is harmless: a newer reveal sets it true again at its own start, and
+                // the worst case is the tracker being visible for a fraction of a second underneath a
+                // reveal that is about to re-hide it.
                 _core.Scheduler.DelayBySeconds(TrackerReturnDelaySeconds, () =>
-                {
-                    if (_runtime.RollGeneration != generation)
-                    {
-                        return;
-                    }
-
-                    SetClass(slot, broadcast, HudPanelIds.Root, HudClasses.RevealActive, false);
-                });
+                    SetClass(slot, broadcast, HudPanelIds.Root, HudClasses.RevealActive, false));
             });
         });
     }

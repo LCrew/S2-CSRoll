@@ -138,6 +138,13 @@ public interface ICSRollHudService
     /// <param name="seconds">How long it stays up.</param>
     void ShowNoticeFor(int slot, string message, float seconds = 2.5f);
 
+    /// <summary>
+    /// Whether a class is currently applied for a player, as far as the service's own cache knows.
+    /// Diagnostic only - the cache is what it has SENT, which is the useful thing when a panel is
+    /// invisible and the question is whether the server thinks it should be.
+    /// </summary>
+    bool IsClassSetFor(int slot, string panelId, string className);
+
     /// <summary>Hides a player's notice immediately.</summary>
     void ClearNoticeFor(int slot);
 

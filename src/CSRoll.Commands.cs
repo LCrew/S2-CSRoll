@@ -248,6 +248,12 @@ public partial class CSRoll
         // Spectator resolution has several silent failure points that all look the same from outside, so
         // report every step rather than leaving it to be inferred from what does or does not render.
         CSRollUtils.PrintTitleToChat(Core, sender, $"Spectate: {Runtime.DescribeHudSubject(sender)}");
+
+        // reveal-active hides the tracker outright, so when the tracker is missing this is the first
+        // thing worth ruling out.
+        var revealActive = Runtime.Hud.IsClassSetFor(sender.Slot, HudPanelIds.Root, HudClasses.RevealActive);
+        CSRollUtils.PrintTitleToChat(Core, sender,
+            $"reveal-active on your root: {revealActive} (true here means the tracker is being hidden on purpose)");
     }
 
     public void OnRollDebug(ICommandContext context)
