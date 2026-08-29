@@ -410,8 +410,8 @@
 	horizontal-align: left;
 	vertical-align: top;
 	margin-left: 26px;
-	/* Below the radar and the map-callout text that sits under it. */
-	margin-top: 300px;
+	/* Below the radar AND the map-callout text beneath it - at 300px it sat level with the callout. */
+	margin-top: 380px;
 	flow-children: down;
 	transition-property: opacity;
 	/* Short on purpose. The chip is meant to appear at the instant the collapsing reveal reaches chip

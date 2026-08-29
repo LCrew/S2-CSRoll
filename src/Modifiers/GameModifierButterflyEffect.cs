@@ -348,9 +348,8 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
             : null;
 
         var remaining = _nextSwapTime.GetValueOrDefault(slot, 0f) - Core.Engine.GlobalVars.CurrentTime;
-        return remaining <= 0f
-            ? HudTimer.Ready("READY", detail)
-            : HudTimer.Countdown(remaining, detail: detail);
+        return HudTimer.Cooldown(remaining, Runtime.Config.ButterflyEffect.SwapIntervalSeconds,
+                                 detail: detail);
     }
 
 }

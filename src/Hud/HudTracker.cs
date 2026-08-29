@@ -150,16 +150,40 @@ public sealed class HudTracker
         // Each line appears only if the modifier filled that slot, and the card sizes itself to what is
         // left - which is what lets one layout read FUEL-then-bar for a gauge and bar-then-PRESS-F for
         // an ability.
-        WriteHelpLine(slot, HudPanelIds.HelpTop, live.HelpTop, tone);
-        WriteHelpLine(slot, HudPanelIds.HelpBottom, live.Prompt, tone);
+        // A cooling ability says so, and says how long. Leaving the prompt alone while the bar was the
+        // only hint that anything was happening was actively misleading - "PRESS F TO FLANK" reads as an
+        // invitation, so it has to be paired with the state rather than standing on its own.
+        var cooling = live.Kind == HudTimerKind.Cooldown && live.SecondsRemaining > 0f;
+
+        var topLine = live.HelpTop
+                   ?? (live.Kind == HudTimerKind.Cooldown
+                        ? (cooling ? FormatCooldown(live.SecondsRemaining) : "READY")
+                        : null);
+
+        var topTone = live.HelpTop is not null ? tone
+                    : live.Kind == HudTimerKind.Cooldown ? HudClasses.Tone(cooling ? HudTone.Warn : HudTone.Good)
+                    : tone;
+
+        WriteHelpLine(slot, HudPanelIds.HelpTop, topLine, topTone);
+        WriteHelpLine(slot, HudPanelIds.HelpBottom, live.Prompt, cooling ? null : HudClasses.Tone(HudTone.Good));
 
         _hud.ShowFor(slot, HudPanelIds.HelpBar, true);
-        _hud.SetClassGroupFor(slot, bar.FillA, HudClasses.GroupTone, tone);
+        _hud.SetClassGroupFor(slot, bar.FillA, HudClasses.GroupTone, topTone);
 
         switch (live.Kind)
         {
             case HudTimerKind.Gauge:
                 _hud.SetBarFor(slot, bar, live.Fraction);
+                break;
+
+            // Fills towards ready. The remaining time alone cannot say how far along a cooldown is, which
+            // is why HudTimer.Cooldown carries the total as well.
+            case HudTimerKind.Cooldown when live.SecondsRemaining > 0f:
+                _hud.SyncBarFor(slot, bar, live.SecondsRemaining, fillUp: true);
+                break;
+
+            case HudTimerKind.Cooldown:
+                _hud.SetBarFor(slot, bar, 1f);
                 break;
 
             case HudTimerKind.Countdown when live.SecondsRemaining > 0f:
@@ -171,6 +195,11 @@ public sealed class HudTracker
                 break;
         }
     }
+
+    /// <summary>Whole seconds above five, one decimal below - matching every other timer in this plugin,
+    /// including the comma decimal separator.</summary>
+    private static string FormatCooldown(float remaining)
+        => remaining > 5f ? $"{(int)Math.Ceiling(remaining)}s" : $"{remaining:0.0}s".Replace('.', ',');
 
     /// <summary>One of the helper's two text slots. Empty hides it, and the card shrinks to suit.</summary>
     private void WriteHelpLine(int slot, string panelId, string? text, string? tone)
@@ -240,6 +269,17 @@ public sealed class HudTracker
                 _hud.StopCountdownFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime);
                 _hud.SetTextFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime, live.Status ?? string.Empty);
                 _hud.SetBarFor(slot, bar, live.Fraction);
+                break;
+
+            case HudTimerKind.Cooldown when live.SecondsRemaining > 0f:
+                _hud.SyncCountdownFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime, bar, live.SecondsRemaining);
+                _hud.SyncBarFor(slot, bar, live.SecondsRemaining, fillUp: true);
+                break;
+
+            case HudTimerKind.Cooldown:
+                _hud.StopCountdownFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime);
+                _hud.SetTextFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime, live.Status ?? "READY");
+                _hud.SetBarFor(slot, bar, 1f);
                 break;
 
             case HudTimerKind.Countdown when live.SecondsRemaining > 0f && live.Status is { } busy:

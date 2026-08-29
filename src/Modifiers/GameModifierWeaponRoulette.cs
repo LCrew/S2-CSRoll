@@ -465,7 +465,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             return HudTimer.Ready("READY", detail);
         }
 
-        return HudTimer.Countdown(remaining, detail: detail);
+        return HudTimer.Cooldown(remaining, Runtime.Config.WeaponRoulette.RerollIntervalSeconds, detail: detail);
     }
 
 }

@@ -82,7 +82,7 @@ public interface ICSRollHudService
     /// bar may finish up to a couple of seconds early or late on an unusual config value. Any numeric
     /// countdown shown beside it stays exact; the bar is decoration.
     /// </summary>
-    void StartBarFor(int slot, in HudBar bar, float seconds);
+    void StartBarFor(int slot, in HudBar bar, float seconds, bool fillUp = false);
 
     /// <summary>
     /// Sets a bar to a fraction of full, snapped to the nearest 5%. For gauges that are not monotonic
@@ -98,7 +98,11 @@ public interface ICSRollHudService
     /// re-assert: re-issuing <see cref="StartBarFor"/> on every tracker refresh would restart the
     /// transition several times a second and the bar would never visibly move.
     /// </summary>
-    void SyncBarFor(int slot, in HudBar bar, float secondsRemaining);
+    /// <param name="fillUp">
+    /// True for a cooldown - the bar fills towards ready. False for a duration - it empties as the
+    /// thing runs out. Getting this backwards tells the player the opposite of the truth.
+    /// </param>
+    void SyncBarFor(int slot, in HudBar bar, float secondsRemaining, bool fillUp = false);
 
     /// <summary>Countdown text and its bar together, with the same already-running guard as
     /// <see cref="SyncBarFor"/>.</summary>

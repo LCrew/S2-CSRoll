@@ -320,9 +320,8 @@ public sealed class GameModifierVanish : GameModifierInvisibleBase
         }
 
         var readyAt = _nextAvailableTime.GetValueOrDefault(slot, now);
-        return readyAt > now
-            ? HudTimer.Countdown(readyAt - now, prompt: "PRESS INSPECT TO VANISH")
-            : HudTimer.Ready(prompt: "PRESS INSPECT TO VANISH");
+        return HudTimer.Cooldown(readyAt - now, Runtime.Config.Vanish.CooldownSeconds,
+                                 prompt: "PRESS INSPECT TO VANISH");
     }
 
     /// <summary>Re-seeds the cooldown on respawn and clears any vanish that somehow survived the life, mirroring Flanker's per-spawn reset.</summary>

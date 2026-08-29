@@ -78,7 +78,7 @@ public sealed class CSRollHudService : ICSRollHudService
     /// Stepped by <see cref="Pump"/> rather than handed to a CSS transition. See the fill ladder in
     /// csroll_hud.css for why - transitions driven by server class writes are not dependable here.
     /// </summary>
-    private readonly Dictionary<(int Slot, string FillA), (HudBar Bar, float EndsAt, float Total)> _barRuns = [];
+    private readonly Dictionary<(int Slot, string FillA), (HudBar Bar, float EndsAt, float Total, bool FillUp)> _barRuns = [];
 
     private float _lastBarPumpTime;
 
@@ -443,12 +443,16 @@ public sealed class CSRollHudService : ICSRollHudService
 
             if (remaining <= 0f)
             {
-                SetClassGroupFor(key.Slot, run.Bar.FillA, HudClasses.GroupWidth, HudClasses.Width(0f));
+                // A cooldown that has finished sits FULL - it is ready. A duration that has finished sits
+                // empty - it is over.
+                SetClassGroupFor(key.Slot, run.Bar.FillA, HudClasses.GroupWidth, HudClasses.Width(run.FillUp ? 1f : 0f));
                 _barRuns.Remove(key);
                 continue;
             }
 
-            SetClassGroupFor(key.Slot, run.Bar.FillA, HudClasses.GroupWidth, HudClasses.Width(remaining / run.Total));
+            var elapsed = 1f - (remaining / run.Total);
+            SetClassGroupFor(key.Slot, run.Bar.FillA, HudClasses.GroupWidth,
+                             HudClasses.Width(run.FillUp ? elapsed : remaining / run.Total));
         }
     }
 
@@ -606,7 +610,7 @@ public sealed class CSRollHudService : ICSRollHudService
     // Bars
     // -------------------------------------------------------------------------------------------------
 
-    public void StartBarFor(int slot, in HudBar bar, float seconds)
+    public void StartBarFor(int slot, in HudBar bar, float seconds, bool fillUp = false)
     {
         if (!Available)
         {
@@ -623,9 +627,9 @@ public sealed class CSRollHudService : ICSRollHudService
         // class the only thing deciding how full the bar looks.
         SetClassFor(slot, bar.FillA, HudClasses.Drain, false);
         SetClassGroupFor(slot, bar.FillA, HudClasses.GroupDuration, HudClasses.DurationInstant);
-        SetClassGroupFor(slot, bar.FillA, HudClasses.GroupWidth, HudClasses.Width(1f));
+        SetClassGroupFor(slot, bar.FillA, HudClasses.GroupWidth, HudClasses.Width(fillUp ? 0f : 1f));
 
-        _barRuns[key] = (bar, _core.Engine.GlobalVars.CurrentTime + total, total);
+        _barRuns[key] = (bar, _core.Engine.GlobalVars.CurrentTime + total, total, fillUp);
         _barEndsAt[key] = _core.Engine.GlobalVars.CurrentTime + total;
         _barStarts[key] = _barStarts.GetValueOrDefault(key) + 1;
     }
@@ -641,7 +645,7 @@ public sealed class CSRollHudService : ICSRollHudService
     /// remaining time ticks down, "now + remaining" stays put, so an unchanged cooldown lands within a
     /// hair of the stored value while a genuinely new one jumps by whole seconds.
     /// </summary>
-    public void SyncBarFor(int slot, in HudBar bar, float secondsRemaining)
+    public void SyncBarFor(int slot, in HudBar bar, float secondsRemaining, bool fillUp = false)
     {
         if (!Available)
         {
@@ -656,7 +660,7 @@ public sealed class CSRollHudService : ICSRollHudService
             return;
         }
 
-        StartBarFor(slot, bar, secondsRemaining);
+        StartBarFor(slot, bar, secondsRemaining, fillUp);
     }
 
     /// <summary>
