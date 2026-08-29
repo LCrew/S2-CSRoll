@@ -231,19 +231,14 @@ public partial class CSRoll
             return;
         }
 
-        var slot = sender.Slot;
-        Runtime.Hud.ShowFor(slot, HudPanelIds.Track, true);
-        Runtime.Hud.SetTextFor(slot, HudPanelIds.TrackTitle, HudPanelIds.VarName, "CSROLL HUD TEST");
-        Runtime.Hud.ShowFor(slot, HudPanelIds.Row(0), true);
-        Runtime.Hud.SetTextFor(slot, HudPanelIds.RowIcon(0), HudPanelIds.VarName, HudClasses.GlyphFallback);
-        Runtime.Hud.SetTextFor(slot, HudPanelIds.RowName(0), HudPanelIds.VarName, "HUD test");
-        Runtime.Hud.SetClassGroupFor(slot, HudPanelIds.Row(0), HudClasses.GroupAccent, HudClasses.Accent("amber"));
-        Runtime.Hud.ShowFor(slot, HudPanelIds.RowBar(0), true);
-        Runtime.Hud.StartCountdownFor(slot, HudPanelIds.RowTime(0), HudPanelIds.VarTime, 10f);
-        Runtime.Hud.StartBarFor(slot, HudPanelIds.RowBarPair(0), 10f);
+        // Deliberately NOT drawn into tracker row 0 any more. Doing so overwrote whatever the tracker
+        // had put there and left "HUD test" as the last value sent, which then masked the very staleness
+        // this command exists to investigate. The notice line is unused by anything else, so it can be
+        // borrowed without disturbing state.
+        Runtime.Hud.ShowNoticeFor(sender.Slot, "CSROLL HUD TEST", 10f);
 
         CSRollUtils.PrintTitleToChat(Core, sender,
-            "Drew a 10s test bar on your HUD. If you can't see it, your client doesn't have the HUD Workshop addon - do NOT enable CustomHud.ReplaceCenterHtml.");
+            "Showed a 10s test notice on your HUD. If you can't see it, your client doesn't have the HUD Workshop addon - do NOT enable CustomHud.ReplaceCenterHtml.");
 
         // Spectator resolution has several silent failure points that all look the same from outside, so
         // report every step rather than leaving it to be inferred from what does or does not render.

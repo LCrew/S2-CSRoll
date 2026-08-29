@@ -69,6 +69,16 @@ public sealed class HudTracker
     /// reaching you" apart from "it reached you and drew the wrong thing" - which look identical.</summary>
     private readonly Dictionary<int, float> _lastDrawnAt = [];
 
+    /// <summary>
+    /// Which branch RefreshPlayer took for each viewer, last time.
+    ///
+    /// There are three ways out of that method and two of them write nothing, which from outside is
+    /// indistinguishable from "it never ran" - and the previous diagnostics could show the loop
+    /// reaching a viewer while the rows stayed stale, without saying why. This records the answer
+    /// instead of leaving it to be deduced.
+    /// </summary>
+    private readonly Dictionary<int, string> _lastOutcome = [];
+
     /// <summary>Rows currently showing something, per slot - so a row that empties gets cleared exactly
     /// once instead of being rewritten as blank on every refresh.</summary>
     private readonly Dictionary<int, int> _rowsInUse = [];
@@ -219,7 +229,8 @@ public sealed class HudTracker
         return $"alive={viewer.IsAlive}; mode={services.ObserverMode}; target=slot {resolved.Slot} "
              + $"({name}); resolved=slot {subject} ({spectatingName ?? "<self>"}); "
              + $"their modifiers=[{string.Join(", ", expected)}]; "
-             + $"row0 last sent=\"{sent}\"; last drew subject={drawn}, {age}";
+             + $"row0 last sent=\"{sent}\"; last drew subject={drawn}, {age}; "
+             + $"outcome={_lastOutcome.GetValueOrDefault(viewer.Slot, "<none>")}";
     }
 
     private void RefreshPlayer(IPlayer viewer)
@@ -252,6 +263,7 @@ public sealed class HudTracker
             // target switch, which reads as a transition rather than a fault.
             BlankRows(slot);
             _shownSubject[slot] = subject;
+            _lastOutcome[slot] = $"blanked (subject {previous} -> {subject})";
             return;
         }
 
@@ -265,6 +277,7 @@ public sealed class HudTracker
             ClearRowsFrom(slot, 0);
             _hud.ShowFor(slot, HudPanelIds.Track, false);
             _hud.ShowFor(slot, HudPanelIds.Help, false);
+            _lastOutcome[slot] = $"hidden (subject {subject} has {modifiers.Count} modifiers, budget {budget})";
             return;
         }
 
@@ -311,6 +324,7 @@ public sealed class HudTracker
         }
 
         _rowsInUse[slot] = overflowing ? listedCount + 1 : listedCount;
+        _lastOutcome[slot] = $"drew {listedCount} row(s) for subject {subject}";
 
         // Shown while spectating too - it describes the subject's ability and how long until they can
         // use it, which is exactly what someone watching them wants.
@@ -644,6 +658,7 @@ public sealed class HudTracker
         _lastSubjectAt.Remove(slot);
         _shownSubject.Remove(slot);
         _lastDrawnAt.Remove(slot);
+        _lastOutcome.Remove(slot);
 
         // Also drop this slot as anyone else's remembered subject - a spectator watching someone who
         // disconnects must not keep showing their modifiers to a slot the next joiner will occupy.
@@ -661,6 +676,7 @@ public sealed class HudTracker
         _lastSubjectAt.Clear();
         _shownSubject.Clear();
         _lastDrawnAt.Clear();
+        _lastOutcome.Clear();
         _lastRefreshTime = 0f;
     }
 }
