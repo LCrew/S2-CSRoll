@@ -37,6 +37,16 @@ public sealed class HudSequencer
     /// </summary>
     private const float RevealFadeOutSeconds = 0.28f;
 
+    /// <summary>
+    /// Pause between the reveal finishing its collapse and the tracker coming back, in seconds.
+    ///
+    /// Without it the chip appears the instant the card has gone and the two read as one continuous
+    /// object sliding sideways, which is confusing - the card is centred and the tracker is not. A beat
+    /// of empty screen separates "here is what you rolled" from "here is what is active", so the second
+    /// reads as a new thing arriving rather than the first one moving.
+    /// </summary>
+    private const float TrackerReturnDelaySeconds = 1.0f;
+
     private readonly ISwiftlyCore _core;
     private readonly ModifierRuntime _runtime;
     private readonly ICSRollHudService _hud;
@@ -263,7 +273,19 @@ public sealed class HudSequencer
                 }
 
                 HideReveal(slot, broadcast);
-                SetClass(slot, broadcast, HudPanelIds.Root, HudClasses.RevealActive, false);
+
+                // The tracker stays suppressed for a beat after the card has gone - see
+                // TrackerReturnDelaySeconds. reveal-active is what holds it back, so it is cleared
+                // late rather than here.
+                _core.Scheduler.DelayBySeconds(TrackerReturnDelaySeconds, () =>
+                {
+                    if (_runtime.RollGeneration != generation)
+                    {
+                        return;
+                    }
+
+                    SetClass(slot, broadcast, HudPanelIds.Root, HudClasses.RevealActive, false);
+                });
             });
         });
     }

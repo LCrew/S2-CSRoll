@@ -334,15 +334,15 @@ public sealed class GameModifierRecall : GameModifierBase
 
         if (_rewinds.ContainsKey(slot))
         {
-            return HudTimer.Ready("REWINDING");
+            return HudTimer.Ready("REWINDING", prompt: "REWINDING", tone: HudTone.Good);
         }
 
         var now = Core.Engine.GlobalVars.CurrentTime;
         var readyAt = _nextAvailableTime.GetValueOrDefault(slot, now);
 
         return readyAt > now
-            ? HudTimer.Countdown(readyAt - now)
-            : HudTimer.Ready();
+            ? HudTimer.Countdown(readyAt - now, prompt: "PRESS INSPECT TO REWIND")
+            : HudTimer.Ready(prompt: "PRESS INSPECT TO REWIND");
     }
 
     /// <summary>History is per-life - rewinding into where you stood before you died would teleport you across the map.</summary>

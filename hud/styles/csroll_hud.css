@@ -316,6 +316,94 @@
 }
 
 /* ================================================================================================
+   Helper card
+
+   Same slot as the roll, same fill, same 400px width - it is the panel that lives there once the roll
+   has finished with it. Deliberately larger and more prominent than a tracker chip: this is what a
+   player reads while fighting, and it is what the nine center-HTML gauges were for.
+   ================================================================================================ */
+
+.csr-help
+{
+	width: 400px;
+	horizontal-align: center;
+	vertical-align: bottom;
+	margin-bottom: 110px;
+	flow-children: down;
+	padding: 11px 13px 13px 13px;
+	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.45)), to(rgba(14, 22, 30, 0.45)));
+	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
+	background-size: 360px 360px;
+	background-img-opacity: 0.020;
+	border: 1px solid rgba(255, 255, 255, 0.07);
+	border-left: 3px solid #e4ae39;
+	border-radius: 2px;
+	box-shadow: rgba(0, 0, 0, 0.5) 0px 4px 22px 0px;
+	transition-property: opacity;
+	transition-duration: 0.14s;
+	opacity: 1.0;
+}
+
+.csr-help-head
+{
+	width: 100%;
+	flow-children: right;
+}
+
+/* Same box and alignment as every other glyph in this stylesheet - matched to the name's line box and
+   top-aligned, not centred against the whole column. */
+.csr-help-icon
+{
+	width: 30px;
+	height: 20px;
+	margin-right: 12px;
+	vertical-align: top;
+	text-align: center;
+	font-family: 'Arial Unicode MS', Stratum2;
+	font-size: 20px;
+	color: #b8c4d0;
+	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
+}
+
+.csr-help-name
+{
+	width: fill-parent-flow(1);
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 16px;
+	font-weight: bold;
+	color: #ffffff;
+	text-shadow: 1px 1px 4px 3 rgba(0, 0, 0, 0.95);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	vertical-align: top;
+}
+
+.csr-help-time
+{
+	font-family: Stratum2 Condensed, 'Arial Unicode MS';
+	font-size: 15px;
+	color: #e4ae39;
+	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
+	text-align: right;
+	vertical-align: top;
+}
+
+/* The control to press. The single most useful line on the HUD for an ability modifier, so it gets
+   the accent colour rather than the muted secondary grey. */
+.csr-help-prompt
+{
+	width: 100%;
+	margin-top: 5px;
+	font-family: Stratum2, 'Arial Unicode MS';
+	font-size: 14px;
+	color: #e4ae39;
+	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
+	text-align: center;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* ================================================================================================
    Active-modifier tracker
 
    State three of three: once the reveal fades, each rolled modifier settles into a compact chip that
@@ -340,7 +428,10 @@
 
 /* Gets out of the way of a reveal with no server involvement: the sequencer sets one class on the
    root and CSS does the rest. */
-.csr-root.reveal-active .csr-track
+/* Both the tracker AND the helper card stand down for a reveal. The helper occupies the roll's own
+   slot, so without this the reveal would draw straight on top of it. */
+.csr-root.reveal-active .csr-track,
+.csr-root.reveal-active .csr-help
 {
 	opacity: 0.0;
 }

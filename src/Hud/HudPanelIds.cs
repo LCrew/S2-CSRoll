@@ -158,6 +158,26 @@ public static class HudPanelIds
     public static HudBar RowBarPair(int index) => new(_rowBarsA[index], _rowBarsB[index]);
 
     // ---------------------------------------------------------------------------------------------
+    // Helper card
+    //
+    // Occupies the same slot the roll uses, once the roll has finished with it. This is the job the
+    // center-HTML gauges did: the control to press, the cooldown, and a bar, large enough to read
+    // without looking away from the fight. A tracker chip is a list entry and cannot do that.
+    // ---------------------------------------------------------------------------------------------
+
+    public const string Help = "csr_help";
+    public const string HelpIcon = "csr_help_icon";
+    public const string HelpName = "csr_help_name";
+    public const string HelpPrompt = "csr_help_prompt";
+    public const string HelpTime = "csr_help_time";
+    public const string HelpBar = "csr_help_bar";
+    public const string HelpBarA = "csr_help_bar_a";
+    public const string HelpBarB = "csr_help_bar_b";
+
+    /// <summary>The helper card's bar, as the pair the service drives.</summary>
+    public static HudBar HelpBarPair() => new(HelpBarA, HelpBarB);
+
+    // ---------------------------------------------------------------------------------------------
     // Reserved for the phase-2 migration of the nine center-HTML modifier gauges and the spectator HUD.
     // Declared now because adding DOM later costs a full Workshop republish and a client re-download.
     // ---------------------------------------------------------------------------------------------
@@ -193,6 +213,7 @@ public static class HudPanelIds
             Spin, SpinReel,
             Reveal, RevealTitle, CardOverflow,
             Track, TrackTitle,
+            Help, HelpIcon, HelpName, HelpPrompt, HelpTime, HelpBar, HelpBarA, HelpBarB,
             Self, Spectator, SpectatorTitle,
         };
 

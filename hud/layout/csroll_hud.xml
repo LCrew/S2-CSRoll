@@ -106,6 +106,25 @@
 			</Panel>
 
 			<!-- ==========================================================================================
+			     Helper card. Takes the roll's slot once the roll is done with it, and carries what a player
+			     needs mid-fight: the control to press, the cooldown and its bar, at a size that can be read
+			     without looking away. This is the job the nine center-HTML gauges were doing; a tracker chip
+			     is a list entry and cannot do it.
+			     ========================================================================================== -->
+			<Panel id="csr_help" class="csr-help hidden" hittest="false">
+				<Panel class="csr-help-head" hittest="false">
+					<Label id="csr_help_icon" class="csr-help-icon" text="{s:name}" />
+					<Label id="csr_help_name" class="csr-help-name" text="{s:name}" />
+					<Label id="csr_help_time" class="csr-help-time" text="{s:time}" />
+				</Panel>
+				<Label id="csr_help_prompt" class="csr-help-prompt" text="{s:name}" />
+				<Panel id="csr_help_bar" class="csr-bar hidden" hittest="false">
+					<Panel id="csr_help_bar_a" class="csr-bar-fill" hittest="false" />
+					<Panel id="csr_help_bar_b" class="csr-bar-fill hidden" hittest="false" />
+				</Panel>
+			</Panel>
+
+			<!-- ==========================================================================================
 			     Active-modifier tracker. Every row is a per-player override, so one layout entity serves the
 			     whole server while each player sees only their own modifiers.
 

@@ -462,7 +462,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         var remaining = _nextRerollTime - Core.Engine.GlobalVars.CurrentTime;
         if (remaining <= 0f || _nextRerollTime < 0f)
         {
-            return HudTimer.Ready("READY", detail, HudTone.Neutral);
+            return HudTimer.Ready("READY", detail);
         }
 
         return HudTimer.Countdown(remaining, detail: detail);

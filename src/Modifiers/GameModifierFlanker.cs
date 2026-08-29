@@ -267,8 +267,8 @@ public sealed class GameModifierFlanker : GameModifierBase
         var remaining = _nextAvailableTime.GetValueOrDefault(slot, now) - now;
 
         return remaining > 0f
-            ? HudTimer.Countdown(remaining)
-            : HudTimer.Ready();
+            ? HudTimer.Countdown(remaining, prompt: "PRESS F TO FLANK")
+            : HudTimer.Ready(prompt: "PRESS F TO FLANK");
     }
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)

@@ -78,6 +78,7 @@ public sealed class HudTracker
         {
             ClearRowsFrom(slot, 0);
             _hud.ShowFor(slot, HudPanelIds.Track, false);
+            _hud.ShowFor(slot, HudPanelIds.Help, false);
             return;
         }
 
@@ -115,6 +116,66 @@ public sealed class HudTracker
         }
 
         _rowsInUse[slot] = overflowing ? listedCount + 1 : listedCount;
+
+        DrawHelper(slot, ordered);
+    }
+
+    /// <summary>
+    /// The helper card: the one modifier the player has to actively DO something with.
+    ///
+    /// Only modifiers that supply a Prompt opt in, which is the same set that used to draw center-HTML
+    /// gauges - the ability modifiers. If more than one qualifies, the first by name wins and holds the
+    /// card for the round; a card that swapped between two abilities mid-fight would be worse than
+    /// showing one consistently, since the player would have to re-read it every time it changed.
+    /// </summary>
+    private void DrawHelper(int slot, List<(GameModifierBase Modifier, HudTimer? Timer)> ordered)
+    {
+        var helper = ordered.FirstOrDefault(entry => !string.IsNullOrEmpty(entry.Timer?.Prompt));
+
+        if (helper.Modifier is null || helper.Timer is not { } live)
+        {
+            _hud.ShowFor(slot, HudPanelIds.Help, false);
+            _hud.StopCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime);
+            _hud.StopBarFor(slot, HudPanelIds.HelpBarPair());
+            return;
+        }
+
+        var presentation = _runtime.HudPresentation.For(helper.Modifier.Name);
+        var bar = HudPanelIds.HelpBarPair();
+
+        _hud.ShowFor(slot, HudPanelIds.Help, true);
+        _hud.SetTextFor(slot, HudPanelIds.HelpIcon, HudPanelIds.VarName, presentation.Glyph);
+        _hud.SetClassGroupFor(slot, HudPanelIds.HelpIcon, HudClasses.GroupAccent, presentation.AccentClass);
+        _hud.SetClassGroupFor(slot, HudPanelIds.Help, HudClasses.GroupAccent, presentation.AccentClass);
+        _hud.SetTextFor(slot, HudPanelIds.HelpName, HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, helper.Modifier));
+        _hud.SetTextFor(slot, HudPanelIds.HelpPrompt, HudPanelIds.VarName, live.Prompt!);
+
+        _hud.ShowFor(slot, HudPanelIds.HelpBar, true);
+
+        switch (live.Kind)
+        {
+            case HudTimerKind.Gauge:
+                _hud.StopCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime);
+                _hud.SetTextFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime, live.Status ?? string.Empty);
+                _hud.SetBarFor(slot, bar, live.Fraction);
+                break;
+
+            case HudTimerKind.Countdown when live.SecondsRemaining > 0f && live.Status is { } busy:
+                _hud.StopCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime);
+                _hud.SetTextFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime, busy);
+                _hud.SyncBarFor(slot, bar, live.SecondsRemaining);
+                break;
+
+            case HudTimerKind.Countdown when live.SecondsRemaining > 0f:
+                _hud.SyncCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime, bar, live.SecondsRemaining);
+                break;
+
+            default:
+                _hud.StopCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime);
+                _hud.SetTextFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime, live.Status ?? "READY");
+                _hud.SetBarFor(slot, bar, live.Fraction);
+                break;
+        }
     }
 
     /// <summary>
