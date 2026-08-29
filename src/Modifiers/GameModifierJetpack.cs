@@ -349,7 +349,7 @@ public sealed class GameModifierJetpack : GameModifierBase
 
         return HudTimer.Gauge(ratio, $"{(int)Math.Round(ratio * 100f)}%",
                               detail: ratio <= 0.01f ? "NO FUEL" : null,
-                              prompt: "HOLD JUMP TO FLY", tone: tone);
+                              helpTop: "FUEL", tone: tone);
     }
 
 }

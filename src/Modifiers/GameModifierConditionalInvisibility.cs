@@ -466,7 +466,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
                            : concealment <= 0.01f ? ("VISIBLE", HudTone.Bad)
                            : ("FADING", HudTone.Warn);
 
-        return HudTimer.Gauge(concealment, status: null, detail: detail, tone: tone);
+        return HudTimer.Gauge(concealment, status: null, detail: detail, helpTop: detail, tone: tone);
     }
 
 }

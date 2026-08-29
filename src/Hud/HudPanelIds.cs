@@ -166,10 +166,13 @@ public static class HudPanelIds
     // ---------------------------------------------------------------------------------------------
 
     public const string Help = "csr_help";
-    public const string HelpIcon = "csr_help_icon";
-    public const string HelpName = "csr_help_name";
-    public const string HelpPrompt = "csr_help_prompt";
-    public const string HelpTime = "csr_help_time";
+
+    /// <summary>Line above the bar. "FUEL", "INVISIBLE" - the state, when the bar quantifies it.</summary>
+    public const string HelpTop = "csr_help_top";
+
+    /// <summary>Line below the bar. "PRESS F TO FLANK" - what to do, when the bar is a cooldown.</summary>
+    public const string HelpBottom = "csr_help_bottom";
+
     public const string HelpBar = "csr_help_bar";
     public const string HelpBarA = "csr_help_bar_a";
     public const string HelpBarB = "csr_help_bar_b";
@@ -213,7 +216,7 @@ public static class HudPanelIds
             Spin, SpinReel,
             Reveal, RevealTitle, CardOverflow,
             Track, TrackTitle,
-            Help, HelpIcon, HelpName, HelpPrompt, HelpTime, HelpBar, HelpBarA, HelpBarB,
+            Help, HelpTop, HelpBottom, HelpBar, HelpBarA, HelpBarB,
             Self, Spectator, SpectatorTitle,
         };
 

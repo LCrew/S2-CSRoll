@@ -35,11 +35,19 @@ public enum HudTimerKind
 /// does not fit in the right-hand readout: the weapon WeaponRoulette has handed you, whether
 /// ConditionalInvisibility currently has you hidden. Null hides the line and the row stays compact.
 /// </param>
+/// <param name="HelpTop">
+/// The helper card's line ABOVE the bar - "FUEL", "INVISIBLE". Use this when the state is the headline
+/// and the bar quantifies it.
+/// </param>
 /// <param name="Prompt">
-/// What the player has to DO - "PRESS INSPECT", "HOLD JUMP". Supplying one opts the modifier into the
-/// helper card: a single prominent panel in the roll's slot showing the control, the cooldown and its
-/// bar. That is the job the center-HTML gauges did, and it is the reason those gauges existed at all -
-/// a tracker row is a list entry, not something you read mid-fight.
+/// The helper card's line BELOW the bar - "PRESS F TO FLANK". Use this when the bar is a cooldown and
+/// the headline is what to do once it fills.
+///
+/// Supplying either this or <paramref name="HelpTop"/> opts the modifier into the helper card: a
+/// single prominent panel in the roll's slot. That is the job the center-HTML gauges did, and the
+/// reason they existed - a tracker row is a list entry, not something you read mid-fight. The two
+/// slots are what let a gauge modifier read label-then-bar and an ability read bar-then-prompt from
+/// one fixed layout.
 /// </param>
 /// <param name="Tone">Colour for <paramref name="Detail"/>.</param>
 public readonly record struct HudTimer(
@@ -48,20 +56,21 @@ public readonly record struct HudTimer(
     float Fraction,
     string? Status,
     string? Detail = null,
+    string? HelpTop = null,
     string? Prompt = null,
     HudTone Tone = HudTone.Neutral)
 {
     /// <summary>A cooldown or duration counting down to zero.</summary>
-    public static HudTimer Countdown(float secondsRemaining, string? status = null, string? detail = null, string? prompt = null, HudTone tone = HudTone.Neutral)
-        => new(HudTimerKind.Countdown, Math.Max(0f, secondsRemaining), 0f, status, detail, prompt, tone);
+    public static HudTimer Countdown(float secondsRemaining, string? status = null, string? detail = null, string? helpTop = null, string? prompt = null, HudTone tone = HudTone.Neutral)
+        => new(HudTimerKind.Countdown, Math.Max(0f, secondsRemaining), 0f, status, detail, helpTop, prompt, tone);
 
     /// <summary>A level that moves in both directions - fuel, concealment, a ramping rate.</summary>
-    public static HudTimer Gauge(float fraction, string? status = null, string? detail = null, string? prompt = null, HudTone tone = HudTone.Neutral)
-        => new(HudTimerKind.Gauge, 0f, Math.Clamp(fraction, 0f, 1f), status, detail, prompt, tone);
+    public static HudTimer Gauge(float fraction, string? status = null, string? detail = null, string? helpTop = null, string? prompt = null, HudTone tone = HudTone.Neutral)
+        => new(HudTimerKind.Gauge, 0f, Math.Clamp(fraction, 0f, 1f), status, detail, helpTop, prompt, tone);
 
     /// <summary>Nothing is counting; the modifier is simply available.</summary>
-    public static HudTimer Ready(string status = "READY", string? detail = null, string? prompt = null, HudTone tone = HudTone.Neutral)
-        => new(HudTimerKind.Countdown, 0f, 1f, status, detail, prompt, tone);
+    public static HudTimer Ready(string status = "READY", string? detail = null, string? helpTop = null, string? prompt = null, HudTone tone = HudTone.Neutral)
+        => new(HudTimerKind.Countdown, 0f, 1f, status, detail, helpTop, prompt, tone);
 }
 
 /// <summary>Colour for a tracker row's detail line. Deliberately semantic rather than named colours,

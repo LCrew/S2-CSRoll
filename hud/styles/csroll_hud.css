@@ -104,11 +104,18 @@
    A shared bottom edge is what the morph needs: the reveal collapses from its full height down to a
    chip's height with its bottom pinned, so it folds upward and lands exactly on the chip.
 
-   All four panels - spin, reveal, notice and tracker - share the SAME 110px, so they occupy one slot
-   just clear of the team icon. They are never on screen together, so overlapping is the intent rather
-   than a hazard, and a shared bottom edge is what lets the reveal fold shut exactly onto its chip.
+   Spin, reveal, notice and helper share the SAME bottom slot, 110px up, just clear of the team icon.
+   They are never all on screen at once, so overlapping is the intent rather than a hazard.
 
-   To move the block, change margin-bottom on all four together.
+   The TRACKER is deliberately elsewhere: top-left, under the radar and the map-callout text. It is the
+   only one of these that stays up for the whole round, so it belongs out of the way, and separating it
+   also separates the two questions - the bottom slot answers "what right now", the corner answers
+   "what am I carrying".
+
+   The cost of that split: the reveal no longer collapses onto its own chip, since the chip is now in a
+   different corner. The collapse still plays as a fold-shut in place; it simply does not land on
+   anything. Putting .csr-track back to horizontal-align:center / vertical-align:bottom / 110px
+   restores the precise morph.
    ================================================================================================ */
 
 /* ================================================================================================
@@ -318,19 +325,29 @@
 /* ================================================================================================
    Helper card
 
-   Same slot as the roll, same fill, same 400px width - it is the panel that lives there once the roll
-   has finished with it. Deliberately larger and more prominent than a tracker chip: this is what a
-   player reads while fighting, and it is what the nine center-HTML gauges were for.
+   Same slot as the roll, and the panel a player actually reads mid-fight. Three optional slots in a
+   fixed order - line, bar, line - which is what lets two different shapes come out of one layout:
+
+     Jetpack               FUEL          bar                      (state above, quantity below)
+     ConditionalInvis      INVISIBLE     bar
+     Flanker / Vanish                    bar   PRESS F TO FLANK   (cooldown above, action below)
+
+   No modifier name and no glyph: the tracker already lists what you have, and this panel exists to
+   answer "what right now", not "what am I carrying".
+
+   NO fixed height - hidden children are removed from flow by visibility:collapse, so the card sizes
+   itself to whichever slots are filled. The reveal needs a fixed height because it animates between
+   two of them; this one never animates its height, so it does not.
    ================================================================================================ */
 
 .csr-help
 {
-	width: 400px;
+	width: 320px;
 	horizontal-align: center;
 	vertical-align: bottom;
 	margin-bottom: 110px;
 	flow-children: down;
-	padding: 11px 13px 13px 13px;
+	padding: 10px 14px 12px 14px;
 	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.45)), to(rgba(14, 22, 30, 0.45)));
 	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
 	background-size: 360px 360px;
@@ -344,64 +361,39 @@
 	opacity: 1.0;
 }
 
-.csr-help-head
+/* Both lines share one class - which slot a string lands in is the modifier's choice, not a styling
+   difference, so they must look identical. */
+.csr-help-line
 {
 	width: 100%;
-	flow-children: right;
-}
-
-/* Same box and alignment as every other glyph in this stylesheet - matched to the name's line box and
-   top-aligned, not centred against the whole column. */
-.csr-help-icon
-{
-	width: 30px;
-	height: 20px;
-	margin-right: 12px;
-	vertical-align: top;
-	text-align: center;
-	font-family: 'Arial Unicode MS', Stratum2;
-	font-size: 20px;
-	color: #b8c4d0;
-	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
-}
-
-.csr-help-name
-{
-	width: fill-parent-flow(1);
 	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 16px;
+	font-size: 17px;
 	font-weight: bold;
 	color: #ffffff;
 	text-shadow: 1px 1px 4px 3 rgba(0, 0, 0, 0.95);
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	vertical-align: top;
-}
-
-.csr-help-time
-{
-	font-family: Stratum2 Condensed, 'Arial Unicode MS';
-	font-size: 15px;
-	color: #e4ae39;
-	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
-	text-align: right;
-	vertical-align: top;
-}
-
-/* The control to press. The single most useful line on the HUD for an ability modifier, so it gets
-   the accent colour rather than the muted secondary grey. */
-.csr-help-prompt
-{
-	width: 100%;
-	margin-top: 5px;
-	font-family: Stratum2, 'Arial Unicode MS';
-	font-size: 14px;
-	color: #e4ae39;
-	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
 	text-align: center;
 	text-transform: uppercase;
-	letter-spacing: 0.5px;
+	letter-spacing: 1px;
 }
+
+.csr-help-line.tone-good { color: #6ee08a; }
+.csr-help-line.tone-warn { color: #e4ae39; }
+.csr-help-line.tone-bad  { color: #ff6a55; }
+
+/* The helper's bar is the panel's centrepiece rather than a footnote, so it is taller than a chip's
+   and spaced off both lines. */
+.csr-help .csr-bar
+{
+	height: 7px;
+	margin-top: 7px;
+	margin-bottom: 7px;
+}
+
+/* Fill colour follows the same tone as the line, so "low fuel" reads as one signal rather than a red
+   word above a gold bar. */
+.csr-bar-fill.tone-good { background-color: gradient(linear, 0% 0%, 100% 0%, from(#6ee08a), to(#2c6f43)); }
+.csr-bar-fill.tone-warn { background-color: gradient(linear, 0% 0%, 100% 0%, from(#e4ae39), to(#8f6a14)); }
+.csr-bar-fill.tone-bad  { background-color: gradient(linear, 0% 0%, 100% 0%, from(#ff6a55), to(#8f2d24)); }
 
 /* ================================================================================================
    Active-modifier tracker
@@ -413,10 +405,11 @@
 
 .csr-track
 {
-	horizontal-align: center;
-	vertical-align: bottom;
-	margin-bottom: 110px;
-	width: 400px;
+	horizontal-align: left;
+	vertical-align: top;
+	margin-left: 26px;
+	/* Below the radar and the map-callout text that sits under it. */
+	margin-top: 300px;
 	flow-children: down;
 	transition-property: opacity;
 	/* Short on purpose. The chip is meant to appear at the instant the collapsing reveal reaches chip

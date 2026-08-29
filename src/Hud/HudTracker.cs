@@ -130,52 +130,60 @@ public sealed class HudTracker
     /// </summary>
     private void DrawHelper(int slot, List<(GameModifierBase Modifier, HudTimer? Timer)> ordered)
     {
-        var helper = ordered.FirstOrDefault(entry => !string.IsNullOrEmpty(entry.Timer?.Prompt));
+        var helper = ordered.FirstOrDefault(entry =>
+            !string.IsNullOrEmpty(entry.Timer?.Prompt) || !string.IsNullOrEmpty(entry.Timer?.HelpTop));
 
         if (helper.Modifier is null || helper.Timer is not { } live)
         {
             _hud.ShowFor(slot, HudPanelIds.Help, false);
-            _hud.StopCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime);
             _hud.StopBarFor(slot, HudPanelIds.HelpBarPair());
             return;
         }
 
-        var presentation = _runtime.HudPresentation.For(helper.Modifier.Name);
         var bar = HudPanelIds.HelpBarPair();
+        var tone = HudClasses.Tone(live.Tone);
 
         _hud.ShowFor(slot, HudPanelIds.Help, true);
-        _hud.SetTextFor(slot, HudPanelIds.HelpIcon, HudPanelIds.VarName, presentation.Glyph);
-        _hud.SetClassGroupFor(slot, HudPanelIds.HelpIcon, HudClasses.GroupAccent, presentation.AccentClass);
-        _hud.SetClassGroupFor(slot, HudPanelIds.Help, HudClasses.GroupAccent, presentation.AccentClass);
-        _hud.SetTextFor(slot, HudPanelIds.HelpName, HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, helper.Modifier));
-        _hud.SetTextFor(slot, HudPanelIds.HelpPrompt, HudPanelIds.VarName, live.Prompt!);
+        _hud.SetClassGroupFor(slot, HudPanelIds.Help, HudClasses.GroupAccent,
+            _runtime.HudPresentation.For(helper.Modifier.Name).AccentClass);
+
+        // Each line appears only if the modifier filled that slot, and the card sizes itself to what is
+        // left - which is what lets one layout read FUEL-then-bar for a gauge and bar-then-PRESS-F for
+        // an ability.
+        WriteHelpLine(slot, HudPanelIds.HelpTop, live.HelpTop, tone);
+        WriteHelpLine(slot, HudPanelIds.HelpBottom, live.Prompt, tone);
 
         _hud.ShowFor(slot, HudPanelIds.HelpBar, true);
+        _hud.SetClassGroupFor(slot, bar.FillA, HudClasses.GroupTone, tone);
 
         switch (live.Kind)
         {
             case HudTimerKind.Gauge:
-                _hud.StopCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime);
-                _hud.SetTextFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime, live.Status ?? string.Empty);
                 _hud.SetBarFor(slot, bar, live.Fraction);
-                break;
-
-            case HudTimerKind.Countdown when live.SecondsRemaining > 0f && live.Status is { } busy:
-                _hud.StopCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime);
-                _hud.SetTextFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime, busy);
-                _hud.SyncBarFor(slot, bar, live.SecondsRemaining);
                 break;
 
             case HudTimerKind.Countdown when live.SecondsRemaining > 0f:
-                _hud.SyncCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime, bar, live.SecondsRemaining);
+                _hud.SyncBarFor(slot, bar, live.SecondsRemaining);
                 break;
 
             default:
-                _hud.StopCountdownFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime);
-                _hud.SetTextFor(slot, HudPanelIds.HelpTime, HudPanelIds.VarTime, live.Status ?? "READY");
                 _hud.SetBarFor(slot, bar, live.Fraction);
                 break;
         }
+    }
+
+    /// <summary>One of the helper's two text slots. Empty hides it, and the card shrinks to suit.</summary>
+    private void WriteHelpLine(int slot, string panelId, string? text, string? tone)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            _hud.ShowFor(slot, panelId, false);
+            return;
+        }
+
+        _hud.SetTextFor(slot, panelId, HudPanelIds.VarName, text);
+        _hud.SetClassGroupFor(slot, panelId, HudClasses.GroupTone, tone);
+        _hud.ShowFor(slot, panelId, true);
     }
 
     /// <summary>
