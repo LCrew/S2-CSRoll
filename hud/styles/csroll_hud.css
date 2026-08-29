@@ -405,6 +405,8 @@
 
 .csr-track
 {
+	/* A region panel with no width collapses to nothing and simply never appears. */
+	width: 300px;
 	horizontal-align: left;
 	vertical-align: top;
 	margin-left: 26px;

@@ -255,6 +255,18 @@ def check_stylesheet_syntax(css_text: str, path: pathlib.Path) -> None:
               "variable write anywhere in the same subtree restarts a width transition - use "
               "clip: rect(...) for bars and gauges instead")
 
+    # Every top-level region must declare a width. A positioned panel with no width collapses to
+    # nothing and simply never renders - no error, no warning, it is just absent. That has now happened
+    # once for real (an edit removed `width` from .csr-track along with the alignment it was rewriting)
+    # and cost a full compile-and-join cycle to notice, so it is checked rather than remembered.
+    for region in ("csr-track", "csr-help", "csr-reveal", "csr-spin", "csr-self", "csr-spec"):
+        rule = re.search(r"\." + region + r"\s*\{([^}]*)\}", stripped)
+        if rule is None:
+            warn(f"{path.name}: no rule for .{region}")
+        elif not re.search(r"\bwidth\s*:", rule.group(1)):
+            error(f"{path.name}: .{region} declares no width. A positioned region without one collapses "
+                  "to zero size and never appears on screen.")
+
     # z-index only orders siblings within one parent, so it has to be on the outermost panel to lift
     # the layout above the built-in HUD. On an inner panel it does nothing at any value.
     if "z-index" not in stripped:
