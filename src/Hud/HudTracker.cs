@@ -236,6 +236,23 @@ public sealed class HudTracker
         if (_shownSubject.TryGetValue(slot, out var previous) && previous != subject)
         {
             ClearMirroredReveal(slot);
+
+            // Blank the rows and skip drawing for one tick before repopulating them.
+            //
+            // Without this, switching target frequently left the previous player's modifier on screen.
+            // Panel state reaches the client as an entity diff, so a write whose value equals what the
+            // field already holds ships NOTHING - and the service's dirty cache, which exists to avoid
+            // re-sending unchanged values, then believes the client is up to date and never retries. Any
+            // update the client missed became permanent, and the only way out was switching to a player
+            // whose modifier happened to differ from the cached one, which is exactly why rotating two
+            // or three times eventually worked.
+            //
+            // Blanking first guarantees the next write is a real change in both the entity field and the
+            // cache, so it cannot be coalesced away. The cost is one refresh interval of empty rows on a
+            // target switch, which reads as a transition rather than a fault.
+            BlankRows(slot);
+            _shownSubject[slot] = subject;
+            return;
         }
 
         _shownSubject[slot] = subject;
@@ -536,6 +553,32 @@ public sealed class HudTracker
         }
 
         _rowsInUse[slot] = firstUnused;
+    }
+
+    /// <summary>
+    /// Empties every tracker row and the helper card for one viewer, so the values written on the next
+    /// refresh are guaranteed to differ from what the entity currently holds. See the call site.
+    /// </summary>
+    private void BlankRows(int slot)
+    {
+        for (var row = 0; row < HudPanelIds.Rows; row++)
+        {
+            _hud.SetTextFor(slot, HudPanelIds.RowName(row), HudPanelIds.VarName, string.Empty);
+            _hud.SetTextFor(slot, HudPanelIds.RowIcon(row), HudPanelIds.VarName, string.Empty);
+            _hud.SetTextFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime, string.Empty);
+            _hud.SetTextFor(slot, HudPanelIds.RowDetail(row), HudPanelIds.VarName, string.Empty);
+            _hud.ShowFor(slot, HudPanelIds.Row(row), false);
+            _hud.ShowFor(slot, HudPanelIds.RowDetail(row), false);
+            _hud.StopCountdownFor(slot, HudPanelIds.RowTime(row), HudPanelIds.VarTime);
+            _hud.StopBarFor(slot, HudPanelIds.RowBarPair(row));
+        }
+
+        _hud.SetTextFor(slot, HudPanelIds.HelpTop, HudPanelIds.VarName, string.Empty);
+        _hud.SetTextFor(slot, HudPanelIds.HelpBottom, HudPanelIds.VarName, string.Empty);
+        _hud.ShowFor(slot, HudPanelIds.Help, false);
+        _hud.StopBarFor(slot, HudPanelIds.HelpBarPair());
+
+        _rowsInUse[slot] = 0;
     }
 
     /// <summary>
