@@ -505,7 +505,7 @@ public sealed class CSRollHudService : ICSRollHudService
 
     public void SetTextFor(int slot, string panelId, string variable, string value, bool force = false)
     {
-        if (!Available)
+        if (!Available || !IsAddressablePlayer(slot))
         {
             return;
         }
@@ -542,7 +542,7 @@ public sealed class CSRollHudService : ICSRollHudService
 
     public void SetClassFor(int slot, string panelId, string className, bool on)
     {
-        if (!Available || !TrySetDirty(_classState, (slot, panelId, className), on))
+        if (!Available || !IsAddressablePlayer(slot) || !TrySetDirty(_classState, (slot, panelId, className), on))
         {
             return;
         }
@@ -563,6 +563,11 @@ public sealed class CSRollHudService : ICSRollHudService
     private void SetClassGroupScoped(int scope, string panelId, string groupKey, string? className)
     {
         if (!Available)
+        {
+            return;
+        }
+
+        if (scope != GlobalScope && !IsAddressablePlayer(scope))
         {
             return;
         }
@@ -846,7 +851,7 @@ public sealed class CSRollHudService : ICSRollHudService
 
     public void ResetPlayer(int slot)
     {
-        if (Available)
+        if (Available && IsAddressablePlayer(slot))
         {
             foreach (var key in _textState.Keys.Where(k => k.Scope == slot).ToList())
             {
@@ -875,6 +880,9 @@ public sealed class CSRollHudService : ICSRollHudService
 
     private readonly Dictionary<int, HudRevealOwner> _revealOwner = [];
 
+    /// <summary>Engine player cap, cached for the map - see IsAddressablePlayer.</summary>
+    private int? _playerCap;
+
     public void ClaimReveal(int slot, HudRevealOwner owner)
     {
         if (owner == HudRevealOwner.None)
@@ -891,7 +899,7 @@ public sealed class CSRollHudService : ICSRollHudService
 
     public string? GetLiveTextFor(int slot, string panelId, string variable)
     {
-        if (!Available)
+        if (!Available || !IsAddressablePlayer(slot))
         {
             return null;
         }
@@ -939,6 +947,7 @@ public sealed class CSRollHudService : ICSRollHudService
         _lastCountdownPumpTime = 0f;
         _nextCreateAttemptAt = 0f;
         _revealOwner.Clear();
+        _playerCap = null;
     }
 
     // -------------------------------------------------------------------------------------------------
@@ -972,6 +981,39 @@ public sealed class CSRollHudService : ICSRollHudService
     /// event handler. A transient failure against one panel must not take the whole surface down, so
     /// <see cref="Available"/> is deliberately left alone.
     /// </summary>
+    /// <summary>
+    /// Whether a per-player id is inside the range the engine can actually index.
+    ///
+    /// Every ...ForPlayer call on the layout entity crosses into native code that indexes a fixed
+    /// player array. Managed code cannot see whether it bounds-checks, so a wrong id is not an
+    /// exception this class could Guard - it is an out-of-bounds read or write in the game server, and
+    /// the symptom is a crash whose stack points nowhere near this plugin.
+    ///
+    /// So the check happens here, once, on the paths that reach those calls. It is cheap enough to run
+    /// on every write: two comparisons against the engine's player cap.
+    /// </summary>
+    private bool IsAddressablePlayer(int slot)
+    {
+        // Cached, not read per call. This runs on every per-player write - several hundred a second at
+        // a full server - and PlayerCap crosses into native code. It is an engine constant for the
+        // lifetime of a map, and ResetAll drops the cache on map change.
+        _playerCap ??= _core.PlayerManager.PlayerCap;
+
+        if (slot >= 0 && slot < _playerCap)
+        {
+            return true;
+        }
+
+        // Logged rather than silently dropped. A rejected write means something upstream computed an id
+        // it had no business computing, which is worth seeing rather than absorbing.
+        _core.Logger.LogWarning(
+            "[CSRoll][HUD] Refused a per-player HUD write for id {Slot}, outside 0..{Cap}. "
+          + "Passing this to the engine risks an out-of-bounds write in the game server.",
+            slot, _playerCap - 1);
+
+        return false;
+    }
+
     private void Guard(string panelId, Action action)
     {
         try

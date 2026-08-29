@@ -272,16 +272,19 @@ public sealed class HudTracker
 
         _probeHoldUntil[slot] = _core.Engine.GlobalVars.CurrentTime + seconds;
 
-        var controllerIndex = viewer.Controller is { IsValid: true } controller ? (int)controller.Index : -1;
-        var pawnIndex = viewer.Pawn is { IsValid: true } pawn ? (int)pawn.Index : -1;
 
         // Row index -> (label, the id to address the write with). Keep this the same length as Rows.
+        //
+        // ENTITY INDICES ARE NOT CANDIDATES. An earlier version of this probe tried the controller and
+        // pawn entity indices, which run into the hundreds, and passed them where the engine expects a
+        // player id. If that indexes a fixed player array without a bounds check it is an out-of-bounds
+        // native write, and a crashing server is exactly what that looks like from outside. No
+        // diagnostic is worth writing past the end of an array; every candidate here is inside the
+        // player-id range, and SetTextFor rejects anything that is not.
         var candidates = new (string Label, int Id)[]
         {
             ("SLOT", slot),
             ("PLAYERID", viewer.PlayerID),
-            ("PAWNIDX", pawnIndex),
-            ("CTRLIDX", controllerIndex),
             ("SLOT+1", slot + 1),
         };
 
