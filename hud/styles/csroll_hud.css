@@ -682,119 +682,622 @@
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Fill ladder, in 5% steps, expressed as clip rects. Used for gauges that move in both directions and
-   so cannot be expressed as a countdown - fuel, concealment, a ramping heal rate. The short transition
-   makes consecutive buckets read as continuous movement rather than as visible 5% jumps.
+   Fill ladder, 1% steps, as clip rects.
 
-   CLIP, NOT WIDTH - and this is not a style preference. Writing any dialog variable in the same
-   subtree as a panel transitioning `width` makes that transition restart: the text change re-measures
-   the label, re-lays-out the row, re-resolves `width: 100%`, and the bar snaps back to full. Every
-   tracker row has its countdown text sitting right next to its bar, so a width-driven bar would reset
-   itself roughly once a second, forever. Valve's own note on clip is the tell: "This clipping has no
-   impact on layout, and is fast and supported for transitions/animations."
+   THE STEPS ARE THE ANIMATION. Bars are stepped from the server roughly ten times a second rather than
+   handed to a CSS transition, because transitions driven by server class writes have not proved
+   dependable in this build - the same finding that made the roll reel server-driven. A cooldown bar
+   left to a transition either never moved or jumped 100 / 50 / 0.
 
-   Two-class selectors so these carry the same specificity as .drain and neither silently wins.
+   Hence 1% rather than the original 5%: with nothing interpolating between buckets, the bucket size IS
+   the visible granularity. A short transition-duration is still declared so a client that does honour
+   it smooths the last step - harmless where it does not.
+
+   CLIP, NOT WIDTH: writing any dialog variable in the same subtree re-measures the label, re-lays-out
+   the row and re-resolves `width: 100%`. Every row has countdown text beside its bar, so a width-driven
+   bar would fight itself constantly. Valve's note on clip is the tell - "no impact on layout, fast and
+   supported for transitions/animations".
    ------------------------------------------------------------------------------------------------ */
 .csr-bar-fill.w0
 {
 	clip: rect( 0%, 0%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w1
+{
+	clip: rect( 0%, 1%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w2
+{
+	clip: rect( 0%, 2%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w3
+{
+	clip: rect( 0%, 3%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w4
+{
+	clip: rect( 0%, 4%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w5
 {
 	clip: rect( 0%, 5%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w6
+{
+	clip: rect( 0%, 6%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w7
+{
+	clip: rect( 0%, 7%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w8
+{
+	clip: rect( 0%, 8%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w9
+{
+	clip: rect( 0%, 9%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w10
 {
 	clip: rect( 0%, 10%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w11
+{
+	clip: rect( 0%, 11%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w12
+{
+	clip: rect( 0%, 12%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w13
+{
+	clip: rect( 0%, 13%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w14
+{
+	clip: rect( 0%, 14%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w15
 {
 	clip: rect( 0%, 15%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w16
+{
+	clip: rect( 0%, 16%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w17
+{
+	clip: rect( 0%, 17%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w18
+{
+	clip: rect( 0%, 18%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w19
+{
+	clip: rect( 0%, 19%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w20
 {
 	clip: rect( 0%, 20%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w21
+{
+	clip: rect( 0%, 21%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w22
+{
+	clip: rect( 0%, 22%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w23
+{
+	clip: rect( 0%, 23%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w24
+{
+	clip: rect( 0%, 24%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w25
 {
 	clip: rect( 0%, 25%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w26
+{
+	clip: rect( 0%, 26%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w27
+{
+	clip: rect( 0%, 27%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w28
+{
+	clip: rect( 0%, 28%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w29
+{
+	clip: rect( 0%, 29%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w30
 {
 	clip: rect( 0%, 30%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w31
+{
+	clip: rect( 0%, 31%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w32
+{
+	clip: rect( 0%, 32%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w33
+{
+	clip: rect( 0%, 33%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w34
+{
+	clip: rect( 0%, 34%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w35
 {
 	clip: rect( 0%, 35%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w36
+{
+	clip: rect( 0%, 36%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w37
+{
+	clip: rect( 0%, 37%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w38
+{
+	clip: rect( 0%, 38%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w39
+{
+	clip: rect( 0%, 39%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w40
 {
 	clip: rect( 0%, 40%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w41
+{
+	clip: rect( 0%, 41%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w42
+{
+	clip: rect( 0%, 42%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w43
+{
+	clip: rect( 0%, 43%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w44
+{
+	clip: rect( 0%, 44%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w45
 {
 	clip: rect( 0%, 45%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w46
+{
+	clip: rect( 0%, 46%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w47
+{
+	clip: rect( 0%, 47%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w48
+{
+	clip: rect( 0%, 48%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w49
+{
+	clip: rect( 0%, 49%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w50
 {
 	clip: rect( 0%, 50%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w51
+{
+	clip: rect( 0%, 51%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w52
+{
+	clip: rect( 0%, 52%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w53
+{
+	clip: rect( 0%, 53%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w54
+{
+	clip: rect( 0%, 54%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w55
 {
 	clip: rect( 0%, 55%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w56
+{
+	clip: rect( 0%, 56%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w57
+{
+	clip: rect( 0%, 57%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w58
+{
+	clip: rect( 0%, 58%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w59
+{
+	clip: rect( 0%, 59%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w60
 {
 	clip: rect( 0%, 60%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w61
+{
+	clip: rect( 0%, 61%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w62
+{
+	clip: rect( 0%, 62%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w63
+{
+	clip: rect( 0%, 63%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w64
+{
+	clip: rect( 0%, 64%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w65
 {
 	clip: rect( 0%, 65%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w66
+{
+	clip: rect( 0%, 66%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w67
+{
+	clip: rect( 0%, 67%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w68
+{
+	clip: rect( 0%, 68%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w69
+{
+	clip: rect( 0%, 69%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w70
 {
 	clip: rect( 0%, 70%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w71
+{
+	clip: rect( 0%, 71%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w72
+{
+	clip: rect( 0%, 72%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w73
+{
+	clip: rect( 0%, 73%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w74
+{
+	clip: rect( 0%, 74%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w75
 {
 	clip: rect( 0%, 75%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w76
+{
+	clip: rect( 0%, 76%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w77
+{
+	clip: rect( 0%, 77%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w78
+{
+	clip: rect( 0%, 78%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w79
+{
+	clip: rect( 0%, 79%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w80
 {
 	clip: rect( 0%, 80%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w81
+{
+	clip: rect( 0%, 81%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w82
+{
+	clip: rect( 0%, 82%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w83
+{
+	clip: rect( 0%, 83%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w84
+{
+	clip: rect( 0%, 84%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w85
 {
 	clip: rect( 0%, 85%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w86
+{
+	clip: rect( 0%, 86%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w87
+{
+	clip: rect( 0%, 87%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w88
+{
+	clip: rect( 0%, 88%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w89
+{
+	clip: rect( 0%, 89%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w90
 {
 	clip: rect( 0%, 90%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w91
+{
+	clip: rect( 0%, 91%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w92
+{
+	clip: rect( 0%, 92%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w93
+{
+	clip: rect( 0%, 93%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w94
+{
+	clip: rect( 0%, 94%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w95
 {
 	clip: rect( 0%, 95%, 100%, 0% );
 	transition-duration: 0.12s;
 }
+
+.csr-bar-fill.w96
+{
+	clip: rect( 0%, 96%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w97
+{
+	clip: rect( 0%, 97%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w98
+{
+	clip: rect( 0%, 98%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
+.csr-bar-fill.w99
+{
+	clip: rect( 0%, 99%, 100%, 0% );
+	transition-duration: 0.12s;
+}
+
 .csr-bar-fill.w100
 {
 	clip: rect( 0%, 100%, 100%, 0% );

@@ -42,14 +42,12 @@ public sealed class CSRollHudService : ICSRollHudService
     private const float DeadlineResyncToleranceSeconds = 0.35f;
 
     /// <summary>
-    /// Gap between showing a bar at full and arming its drain, in seconds.
+    /// How often a running bar is stepped, in seconds.
     ///
-    /// Same constraint as the reel reset: class state reaches the client as an entity netvar diff, so
-    /// the "full" state and the "drain" target cannot be written in one tick - the element would have
-    /// no previous state to animate from and would render already empty. Measured minimum for the gap
-    /// to take is around 0.3s, well above a tick, so a NextTick hop does not do it.
+    /// Ten times a second against a 1% ladder is what makes a cooldown read as moving rather than
+    /// ticking. Faster buys nothing visible; slower starts to show as steps on a short cooldown.
     /// </summary>
-    private const float BarArmDelaySeconds = 0.3f;
+    private const float BarStepIntervalSeconds = 0.1f;
 
     private readonly ISwiftlyCore _core;
 
@@ -73,6 +71,16 @@ public sealed class CSRollHudService : ICSRollHudService
     private readonly Dictionary<(int Slot, string FillA), int> _barStarts = [];
     private readonly Dictionary<(int Slot, string FillA), float> _barEndsAt = [];
     private readonly Dictionary<(int Slot, string Panel, string Variable), float> _countdowns = [];
+
+    /// <summary>
+    /// Bars currently counting down: key -> (the bar, when it ends, how long it ran for).
+    ///
+    /// Stepped by <see cref="Pump"/> rather than handed to a CSS transition. See the fill ladder in
+    /// csroll_hud.css for why - transitions driven by server class writes are not dependable here.
+    /// </summary>
+    private readonly Dictionary<(int Slot, string FillA), (HudBar Bar, float EndsAt, float Total)> _barRuns = [];
+
+    private float _lastBarPumpTime;
 
     /// <summary>Slot -> when its notice should disappear. Cleared by the same pump that drives countdowns.</summary>
     private readonly Dictionary<int, float> _noticeUntil = [];
@@ -360,6 +368,7 @@ public sealed class CSRollHudService : ICSRollHudService
         }
 
         ExpireNotices();
+        StepBars();
 
         if (_countdowns.Count == 0)
         {
@@ -393,6 +402,53 @@ public sealed class CSRollHudService : ICSRollHudService
             {
                 _countdowns.Remove(key);
             }
+        }
+    }
+
+    /// <summary>
+    /// Advances every running bar one step.
+    ///
+    /// This is the animation. Stepping at 1% granularity ten times a second reads as continuous
+    /// movement, and dirty tracking means a write only leaves the server when the bucket changes - so a
+    /// 20 second cooldown costs about a hundred writes spread over its whole life, not one per tick.
+    /// </summary>
+    private void StepBars()
+    {
+        if (_barRuns.Count == 0)
+        {
+            return;
+        }
+
+        var now = _core.Engine.GlobalVars.CurrentTime;
+
+        // Same throttle idiom as everywhere else; the "now >= last" half guards a restarted map clock.
+        if (now >= _lastBarPumpTime && now - _lastBarPumpTime < BarStepIntervalSeconds)
+        {
+            return;
+        }
+
+        _lastBarPumpTime = now;
+
+        foreach (var (key, run) in _barRuns.ToList())
+        {
+            var remaining = run.EndsAt - now;
+
+            // A deadline further out than the run was ever long means the map clock restarted beneath
+            // it - drop the bar rather than leave it stuck full for the rest of the session.
+            if (remaining > run.Total + 1f)
+            {
+                _barRuns.Remove(key);
+                continue;
+            }
+
+            if (remaining <= 0f)
+            {
+                SetClassGroupFor(key.Slot, run.Bar.FillA, HudClasses.GroupWidth, HudClasses.Width(0f));
+                _barRuns.Remove(key);
+                continue;
+            }
+
+            SetClassGroupFor(key.Slot, run.Bar.FillA, HudClasses.GroupWidth, HudClasses.Width(remaining / run.Total));
         }
     }
 
@@ -558,43 +614,20 @@ public sealed class CSRollHudService : ICSRollHudService
         }
 
         var key = (slot, bar.FillA);
-        _barStarts.TryGetValue(key, out var startCount);
-        var epoch = startCount + 1;
+        var total = Math.Max(0.01f, seconds);
 
-        var fill = bar.FillA;
-
-        // PHASE 1: make the fill visible and snap it to full, instantly.
-        //
-        // Making a panel visible and giving it a transition target in the same tick does not animate:
-        // the element has no previous state to move from, so the client simply renders it at the end
-        // state. That is what made a cooldown bar invisible for its whole duration and then pop to full
-        // the moment it finished - the drain had already "completed" before it was ever on screen.
         ShowFor(slot, bar.FillB, false);
-        ShowFor(slot, fill, true);
-        SetClassGroupFor(slot, fill, HudClasses.GroupWidth, null);
-        SetClassGroupFor(slot, fill, HudClasses.GroupDuration, HudClasses.DurationInstant);
-        SetClassFor(slot, fill, HudClasses.Drain, false);
+        ShowFor(slot, bar.FillA, true);
 
-        _barStarts[key] = epoch;
-        _barEndsAt[key] = _core.Engine.GlobalVars.CurrentTime + Math.Max(0f, seconds);
+        // `drain` is a transition target and this bar is not driven by one; clearing it makes the width
+        // class the only thing deciding how full the bar looks.
+        SetClassFor(slot, bar.FillA, HudClasses.Drain, false);
+        SetClassGroupFor(slot, bar.FillA, HudClasses.GroupDuration, HudClasses.DurationInstant);
+        SetClassGroupFor(slot, bar.FillA, HudClasses.GroupWidth, HudClasses.Width(1f));
 
-        // PHASE 2: arm the drain, once the full state has actually reached the client.
-        //
-        // Class state travels as an entity netvar diff, so this cannot be collapsed into the tick
-        // above - and a NextTick hop is not enough either; the measured minimum is around 0.3s. The
-        // bar therefore starts draining fractionally late, which against a multi-second cooldown is
-        // invisible, and is the difference between an animated bar and no bar at all.
-        _core.Scheduler.DelayBySeconds(BarArmDelaySeconds, () =>
-        {
-            // A newer start (or a stop) supersedes this one.
-            if (!_barStarts.TryGetValue(key, out var current) || current != epoch || !Available)
-            {
-                return;
-            }
-
-            SetClassGroupFor(slot, fill, HudClasses.GroupDuration, HudClasses.Duration(Math.Max(0f, seconds) - BarArmDelaySeconds));
-            SetClassFor(slot, fill, HudClasses.Drain, true);
-        });
+        _barRuns[key] = (bar, _core.Engine.GlobalVars.CurrentTime + total, total);
+        _barEndsAt[key] = _core.Engine.GlobalVars.CurrentTime + total;
+        _barStarts[key] = _barStarts.GetValueOrDefault(key) + 1;
     }
 
     /// <summary>
@@ -677,6 +710,7 @@ public sealed class CSRollHudService : ICSRollHudService
         // A gauge is not a countdown, so nothing is "running" any more - drop the deadline, or a later
         // countdown that happened to end at the same moment would be mistaken for one already animating.
         _barEndsAt.Remove((slot, bar.FillA));
+        _barRuns.Remove((slot, bar.FillA));
     }
 
     public void StopBarFor(int slot, in HudBar bar)
@@ -693,6 +727,7 @@ public sealed class CSRollHudService : ICSRollHudService
         SetClassGroupFor(slot, bar.FillA, HudClasses.GroupWidth, null);
         _barStarts.Remove((slot, bar.FillA));
         _barEndsAt.Remove((slot, bar.FillA));
+        _barRuns.Remove((slot, bar.FillA));
     }
 
     // -------------------------------------------------------------------------------------------------
@@ -774,6 +809,7 @@ public sealed class CSRollHudService : ICSRollHudService
         RemoveWhere(_groupState, k => k.Scope == slot);
         RemoveWhere(_barStarts, k => k.Slot == slot);
         RemoveWhere(_barEndsAt, k => k.Slot == slot);
+        RemoveWhere(_barRuns, k => k.Slot == slot);
         RemoveWhere(_countdowns, k => k.Slot == slot);
         _noticeUntil.Remove(slot);
     }
@@ -787,6 +823,8 @@ public sealed class CSRollHudService : ICSRollHudService
         _groupState.Clear();
         _barStarts.Clear();
         _barEndsAt.Clear();
+        _barRuns.Clear();
+        _lastBarPumpTime = 0f;
         _countdowns.Clear();
         _noticeUntil.Clear();
         _lastCountdownPumpTime = 0f;

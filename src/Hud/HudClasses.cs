@@ -123,11 +123,17 @@ public static class HudClasses
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// Percentage step for the `w*` ladder. 5% is 21 classes - fine-grained enough that a short CSS
-    /// transition on the fill makes consecutive buckets read as continuous movement, coarse enough that
-    /// a gauge only emits a network write a handful of times a second.
+    /// Percentage step for the `w*` ladder: 1%, so 101 classes.
+    ///
+    /// It was 5%, which was fine while a CSS transition smoothed between buckets. Transitions turned
+    /// out not to be dependable here - the same reason the reel ended up server-driven - so the steps
+    /// themselves have to be the animation, and at 5% a three-second cooldown visibly jumped 100, 50,
+    /// 0. At 1%, stepped ten times a second, the movement reads as continuous.
+    ///
+    /// 101 classes costs nothing in the stylesheet, and dirty tracking means a write only goes out when
+    /// the bucket actually changes.
     /// </summary>
-    public const int WidthStepPercent = 5;
+    public const int WidthStepPercent = 1;
 
     /// <summary>
     /// Quantised width class for a 0..1 fraction.
