@@ -216,6 +216,9 @@ public sealed class ModifierRuntime
     private readonly HudTracker _hudTracker;
     private readonly HudSequencer _hudSequencer;
 
+    /// <summary>Diagnostic passthrough for !hudstatus - see HudTracker.DescribeSubject.</summary>
+    public string DescribeHudSubject(SwiftlyS2.Shared.Players.IPlayer viewer) => _hudTracker.DescribeSubject(viewer);
+
     /// <summary>Icon/accent lookup for drawing a modifier on the custom HUD.</summary>
     public IHudPresentationCatalog HudPresentation { get; }
 

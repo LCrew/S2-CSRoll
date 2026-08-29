@@ -97,6 +97,50 @@ public sealed class HudTracker
         return (target.Slot, controller.PlayerName);
     }
 
+    /// <summary>
+    /// Every step of the spectator lookup, as text, for !hudstatus.
+    ///
+    /// The lookup has several places it can silently return nothing - no pawn, no observer services, a
+    /// target that resolves to no player - and all of them look identical from outside: the tracker
+    /// simply shows the viewer's own modifiers instead. Rather than guess which one, report all of them.
+    /// </summary>
+    public string DescribeSubject(IPlayer viewer)
+    {
+        var pawn = viewer.Pawn;
+        if (pawn is null)
+        {
+            return $"alive={viewer.IsAlive}; Pawn is NULL - cannot read observer state";
+        }
+
+        var services = pawn.ObserverServices;
+        if (services is null)
+        {
+            return $"alive={viewer.IsAlive}; Pawn ok, ObserverServices is NULL - not spectating, or the "
+                 + "observer pawn is not the one Pawn returns";
+        }
+
+        var target = services.ObserverTarget.Value;
+        if (target is null)
+        {
+            return $"alive={viewer.IsAlive}; ObserverServices ok, mode={services.ObserverMode}, "
+                 + "ObserverTarget is NULL";
+        }
+
+        var resolved = _core.PlayerManager.GetPlayerFromPawn(target.As<CBasePlayerPawn>());
+        if (resolved is null)
+        {
+            return $"alive={viewer.IsAlive}; mode={services.ObserverMode}; target entity #{target.Index} "
+                 + "found but GetPlayerFromPawn returned NULL";
+        }
+
+        var name = resolved.Controller is { IsValid: true } c ? c.PlayerName : "<no controller>";
+        var (subject, spectatingName) = ResolveSubject(viewer);
+
+        return $"alive={viewer.IsAlive}; mode={services.ObserverMode}; target=slot {resolved.Slot} "
+             + $"({name}); resolved subject=slot {subject} spectating={spectatingName ?? "<self>"}; "
+             + $"subject has {_runtime.GetModifiersForSlot(subject).Count} modifier(s)";
+    }
+
     private void RefreshPlayer(IPlayer viewer)
     {
         var slot = viewer.Slot;

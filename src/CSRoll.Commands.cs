@@ -244,6 +244,10 @@ public partial class CSRoll
 
         CSRollUtils.PrintTitleToChat(Core, sender,
             "Drew a 10s test bar on your HUD. If you can't see it, your client doesn't have the HUD Workshop addon - do NOT enable CustomHud.ReplaceCenterHtml.");
+
+        // Spectator resolution has several silent failure points that all look the same from outside, so
+        // report every step rather than leaving it to be inferred from what does or does not render.
+        CSRollUtils.PrintTitleToChat(Core, sender, $"Spectate: {Runtime.DescribeHudSubject(sender)}");
     }
 
     public void OnRollDebug(ICommandContext context)
