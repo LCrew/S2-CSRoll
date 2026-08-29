@@ -431,13 +431,20 @@
 	opacity: 0.0;
 }
 
-/* The mock has no heading above the chips. Kept as a declared-but-invisible panel rather than removed,
-   since the layout still contains it and the service still writes to it. */
+/* Only shown while spectating, where it names whose modifiers these are. Your own list needs no
+   heading, so the server hides it the rest of the time. */
 .csr-track-title
 {
-	width: 0px;
-	height: 0px;
-	font-size: 0px;
+	width: 100%;
+	margin-bottom: 5px;
+	margin-left: 2px;
+	font-family: Stratum2 Condensed, 'Arial Unicode MS';
+	font-size: 12px;
+	font-weight: bold;
+	letter-spacing: 1.4px;
+	text-transform: uppercase;
+	color: #e4ae39;
+	text-shadow: 1px 1px 3px 2 rgba(0, 0, 0, 0.9);
 }
 
 .csr-row

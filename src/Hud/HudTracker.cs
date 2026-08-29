@@ -2,6 +2,9 @@ using SwiftlyS2.Shared;
 
 using CSRoll.Config;
 using CSRoll.Core;
+using SwiftlyS2.Shared.Players;
+using SwiftlyS2.Shared.SchemaDefinitions;
+
 using CSRoll.Modifiers;
 
 namespace CSRoll.Hud;
@@ -65,13 +68,44 @@ public sealed class HudTracker
 
         foreach (var player in _core.PlayerManager.GetAllValidPlayers())
         {
-            RefreshPlayer(player.Slot);
+            RefreshPlayer(player);
         }
     }
 
-    private void RefreshPlayer(int slot)
+    /// <summary>
+    /// Whoever this player's HUD should be describing: the player they are watching if they are
+    /// spectating, otherwise themselves.
+    ///
+    /// IPlayer.PlayerPawn is specifically the alive game pawn and is gone once dead, so the observer
+    /// services live on IPlayer.Pawn - the general pawn, whichever is currently active. That
+    /// distinction is the same one ModifierRuntime.RefreshSpectatorHud documents, and getting it wrong
+    /// means the lookup silently never matches.
+    /// </summary>
+    private (int Slot, string? SpectatingName) ResolveSubject(IPlayer viewer)
     {
-        var modifiers = _runtime.GetModifiersForSlot(slot);
+        if (viewer.Pawn?.ObserverServices?.ObserverTarget.Value is not { } targetEntity)
+        {
+            return (viewer.Slot, null);
+        }
+
+        var target = _core.PlayerManager.GetPlayerFromPawn(targetEntity.As<CBasePlayerPawn>());
+        if (target is not { IsValid: true, Controller: { IsValid: true } controller } || target.Slot == viewer.Slot)
+        {
+            return (viewer.Slot, null);
+        }
+
+        return (target.Slot, controller.PlayerName);
+    }
+
+    private void RefreshPlayer(IPlayer viewer)
+    {
+        var slot = viewer.Slot;
+        var (subject, spectatingName) = ResolveSubject(viewer);
+        var spectating = spectatingName is not null;
+
+        // Rows describe the SUBJECT, but are written to the VIEWER's own per-player overrides - which is
+        // what lets one layout entity show a different list to every player watching a different person.
+        var modifiers = _runtime.GetModifiersForSlot(subject);
         var budget = RowBudget;
 
         if (modifiers.Count == 0 || budget == 0)
@@ -83,6 +117,15 @@ public sealed class HudTracker
         }
 
         _hud.ShowFor(slot, HudPanelIds.Track, true);
+
+        // Named while spectating, so the list is not mistaken for your own. Hidden otherwise - your own
+        // modifiers need no label.
+        if (spectating)
+        {
+            _hud.SetTextFor(slot, HudPanelIds.TrackTitle, HudPanelIds.VarName, $"SPECTATING: {spectatingName}");
+        }
+
+        _hud.ShowFor(slot, HudPanelIds.TrackTitle, spectating);
 
         // Ordered by name and NOTHING else. Sorting timered modifiers to the top seemed friendlier, but
         // "has a timer" changes as cooldowns start and finish, so rows reshuffled mid-round - and a
@@ -117,7 +160,17 @@ public sealed class HudTracker
 
         _rowsInUse[slot] = overflowing ? listedCount + 1 : listedCount;
 
-        DrawHelper(slot, ordered);
+        // No helper card while spectating: it exists to tell you which key to press, and you cannot
+        // press anything on someone else's behalf. The tracker still describes them.
+        if (spectating)
+        {
+            _hud.ShowFor(slot, HudPanelIds.Help, false);
+            _hud.StopBarFor(slot, HudPanelIds.HelpBarPair());
+        }
+        else
+        {
+            DrawHelper(slot, ordered);
+        }
     }
 
     /// <summary>

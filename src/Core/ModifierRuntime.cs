@@ -459,6 +459,14 @@ public sealed class ModifierRuntime
             return;
         }
 
+        // The custom HUD's tracker follows the spectated player itself once it is driving the reveal, so
+        // running this as well would put the same information on screen twice, in two different places
+        // and two different styles.
+        if (Hud.Available && Config.CustomHud.ReplaceCenterHtml && Config.CustomHud.ShowTracker)
+        {
+            return;
+        }
+
         var now = _core.Engine.GlobalVars.CurrentTime;
 
         foreach (var player in _core.PlayerManager.GetAllValidPlayers())
