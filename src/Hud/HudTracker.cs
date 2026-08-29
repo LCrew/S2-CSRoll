@@ -42,6 +42,20 @@ public sealed class HudTracker
     private readonly Dictionary<int, int> _lastSubject = [];
 
     /// <summary>
+    /// When each viewer's subject was last resolved for real, so a held subject can EXPIRE.
+    ///
+    /// Holding across a failed lookup guards against flicker, but holding indefinitely is worse than the
+    /// flicker: a genuine target switch whose first lookups happen to fail would be masked by the
+    /// previous target until one succeeded, which reads as "switching does nothing until I spam the
+    /// key". Bounded to <see cref="SubjectHoldSeconds"/> - long enough to bridge a dropped tick, far too
+    /// short to hide a real switch.
+    /// </summary>
+    private readonly Dictionary<int, float> _lastSubjectAt = [];
+
+    /// <summary>How long a resolved subject may be reused after the lookup stops returning it.</summary>
+    private const float SubjectHoldSeconds = 0.5f;
+
+    /// <summary>
     /// The subject each viewer's HUD is currently DRAWN for, as opposed to the one just resolved.
     ///
     /// Needed because the roll animation is mirrored to spectators: switching target mid-reveal means
@@ -50,6 +64,10 @@ public sealed class HudTracker
     /// switch would cost you both panels at once.
     /// </summary>
     private readonly Dictionary<int, int> _shownSubject = [];
+
+    /// <summary>When each viewer was last drawn. Purely so !hudstatus can tell "the refresh loop is not
+    /// reaching you" apart from "it reached you and drew the wrong thing" - which look identical.</summary>
+    private readonly Dictionary<int, float> _lastDrawnAt = [];
 
     /// <summary>Rows currently showing something, per slot - so a row that empties gets cleared exactly
     /// once instead of being rewritten as blank on every refresh.</summary>
@@ -87,9 +105,15 @@ public sealed class HudTracker
 
         _lastRefreshTime = now;
 
-        foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+        // GetAllPlayers + our own validity check, rather than GetAllValidPlayers: what that call counts
+        // as "valid" is undocumented, and a dead spectator being filtered out of it would look exactly
+        // like this bug - a tracker drawn once and then never updated again.
+        foreach (var player in _core.PlayerManager.GetAllPlayers())
         {
-            RefreshPlayer(player);
+            if (player is { IsValid: true })
+            {
+                RefreshPlayer(player);
+            }
         }
     }
 
@@ -112,6 +136,7 @@ public sealed class HudTracker
         if (target is { IsValid: true, Controller: { IsValid: true } controller } && target.Slot != viewer.Slot)
         {
             _lastSubject[viewer.Slot] = target.Slot;
+            _lastSubjectAt[viewer.Slot] = _core.Engine.GlobalVars.CurrentTime;
             return (target.Slot, controller.PlayerName);
         }
 
@@ -120,14 +145,20 @@ public sealed class HudTracker
         // (usually empty) modifiers and hiding the panel. Only a living player genuinely means "self".
         if (!viewer.IsAlive && _lastSubject.TryGetValue(viewer.Slot, out var remembered))
         {
-            var held = _core.PlayerManager.GetPlayer(remembered);
-            if (held is { IsValid: true, Controller: { IsValid: true } heldController })
+            var heldAt = _lastSubjectAt.GetValueOrDefault(viewer.Slot, float.NegativeInfinity);
+            var age = _core.Engine.GlobalVars.CurrentTime - heldAt;
+
+            // The "age >= 0" half is the map-clock guard used throughout this codebase: a stamp from the
+            // previous map sits in the future and would otherwise hold a subject forever.
+            if (age >= 0f && age < SubjectHoldSeconds &&
+                _core.PlayerManager.GetPlayer(remembered) is { IsValid: true, Controller: { IsValid: true } heldController })
             {
                 return (remembered, heldController.PlayerName);
             }
         }
 
         _lastSubject.Remove(viewer.Slot);
+        _lastSubjectAt.Remove(viewer.Slot);
         return (viewer.Slot, null);
     }
 
@@ -171,14 +202,22 @@ public sealed class HudTracker
         var name = resolved.Controller is { IsValid: true } c ? c.PlayerName : "<no controller>";
         var (subject, spectatingName) = ResolveSubject(viewer);
 
+        var drawn = _shownSubject.TryGetValue(viewer.Slot, out var shown) ? shown.ToString() : "<never>";
+        var age = _lastDrawnAt.TryGetValue(viewer.Slot, out var at)
+            ? $"{_core.Engine.GlobalVars.CurrentTime - at:0.0}s ago"
+            : "NEVER - the refresh loop is not reaching you";
+
         return $"alive={viewer.IsAlive}; mode={services.ObserverMode}; target=slot {resolved.Slot} "
              + $"({name}); resolved subject=slot {subject} spectating={spectatingName ?? "<self>"}; "
-             + $"subject has {_runtime.GetModifiersForSlot(subject).Count} modifier(s)";
+             + $"subject has {_runtime.GetModifiersForSlot(subject).Count} modifier(s); "
+             + $"tracker last drew subject={drawn}, {age}";
     }
 
     private void RefreshPlayer(IPlayer viewer)
     {
         var slot = viewer.Slot;
+        _lastDrawnAt[slot] = _core.Engine.GlobalVars.CurrentTime;
+
         var (subject, spectatingName) = ResolveSubject(viewer);
         var spectating = spectatingName is not null;
 
@@ -537,7 +576,9 @@ public sealed class HudTracker
     {
         _rowsInUse.Remove(slot);
         _lastSubject.Remove(slot);
+        _lastSubjectAt.Remove(slot);
         _shownSubject.Remove(slot);
+        _lastDrawnAt.Remove(slot);
 
         // Also drop this slot as anyone else's remembered subject - a spectator watching someone who
         // disconnects must not keep showing their modifiers to a slot the next joiner will occupy.
@@ -552,7 +593,9 @@ public sealed class HudTracker
     {
         _rowsInUse.Clear();
         _lastSubject.Clear();
+        _lastSubjectAt.Clear();
         _shownSubject.Clear();
+        _lastDrawnAt.Clear();
         _lastRefreshTime = 0f;
     }
 }
