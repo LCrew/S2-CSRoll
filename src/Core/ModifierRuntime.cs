@@ -471,7 +471,15 @@ public sealed class ModifierRuntime
         // The custom HUD's tracker follows the spectated player itself once it is driving the reveal, so
         // running this as well would put the same information on screen twice, in two different places
         // and two different styles.
-        if (Hud.Available && Config.CustomHud.ReplaceCenterHtml && Config.CustomHud.ShowTracker)
+        //
+        // EXCEPT for viewers on the spectator team. CS2 does not deliver custom HUD state to a client
+        // that is not on a playing team: their panels keep whatever they last received while alive and
+        // discard everything sent afterwards, per-player or global. That is why a spectator's tracker
+        // froze on one modifier however hard it was re-sent. Center-HTML reaches them, so they keep it,
+        // and HudTracker stands down for exactly the same set - see its IsOnSpectatorTeam.
+        var customHudDrivesTracker = Hud.Available && Config.CustomHud.ReplaceCenterHtml && Config.CustomHud.ShowTracker;
+
+        if (customHudDrivesTracker && !Config.CustomHud.SpectatorFallbackCenterHtml)
         {
             return;
         }
@@ -490,6 +498,17 @@ public sealed class ModifierRuntime
             }
 
             var slot = player.Slot;
+
+            // When the custom HUD is otherwise in charge, this runs ONLY for the viewers it cannot
+            // reach. A dead player on a playing team still receives custom HUD state and keeps the
+            // tracker; drawing center-HTML for them too would put the same list on screen twice.
+            if (customHudDrivesTracker
+                && player.Controller is { IsValid: true } viewerController
+                && viewerController.Team is Team.T or Team.CT)
+            {
+                continue;
+            }
+
             if (_lastSpectatorHudUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < Config.SpectatorHud.RefreshIntervalSeconds)
             {
                 continue;

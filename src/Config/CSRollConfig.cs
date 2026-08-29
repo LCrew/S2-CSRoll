@@ -804,6 +804,21 @@ public class CustomHudConfig
     public float CountdownRefreshIntervalSeconds { get; set; } = 0.25f;
 
     /// <summary>
+    /// Show the old center-HTML spectator readout to players on the spectator team, instead of the
+    /// custom HUD's tracker.
+    ///
+    /// CS2 does not deliver custom HUD state to a client that is not on a playing team. Their panels
+    /// keep whatever they last received and every subsequent write - per-player or global, forced or
+    /// not - is discarded, which is why a spectator's tracker froze on one modifier and no amount of
+    /// re-sending moved it. That is a property of the game, not something this plugin can write its
+    /// way out of.
+    ///
+    /// Center-HTML has no such restriction, so spectators go back to the surface that reaches them. Set
+    /// false only to confirm the behaviour yourself, or if a future CS2 build fixes it.
+    /// </summary>
+    public bool SpectatorFallbackCenterHtml { get; set; } = true;
+
+    /// <summary>
     /// Seconds between attempts to (re)create the layout entity when it is missing. After several
     /// consecutive failures the service gives up for the rest of the map rather than retrying forever.
     /// </summary>

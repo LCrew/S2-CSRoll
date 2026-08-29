@@ -342,9 +342,50 @@ public sealed class HudTracker
 
 
 
+    /// <summary>
+    /// Viewers on the spectator team, and whether their panels have already been told to clear.
+    ///
+    /// See <see cref="CustomHudConfig.SpectatorFallbackCenterHtml"/> - CS2 stops delivering custom HUD
+    /// state to a client that is not on a playing team, so anything drawn for them from here is
+    /// discarded and they keep whatever they last received while alive.
+    /// </summary>
+    private readonly HashSet<int> _clearedForSpectatorTeam = [];
+
+    /// <summary>
+    /// True when this viewer is on the spectator team, where custom HUD writes do not reach them.
+    ///
+    /// Deliberately NOT "is dead". A dead player on a playing team still receives HUD state, and
+    /// treating them as unreachable would take the tracker away from most of the server for most of
+    /// every round.
+    /// </summary>
+    private static bool IsOnSpectatorTeam(IPlayer viewer)
+        => viewer.Controller is { IsValid: true } controller
+        && controller.Team is not (Team.T or Team.CT);
+
     private void RefreshPlayer(IPlayer viewer)
     {
         var slot = viewer.Slot;
+
+        if (Cfg.SpectatorFallbackCenterHtml && IsOnSpectatorTeam(viewer))
+        {
+            // One clearing pass, on the transition. It is issued the moment they are seen on the
+            // spectator team, which is the last point at which a write to them might still land - and
+            // if it does not, the panels were already beyond reach and nothing here made it worse.
+            // Repeating it every refresh would just be writes into the void.
+            if (_clearedForSpectatorTeam.Add(slot))
+            {
+                BlankRows(slot);
+                ClearMirroredReveal(slot);
+                _hud.ShowFor(slot, HudPanelIds.Track, false);
+                _hud.ShowFor(slot, HudPanelIds.Help, false);
+            }
+
+            _shownSubject.Remove(slot);
+            _lastOutcome[slot] = "spectator team - center-HTML has this viewer";
+            return;
+        }
+
+        _clearedForSpectatorTeam.Remove(slot);
 
         // A probe is on screen; leave every row exactly as the probe left it until it expires.
         if (_probeHoldUntil.TryGetValue(slot, out var heldUntil))
@@ -866,10 +907,20 @@ public sealed class HudTracker
 
         foreach (var (viewer, subject) in _lastSubject)
         {
-            if (subject == subjectSlot && viewer != subjectSlot)
+            if (subject != subjectSlot || viewer == subjectSlot)
             {
-                yield return viewer;
+                continue;
             }
+
+            // Skip viewers the custom HUD cannot reach - see IsOnSpectatorTeam. Mirroring a roll to them
+            // writes ~50 per-player overrides per reveal that the client will never apply, and every one
+            // of them is lasting entity state.
+            if (_clearedForSpectatorTeam.Contains(viewer))
+            {
+                continue;
+            }
+
+            yield return viewer;
         }
     }
 
