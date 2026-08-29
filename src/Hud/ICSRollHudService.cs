@@ -12,11 +12,15 @@ namespace CSRoll.Hud;
 /// modifier files.
 ///
 /// THREAD SAFETY: every method here is main-thread only and uses the synchronous (non-Async) entity
-/// setters. That is not a limitation in practice - OnTick, HookPost&lt;EventRoundStart&gt; and
-/// Scheduler.DelayBySeconds callbacks all run on the main thread, and the paths that don't (menu
-/// selections, command handlers) already hop through Core.Scheduler.NextWorldUpdate before touching
-/// the runtime at all. Any future off-thread caller must do the same rather than reaching for the
-/// Async variants piecemeal.
+/// setters. OnTick, HookPost&lt;EventRoundStart&gt; and Scheduler.DelayBySeconds callbacks all run
+/// there; command and menu handlers do NOT, and must hop through Core.Scheduler.NextWorldUpdate first
+/// rather than reaching for the Async variants piecemeal.
+///
+/// That hop is not a formality. Off the main thread these setters fail SILENTLY - no exception, so
+/// nothing is logged and the caller reports success. Two diagnostic commands were written without it
+/// and spent several rounds producing confident, entirely fictional evidence: a test notice that never
+/// appeared and a probe value that never landed, both read as proof that the client was ignoring
+/// per-player writes. Anything here that appears to do nothing is worth checking against this first.
 /// </summary>
 public interface ICSRollHudService
 {

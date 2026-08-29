@@ -232,24 +232,39 @@ public partial class CSRoll
             return;
         }
 
-        // Deliberately NOT drawn into tracker row 0 any more. Doing so overwrote whatever the tracker
-        // had put there and left "HUD test" as the last value sent, which then masked the very staleness
-        // this command exists to investigate. The notice line is unused by anything else, so it can be
-        // borrowed without disturbing state.
-        Runtime.Hud.ShowNoticeFor(sender.Slot, "CSROLL HUD TEST", 10f);
+        // ON THE MAIN THREAD, like every other entity write in this plugin.
+        //
+        // Command handlers do not run there, and the layout entity's setters are documented thread
+        // unsafe - they fail silently off-thread rather than throwing, so Guard never saw anything and
+        // the command cheerfully reported success. That is why the test notice never appeared, and the
+        // absence of that notice was then read as evidence that per-player writes do not reach
+        // spectators. It was evidence about this command.
+        Core.Scheduler.NextWorldUpdate(() =>
+        {
+            if (!sender.IsValid)
+            {
+                return;
+            }
 
-        CSRollUtils.PrintTitleToChat(Core, sender,
-            "Showed a 10s test notice on your HUD. If you can't see it, your client doesn't have the HUD Workshop addon - do NOT enable CustomHud.ReplaceCenterHtml.");
+            // Deliberately NOT drawn into tracker row 0. Doing so overwrote whatever the tracker had put
+            // there and left "HUD test" as the last value sent, which then masked the very staleness
+            // this command exists to investigate. The notice line is unused by anything else, so it can
+            // be borrowed without disturbing state.
+            Runtime.Hud.ShowNoticeFor(sender.Slot, "CSROLL HUD TEST", 10f);
 
-        // Spectator resolution has several silent failure points that all look the same from outside, so
-        // report every step rather than leaving it to be inferred from what does or does not render.
-        CSRollUtils.PrintTitleToChat(Core, sender, $"Spectate: {Runtime.DescribeHudSubject(sender)}");
+            CSRollUtils.PrintTitleToChat(Core, sender,
+                "Showed a 10s test notice on your HUD. If you can't see it, your client doesn't have the HUD Workshop addon - do NOT enable CustomHud.ReplaceCenterHtml.");
 
-        // reveal-active hides the tracker outright, so when the tracker is missing this is the first
-        // thing worth ruling out.
-        var revealActive = Runtime.Hud.IsClassSetFor(sender.Slot, HudPanelIds.Root, HudClasses.RevealActive);
-        CSRollUtils.PrintTitleToChat(Core, sender,
-            $"reveal-active on your root: {revealActive} (true here means the tracker is being hidden on purpose)");
+            // Spectator resolution has several silent failure points that all look the same from
+            // outside, so report every step rather than leaving it to be inferred from what renders.
+            CSRollUtils.PrintTitleToChat(Core, sender, $"Spectate: {Runtime.DescribeHudSubject(sender)}");
+
+            // reveal-active hides the tracker outright, so when the tracker is missing this is the first
+            // thing worth ruling out.
+            var revealActive = Runtime.Hud.IsClassSetFor(sender.Slot, HudPanelIds.Root, HudClasses.RevealActive);
+            CSRollUtils.PrintTitleToChat(Core, sender,
+                $"reveal-active on your root: {revealActive} (true here means the tracker is being hidden on purpose)");
+        });
     }
 
     /// <summary>
@@ -274,13 +289,24 @@ public partial class CSRoll
             return;
         }
 
-        var token = Runtime.ProbeHud(sender.Slot);
-        var readback = Runtime.ProbeHudReadback(sender.Slot);
+        // Main thread, for the same reason as !hudstatus - and this command is the one that most needs
+        // it, since a probe that silently writes nothing looks exactly like a client that ignores what
+        // it is sent.
+        Core.Scheduler.NextWorldUpdate(() =>
+        {
+            if (!sender.IsValid)
+            {
+                return;
+            }
 
-        CSRollUtils.PrintTitleToChat(Core, sender,
-            $"Wrote \"{token}\" into your tracker's FIRST ROW and froze the tracker for 12s. Entity reads back \"{readback}\".");
-        CSRollUtils.PrintTitleToChat(Core, sender,
-            "Look at the tracker chip under the radar. If it says the same token, per-player writes reach you and the bug is in what the tracker draws. If it still shows a modifier name, per-player writes are not being applied to your client at all.");
+            var token = Runtime.ProbeHud(sender.Slot);
+            var readback = Runtime.ProbeHudReadback(sender.Slot);
+
+            CSRollUtils.PrintTitleToChat(Core, sender,
+                $"Wrote \"{token}\" into your tracker's FIRST ROW and froze the tracker for 12s. Entity reads back \"{readback}\".");
+            CSRollUtils.PrintTitleToChat(Core, sender,
+                "Look at the tracker chip under the radar. If it says the same token, per-player writes reach you and the bug is in what the tracker draws. If it still shows a modifier name, per-player writes are not being applied to your client at all.");
+        });
     }
 
     public void OnRollDebug(ICommandContext context)
