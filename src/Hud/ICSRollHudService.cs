@@ -45,8 +45,21 @@ public interface ICSRollHudService
     /// <summary>Sets a dialog-variable string for everyone. `{s:variable}` on the panel with this id.</summary>
     void SetText(string panelId, string variable, string value);
 
-    /// <summary>Sets a dialog-variable string that only this player sees, overriding the global value.</summary>
-    void SetTextFor(int slot, string panelId, string variable, string value);
+    /// <summary>
+    /// Sets a dialog-variable string that only this player sees, overriding the global value.
+    /// </summary>
+    /// <param name="force">
+    /// Re-send even when the cache says the value is unchanged.
+    ///
+    /// The cache exists so an idle HUD costs nothing, and it assumes every write it issues arrives. When
+    /// one does not, it becomes the reason the client never recovers: it believes the client already has
+    /// the value and skips the write forever. That is exactly what left a spectator looking at the
+    /// previous player's modifier while the server reported having sent the right one.
+    ///
+    /// Use it where correctness matters more than the write count - the spectator view, which is
+    /// re-derived from scratch each refresh anyway - and leave it off everywhere else.
+    /// </param>
+    void SetTextFor(int slot, string panelId, string variable, string value, bool force = false);
 
     // --- classes ----------------------------------------------------------------------------------
 

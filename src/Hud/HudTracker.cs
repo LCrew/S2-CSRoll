@@ -482,9 +482,11 @@ public sealed class HudTracker
         _hud.ShowFor(slot, HudPanelIds.Row(row), true);
         _hud.SetClassFor(slot, HudPanelIds.Row(row), HudClasses.Active, true);
         _hud.SetClassFor(slot, HudPanelIds.Row(row), HudClasses.Overflow, false);
-        _hud.SetTextFor(slot, HudPanelIds.RowName(row), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier));
+        // Forced for the same reason as the spectator card: a lost write must repair itself rather than
+        // being masked by the cache. Row content is a handful of strings, so re-sending costs little.
+        _hud.SetTextFor(slot, HudPanelIds.RowName(row), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier), force: true);
 
-        _hud.SetTextFor(slot, HudPanelIds.RowIcon(row), HudPanelIds.VarName, presentation.Glyph);
+        _hud.SetTextFor(slot, HudPanelIds.RowIcon(row), HudPanelIds.VarName, presentation.Glyph, force: true);
         _hud.SetClassGroupFor(slot, HudPanelIds.RowIcon(row), HudClasses.GroupAccent, presentation.AccentClass);
         _hud.SetClassGroupFor(slot, HudPanelIds.Row(row), HudClasses.GroupAccent, presentation.AccentClass);
 
@@ -610,8 +612,10 @@ public sealed class HudTracker
     {
         var shown = Math.Min(ordered.Count, HudPanelIds.Cards);
 
-        _hud.SetTextFor(slot, HudPanelIds.RevealTitle, HudPanelIds.VarName,
-            shown == 1 ? "SPECTATING" : "SPECTATING");
+        // Every text write here is FORCED. The spectator view is re-derived from scratch on each
+        // refresh, so re-sending is cheap, and it means a single lost write repairs itself on the next
+        // tick instead of persisting until something else happens to change the value.
+        _hud.SetTextFor(slot, HudPanelIds.RevealTitle, HudPanelIds.VarName, "SPECTATING", force: true);
 
         for (var card = 0; card < HudPanelIds.Cards; card++)
         {
@@ -625,14 +629,14 @@ public sealed class HudTracker
             var presentation = _runtime.HudPresentation.For(modifier.Name);
 
             _hud.ShowFor(slot, HudPanelIds.Card(card), true);
-            _hud.SetTextFor(slot, HudPanelIds.CardName(card), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier));
-            _hud.SetTextFor(slot, HudPanelIds.CardIcon(card), HudPanelIds.VarName, presentation.Glyph);
+            _hud.SetTextFor(slot, HudPanelIds.CardName(card), HudPanelIds.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier), force: true);
+            _hud.SetTextFor(slot, HudPanelIds.CardIcon(card), HudPanelIds.VarName, presentation.Glyph, force: true);
             _hud.SetClassGroupFor(slot, HudPanelIds.CardIcon(card), HudClasses.GroupAccent, presentation.AccentClass);
             _hud.SetClassGroupFor(slot, HudPanelIds.Card(card), HudClasses.GroupAccent, presentation.AccentClass);
 
             // Chat colour tokens would render literally in a Panorama label - same strip the sequencer does.
             var description = CSRollUtils.PlainTextFromChatColors(CSRollUtils.GetModifierDescription(_core, modifier));
-            _hud.SetTextFor(slot, HudPanelIds.CardDesc(card), HudPanelIds.VarDesc, description);
+            _hud.SetTextFor(slot, HudPanelIds.CardDesc(card), HudPanelIds.VarDesc, description, force: true);
         }
 
         var hidden = ordered.Count - shown;

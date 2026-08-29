@@ -503,9 +503,18 @@ public sealed class CSRollHudService : ICSRollHudService
         Guard(panelId, () => _layout!.SetDialogVariableString(panelId, variable, value));
     }
 
-    public void SetTextFor(int slot, string panelId, string variable, string value)
+    public void SetTextFor(int slot, string panelId, string variable, string value, bool force = false)
     {
-        if (!Available || !TrySetDirty(_textState, (slot, panelId, variable), value))
+        if (!Available)
+        {
+            return;
+        }
+
+        // TrySetDirty still runs when forcing, so the cache stays accurate for anything that reads it -
+        // it just no longer decides whether the write happens.
+        var changed = TrySetDirty(_textState, (slot, panelId, variable), value);
+
+        if (!changed && !force)
         {
             return;
         }
