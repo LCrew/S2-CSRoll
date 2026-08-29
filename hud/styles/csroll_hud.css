@@ -176,7 +176,7 @@
 	/* Fixed height, not auto - Panorama cannot transition to or from auto, and the collapse below
 	   needs two concrete values. Anything longer than this clips rather than growing the panel, which
 	   is why the description is capped to two lines. */
-	height: 122px;
+	height: 110px;
 	overflow: clip clip;
 
 	opacity: 0.0;
@@ -188,7 +188,7 @@
 .csr-reveal.reveal-in
 {
 	opacity: 1.0;
-	height: 122px;
+	height: 110px;
 }
 
 /*
@@ -205,7 +205,7 @@
 */
 .csr-reveal.reveal-in.spinning
 {
-	height: 62px;
+	height: 80px;
 }
 
 /*
@@ -277,7 +277,8 @@
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-size: 16px;
 	font-weight: bold;
-	color: #f3f6fb;
+	color: #ffffff;
+	text-shadow: 1px 1px 4px 3 rgba(0, 0, 0, 0.95);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 }
@@ -356,7 +357,12 @@
 	margin-bottom: 5px;
 	padding: 11px 13px;
 	background-color: gradient(linear, 75% 100%, 0% 0%, from(rgba(8, 14, 20, 0.45)), to(rgba(14, 22, 30, 0.45)));
-	border: 1px solid rgba(255, 255, 255, 0.06);
+	/* Identical texture to .csr-reveal. It only had it on the reveal, so the chip read as a different
+	   component rather than the same panel collapsed. */
+	background-image: url("s2r://panorama/images/backgrounds/bluedots_large_png.vtex");
+	background-size: 360px 360px;
+	background-img-opacity: 0.020;
+	border: 1px solid rgba(255, 255, 255, 0.07);
 	border-left: 3px solid #8899aa;
 	border-radius: 2px;
 	box-shadow: rgba(0, 0, 0, 0.38) 0px 2px 10px 0px;
