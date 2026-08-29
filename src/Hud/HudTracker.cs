@@ -226,11 +226,19 @@ public sealed class HudTracker
 
         var sent = _hud.GetSentTextFor(viewer.Slot, HudPanelIds.RowName(0), HudPanelIds.VarName) ?? "<nothing>";
 
+        // The value the ENTITY is holding, not the one this plugin believes it sent. When those two
+        // agree and the screen still disagrees, the write reached the entity and the client did not
+        // apply it - and no amount of re-sending from here will change that. When they disagree, the
+        // setter is dropping the write and the fix is on the server side. Nothing else separates them.
+        var live = _hud.GetLiveTextFor(viewer.Slot, HudPanelIds.RowName(0), HudPanelIds.VarName) ?? "<unset>";
+
         return $"alive={viewer.IsAlive}; mode={services.ObserverMode}; target=slot {resolved.Slot} "
              + $"({name}); resolved=slot {subject} ({spectatingName ?? "<self>"}); "
              + $"their modifiers=[{string.Join(", ", expected)}]; "
-             + $"row0 last sent=\"{sent}\"; last drew subject={drawn}, {age}; "
-             + $"outcome={_lastOutcome.GetValueOrDefault(viewer.Slot, "<none>")}";
+             + $"row0 sent=\"{sent}\" entity=\"{live}\"; reveal owner={_hud.RevealOwnerOf(viewer.Slot)}; "
+             + $"last drew subject={drawn}, {age}; "
+             + $"outcome={_lastOutcome.GetValueOrDefault(viewer.Slot, "<none>")}; "
+             + $"{_hud.DescribeLoad()}";
     }
 
     private void RefreshPlayer(IPlayer viewer)
@@ -246,7 +254,13 @@ public sealed class HudTracker
         // A change of subject invalidates anything mirrored from the previous one.
         if (_shownSubject.TryGetValue(slot, out var previous) && previous != subject)
         {
-            ClearMirroredReveal(slot);
+            // Not while a roll owns the card: switching onto someone who is mid-spin should join their
+            // animation, not wipe it. The sequencer recomputes its viewer set on every write, so the
+            // new watcher is already being written to by the time this runs.
+            if (_hud.RevealOwnerOf(slot) != HudRevealOwner.Roll)
+            {
+                ClearMirroredReveal(slot);
+            }
 
             // Blank the rows and skip drawing for one tick before repopulating them.
             //
@@ -333,14 +347,28 @@ public sealed class HudTracker
         // rolled - switch to them a second later and there was no card, because nothing recreates one
         // after the fact. Drawing it here makes it a property of who you are watching rather than of
         // when you started watching, which is what "always visible" actually requires.
-        if (spectating)
+        var owner = _hud.RevealOwnerOf(slot);
+
+        if (owner == HudRevealOwner.Roll)
+        {
+            // A roll is animating on these exact panels. Leave every one of them alone - the sequencer
+            // is mid-sequence and anything written here fights it.
+            //
+            // This is what was killing the description card. The old test was "is the reveal panel
+            // visible", which is true during a roll as much as it is for a held spectator card, so the
+            // branch below fired on the refresh immediately after the card appeared and tore it down
+            // within a tenth of a second - for the rolling player just as much as for a spectator.
+        }
+        else if (spectating)
         {
             DrawSpectatorCard(slot, ordered);
+            _hud.ClaimReveal(slot, HudRevealOwner.Spectator);
         }
-        else if (!_hud.IsClassSetFor(slot, HudPanelIds.Reveal, HudClasses.Hidden))
+        else if (owner == HudRevealOwner.Spectator)
         {
-            // Respawned, or switched back to themselves, while a held spectator card was still up. It
-            // never closes on its own, so something has to close it.
+            // Respawned, or switched back to themselves, while a card this tracker was holding is still
+            // up. It never closes on its own, so something has to close it - and only the writer that
+            // opened it may.
             ClearMirroredReveal(slot);
         }
 
@@ -350,9 +378,11 @@ public sealed class HudTracker
         // Except while a held reveal card is still up. Spectators keep that card rather than watching it
         // collapse, and it occupies the same slot as the helper, so drawing both would stack two panels
         // on the same pixels.
-        var revealStillUp = !_hud.IsClassSetFor(slot, HudPanelIds.Reveal, HudClasses.Hidden);
+        // Any owned card occupies the helper's slot, whether it is a live roll or a held spectator card,
+        // so the helper stands down for both rather than stacking two panels on the same pixels.
+        var revealStillUp = _hud.RevealOwnerOf(slot) != HudRevealOwner.None;
 
-        if (revealStillUp && spectating)
+        if (revealStillUp)
         {
             _hud.ShowFor(slot, HudPanelIds.Help, false);
             _hud.StopBarFor(slot, HudPanelIds.HelpBarPair());
@@ -694,6 +724,7 @@ public sealed class HudTracker
         _hud.SetClassFor(slot, HudPanelIds.Reveal, HudClasses.RevealOut, false);
         _hud.SetClassFor(slot, HudPanelIds.Reveal, HudClasses.Spinning, false);
         _hud.SetClassFor(slot, HudPanelIds.Root, HudClasses.RevealActive, false);
+        _hud.ClaimReveal(slot, HudRevealOwner.None);
     }
 
     /// <summary>

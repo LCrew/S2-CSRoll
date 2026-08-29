@@ -167,6 +167,42 @@ public interface ICSRollHudService
     /// </summary>
     string? GetSentTextFor(int slot, string panelId, string variable);
 
+    // --- reveal ownership -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Records which subsystem owns the reveal card on this viewer's screen. See <see cref="HudRevealOwner"/>.
+    ///
+    /// Pure bookkeeping - it writes nothing to the entity. It exists so the two writers can tell each
+    /// other apart rather than guessing from panel state, which they cannot do correctly.
+    /// </summary>
+    void ClaimReveal(int slot, HudRevealOwner owner);
+
+    /// <inheritdoc cref="ClaimReveal"/>
+    HudRevealOwner RevealOwnerOf(int slot);
+
+    // --- diagnostics ------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Reads a per-player dialog variable back OUT of the layout entity.
+    ///
+    /// Unlike <see cref="GetSentTextFor"/>, which reports what this service believes it sent, this is
+    /// the value the entity itself is holding. Comparing the two splits the one question that has been
+    /// impossible to answer from the server side: when the screen shows the wrong text, did the write
+    /// never reach the entity, or did it reach the entity and never reach the client? Those have
+    /// completely different fixes and nothing else distinguishes them.
+    /// </summary>
+    string? GetLiveTextFor(int slot, string panelId, string variable);
+
+    /// <summary>
+    /// How much per-player state the HUD is currently holding: override counts by kind, and the number
+    /// of distinct slots they are spread across.
+    ///
+    /// Every per-player override is networked entity state, and this HUD writes far more of it than the
+    /// single center-HTML string it replaced. If the client is silently dropping overrides past some
+    /// capacity, the count is the first place that would show.
+    /// </summary>
+    string DescribeLoad();
+
     /// <summary>Hides a player's notice immediately.</summary>
     void ClearNoticeFor(int slot);
 

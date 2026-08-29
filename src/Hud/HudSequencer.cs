@@ -119,6 +119,10 @@ public sealed class HudSequencer
         SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealOut, false);
         SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealIn, true);
 
+        // The card is ours from here until the collapse releases it. The tracker refreshes ten times a
+        // second over the same panels, so without this claim it would clear the card mid-spin.
+        ClaimReveal(slot, broadcast, HudRevealOwner.Roll);
+
         PlaySpinFrame(slot, broadcast, 0, Config.SpinReveal.SpinCount, modifiers, onRevealed, generation);
     }
 
@@ -278,6 +282,13 @@ public sealed class HudSequencer
 
                 HideRevealSelf(slot, broadcast);
 
+                // Released for every viewer, though only the rolling player's card is hidden. A
+                // spectator keeps a visible card that now belongs to nobody, which is exactly the state
+                // the tracker needs in order to adopt it on its next refresh and start maintaining it
+                // as a property of who they are watching. Holding the claim instead would freeze that
+                // card on whoever happened to be rolling when they started watching.
+                ClaimReveal(slot, broadcast, HudRevealOwner.None);
+
                 // The tracker stays suppressed for a beat after the card has gone - see
                 // TrackerReturnDelaySeconds. reveal-active is what holds it back, so it is cleared
                 // late rather than here.
@@ -300,6 +311,7 @@ public sealed class HudSequencer
 
     private void HideReveal(int? slot, bool broadcast)
     {
+        ClaimReveal(slot, broadcast, HudRevealOwner.None);
         Show(slot, broadcast, HudPanelIds.Reveal, false);
         Show(slot, broadcast, HudPanelIds.Spin, false);
         SetClass(slot, broadcast, HudPanelIds.Reveal, HudClasses.RevealIn, false);
@@ -402,6 +414,30 @@ public sealed class HudSequencer
         foreach (var viewer in _runtime.HudViewersOf(slot!.Value))
         {
             _hud.SetClassGroupFor(viewer, panelId, groupKey, className);
+        }
+    }
+
+    /// <summary>
+    /// Records the reveal claim across the same viewer set the writes go to, so a spectator who joined
+    /// mid-spin is covered by the claim as well as by the animation.
+    ///
+    /// A broadcast roll shows one shared card to everyone, so it claims for every connected player.
+    /// </summary>
+    private void ClaimReveal(int? slot, bool broadcast, HudRevealOwner owner)
+    {
+        if (broadcast)
+        {
+            foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+            {
+                _hud.ClaimReveal(player.Slot, owner);
+            }
+
+            return;
+        }
+
+        foreach (var viewer in _runtime.HudViewersOf(slot!.Value))
+        {
+            _hud.ClaimReveal(viewer, owner);
         }
     }
 

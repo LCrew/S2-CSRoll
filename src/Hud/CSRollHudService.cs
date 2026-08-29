@@ -831,6 +831,57 @@ public sealed class CSRollHudService : ICSRollHudService
         RemoveWhere(_barRuns, k => k.Slot == slot);
         RemoveWhere(_countdowns, k => k.Slot == slot);
         _noticeUntil.Remove(slot);
+        _revealOwner.Remove(slot);
+    }
+
+    private readonly Dictionary<int, HudRevealOwner> _revealOwner = [];
+
+    public void ClaimReveal(int slot, HudRevealOwner owner)
+    {
+        if (owner == HudRevealOwner.None)
+        {
+            _revealOwner.Remove(slot);
+            return;
+        }
+
+        _revealOwner[slot] = owner;
+    }
+
+    public HudRevealOwner RevealOwnerOf(int slot)
+        => _revealOwner.GetValueOrDefault(slot, HudRevealOwner.None);
+
+    public string? GetLiveTextFor(int slot, string panelId, string variable)
+    {
+        if (!Available)
+        {
+            return null;
+        }
+
+        try
+        {
+            return _layout!.GetDialogVariableStringForPlayer(slot, panelId, variable);
+        }
+        catch (Exception ex)
+        {
+            return $"<read failed: {ex.GetType().Name}>";
+        }
+    }
+
+    public string DescribeLoad()
+    {
+        var slots = _textState.Keys.Where(k => k.Scope != GlobalScope).Select(k => k.Scope)
+            .Concat(_classState.Keys.Where(k => k.Scope != GlobalScope).Select(k => k.Scope))
+            .Distinct()
+            .Count();
+
+        var perPlayerText = _textState.Keys.Count(k => k.Scope != GlobalScope);
+        var perPlayerClass = _classState.Keys.Count(k => k.Scope != GlobalScope);
+        var globalText = _textState.Keys.Count(k => k.Scope == GlobalScope);
+        var globalClass = _classState.Keys.Count(k => k.Scope == GlobalScope);
+
+        return $"overrides: {perPlayerText} text + {perPlayerClass} class across {slots} slot(s); "
+             + $"global: {globalText} text + {globalClass} class; "
+             + $"bars={_barRuns.Count}, countdowns={_countdowns.Count}";
     }
 
     public void ResetAll()
@@ -848,6 +899,7 @@ public sealed class CSRollHudService : ICSRollHudService
         _noticeUntil.Clear();
         _lastCountdownPumpTime = 0f;
         _nextCreateAttemptAt = 0f;
+        _revealOwner.Clear();
     }
 
     // -------------------------------------------------------------------------------------------------
