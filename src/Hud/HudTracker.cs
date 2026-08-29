@@ -207,10 +207,19 @@ public sealed class HudTracker
             ? $"{_core.Engine.GlobalVars.CurrentTime - at:0.0}s ago"
             : "NEVER - the refresh loop is not reaching you";
 
+        // What the subject SHOULD show, and what was last actually sent to this viewer's row 0. If those
+        // disagree the drawing is wrong; if they agree and the screen still differs, the write is not
+        // arriving - and nothing short of comparing them can tell which.
+        var expected = _runtime.GetModifiersForSlot(subject)
+            .Select(m => CSRollUtils.GetModifierDisplayName(_core, m))
+            .ToList();
+
+        var sent = _hud.GetSentTextFor(viewer.Slot, HudPanelIds.RowName(0), HudPanelIds.VarName) ?? "<nothing>";
+
         return $"alive={viewer.IsAlive}; mode={services.ObserverMode}; target=slot {resolved.Slot} "
-             + $"({name}); resolved subject=slot {subject} spectating={spectatingName ?? "<self>"}; "
-             + $"subject has {_runtime.GetModifiersForSlot(subject).Count} modifier(s); "
-             + $"tracker last drew subject={drawn}, {age}";
+             + $"({name}); resolved=slot {subject} ({spectatingName ?? "<self>"}); "
+             + $"their modifiers=[{string.Join(", ", expected)}]; "
+             + $"row0 last sent=\"{sent}\"; last drew subject={drawn}, {age}";
     }
 
     private void RefreshPlayer(IPlayer viewer)

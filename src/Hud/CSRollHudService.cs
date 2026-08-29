@@ -773,6 +773,9 @@ public sealed class CSRollHudService : ICSRollHudService
         _noticeUntil[slot] = _core.Engine.GlobalVars.CurrentTime + Math.Max(0.1f, seconds);
     }
 
+    public string? GetSentTextFor(int slot, string panelId, string variable)
+        => _textState.TryGetValue((slot, panelId, variable), out var value) ? value : null;
+
     public bool IsClassSetFor(int slot, string panelId, string className)
         => _classState.TryGetValue((slot, panelId, className), out var on) && on;
 

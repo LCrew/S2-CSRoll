@@ -145,6 +145,15 @@ public interface ICSRollHudService
     /// </summary>
     bool IsClassSetFor(int slot, string panelId, string className);
 
+    /// <summary>
+    /// The last value the service SENT for a dialog variable, or null if it never sent one.
+    ///
+    /// Diagnostic only, and deliberately the cache rather than a read-back: when a panel shows the wrong
+    /// text, the question is whether the server sent the right thing and it did not arrive, or the
+    /// server sent the wrong thing. Nothing else can tell those apart.
+    /// </summary>
+    string? GetSentTextFor(int slot, string panelId, string variable);
+
     /// <summary>Hides a player's notice immediately.</summary>
     void ClearNoticeFor(int slot);
 
