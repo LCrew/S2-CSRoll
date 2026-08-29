@@ -216,6 +216,9 @@ public sealed class ModifierRuntime
     private readonly HudTracker _hudTracker;
     private readonly HudSequencer _hudSequencer;
 
+    /// <summary>Everyone whose HUD should mirror this slot: the player, plus anyone spectating them.</summary>
+    internal IEnumerable<int> HudViewersOf(int slot) => _hudTracker.ViewersOf(slot);
+
     /// <summary>Diagnostic passthrough for !hudstatus - see HudTracker.DescribeSubject.</summary>
     public string DescribeHudSubject(SwiftlyS2.Shared.Players.IPlayer viewer) => _hudTracker.DescribeSubject(viewer);
 

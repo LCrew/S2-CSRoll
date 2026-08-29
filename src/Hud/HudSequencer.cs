@@ -314,15 +314,25 @@ public sealed class HudSequencer
     // broadcast path is genuinely one write per panel rather than one per player.
     // ---------------------------------------------------------------------------------------------
 
+    // Every per-player write below goes to the rolling player AND to anyone spectating them, so a
+    // spectator sees the same roll and reveal rather than an empty screen. Per-player dialog variables
+    // are addressed by viewer, so mirroring is just writing the same value to more than one slot.
+    //
+    // The viewer set is recomputed on each write rather than captured at the start of the roll: a
+    // spectator who switches to this player mid-spin picks the animation up from wherever it has got
+    // to, and one who switches away stops being written to.
+
     private void SetText(int? slot, bool broadcast, string panelId, string variable, string value)
     {
         if (broadcast)
         {
             _hud.SetText(panelId, variable, value);
+            return;
         }
-        else
+
+        foreach (var viewer in _runtime.HudViewersOf(slot!.Value))
         {
-            _hud.SetTextFor(slot!.Value, panelId, variable, value);
+            _hud.SetTextFor(viewer, panelId, variable, value);
         }
     }
 
@@ -331,10 +341,12 @@ public sealed class HudSequencer
         if (broadcast)
         {
             _hud.SetClass(panelId, className, on);
+            return;
         }
-        else
+
+        foreach (var viewer in _runtime.HudViewersOf(slot!.Value))
         {
-            _hud.SetClassFor(slot!.Value, panelId, className, on);
+            _hud.SetClassFor(viewer, panelId, className, on);
         }
     }
 
@@ -343,10 +355,12 @@ public sealed class HudSequencer
         if (broadcast)
         {
             _hud.SetClassGroup(panelId, groupKey, className);
+            return;
         }
-        else
+
+        foreach (var viewer in _runtime.HudViewersOf(slot!.Value))
         {
-            _hud.SetClassGroupFor(slot!.Value, panelId, groupKey, className);
+            _hud.SetClassGroupFor(viewer, panelId, groupKey, className);
         }
     }
 
@@ -355,10 +369,12 @@ public sealed class HudSequencer
         if (broadcast)
         {
             _hud.Show(panelId, visible);
+            return;
         }
-        else
+
+        foreach (var viewer in _runtime.HudViewersOf(slot!.Value))
         {
-            _hud.ShowFor(slot!.Value, panelId, visible);
+            _hud.ShowFor(viewer, panelId, visible);
         }
     }
 }

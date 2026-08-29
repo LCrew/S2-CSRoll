@@ -41,6 +41,16 @@ public sealed class HudTracker
     /// </summary>
     private readonly Dictionary<int, int> _lastSubject = [];
 
+    /// <summary>
+    /// The subject each viewer's HUD is currently DRAWN for, as opposed to the one just resolved.
+    ///
+    /// Needed because the roll animation is mirrored to spectators: switching target mid-reveal means
+    /// the old player's remaining frames stop being written to you, which would strand a half-finished
+    /// reveal card on screen with reveal-active still set - and reveal-active hides the tracker, so the
+    /// switch would cost you both panels at once.
+    /// </summary>
+    private readonly Dictionary<int, int> _shownSubject = [];
+
     /// <summary>Rows currently showing something, per slot - so a row that empties gets cleared exactly
     /// once instead of being rewritten as blank on every refresh.</summary>
     private readonly Dictionary<int, int> _rowsInUse = [];
@@ -174,6 +184,14 @@ public sealed class HudTracker
 
         // Rows describe the SUBJECT, but are written to the VIEWER's own per-player overrides - which is
         // what lets one layout entity show a different list to every player watching a different person.
+        // A change of subject invalidates anything mirrored from the previous one.
+        if (_shownSubject.TryGetValue(slot, out var previous) && previous != subject)
+        {
+            ClearMirroredReveal(slot);
+        }
+
+        _shownSubject[slot] = subject;
+
         var modifiers = _runtime.GetModifiersForSlot(subject);
         var budget = RowBudget;
 
@@ -229,17 +247,10 @@ public sealed class HudTracker
 
         _rowsInUse[slot] = overflowing ? listedCount + 1 : listedCount;
 
-        // No helper card while spectating: it exists to tell you which key to press, and you cannot
-        // press anything on someone else's behalf. The tracker still describes them.
-        if (spectating)
-        {
-            _hud.ShowFor(slot, HudPanelIds.Help, false);
-            _hud.StopBarFor(slot, HudPanelIds.HelpBarPair());
-        }
-        else
-        {
-            DrawHelper(slot, ordered);
-        }
+        // Shown while spectating too. It describes the subject's ability - which key they have and how
+        // long until they can use it - and a spectator watching someone about to blink across the map
+        // wants exactly that. "See what the player sees" includes the parts you cannot act on.
+        DrawHelper(slot, ordered);
     }
 
     /// <summary>
@@ -479,11 +490,54 @@ public sealed class HudTracker
         _rowsInUse[slot] = firstUnused;
     }
 
+    /// <summary>
+    /// Drops a reveal that was mirrored from a player this viewer is no longer watching.
+    ///
+    /// reveal-active is cleared last and unconditionally: it is the class that hides the tracker, so
+    /// leaving it set would mean switching target silently cost you the tracker for the rest of the
+    /// round - the same failure the sequencer's generation guard used to cause.
+    /// </summary>
+    private void ClearMirroredReveal(int slot)
+    {
+        _hud.ShowFor(slot, HudPanelIds.Reveal, false);
+        _hud.ShowFor(slot, HudPanelIds.Spin, false);
+        _hud.SetClassFor(slot, HudPanelIds.Reveal, HudClasses.RevealIn, false);
+        _hud.SetClassFor(slot, HudPanelIds.Reveal, HudClasses.RevealOut, false);
+        _hud.SetClassFor(slot, HudPanelIds.Reveal, HudClasses.Spinning, false);
+        _hud.SetClassFor(slot, HudPanelIds.Root, HudClasses.RevealActive, false);
+    }
+
+    /// <summary>
+    /// Every player whose HUD should currently be showing <paramref name="subjectSlot"/>'s state: the
+    /// player themselves, plus anyone spectating them.
+    ///
+    /// This is what makes a spectator see the same roll, reveal and helper card as the player they are
+    /// watching. Per-player dialog variables are addressed by VIEWER, so mirroring is simply writing the
+    /// same values to more than one slot - the subject's own HUD and every spectator's are independent
+    /// copies of the same content.
+    ///
+    /// Reads the subject cache the refresh loop already maintains rather than re-walking observer
+    /// services, so it is cheap enough to call per animation frame.
+    /// </summary>
+    public IEnumerable<int> ViewersOf(int subjectSlot)
+    {
+        yield return subjectSlot;
+
+        foreach (var (viewer, subject) in _lastSubject)
+        {
+            if (subject == subjectSlot && viewer != subjectSlot)
+            {
+                yield return viewer;
+            }
+        }
+    }
+
     /// <summary>Forgets a slot's row bookkeeping. The HUD service clears the actual per-player state.</summary>
     public void ForgetPlayer(int slot)
     {
         _rowsInUse.Remove(slot);
         _lastSubject.Remove(slot);
+        _shownSubject.Remove(slot);
 
         // Also drop this slot as anyone else's remembered subject - a spectator watching someone who
         // disconnects must not keep showing their modifiers to a slot the next joiner will occupy.
@@ -498,6 +552,7 @@ public sealed class HudTracker
     {
         _rowsInUse.Clear();
         _lastSubject.Clear();
+        _shownSubject.Clear();
         _lastRefreshTime = 0f;
     }
 }
