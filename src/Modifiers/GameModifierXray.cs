@@ -45,6 +45,13 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// <summary>The only classname this modifier ever creates - see DespawnTrackedProp for why it has to be checked before anything is destroyed.</summary>
     private const string GlowChainPropDesignerName = "prop_dynamic";
 
+    /// <summary>
+    /// How long the glow-chain build is deferred after ApplyXrayToPlayer is called. Small but
+    /// deliberately non-zero: the deferral exists because the spawn path calls in before the pawn's
+    /// model is reliably assigned, so it has to land on a later frame, not merely later in this one.
+    /// </summary>
+    private const float GlowChainBuildDelaySeconds = 0.1f;
+
     protected readonly HashSet<int> CachedXrayEnabledSlots = [];
     private readonly Dictionary<int, uint> _relayEntityIndex = [];
     private readonly Dictionary<int, uint> _glowPropEntityIndex = [];
@@ -147,7 +154,21 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         var targetSlot = target.Slot;
         var generation = _activationGeneration;
-        Core.Scheduler.NextWorldUpdate(() =>
+
+        // Bug fix candidate for the live crash: this build used to run inside
+        // Core.Scheduler.NextWorldUpdate. Every other NextWorldUpdate in this codebase only writes
+        // schema fields or teleports an existing entity - this was the sole place CREATING entities
+        // from inside one, and it is the only entity-creating code that crashes. MasterZeus creates
+        // info_particle_system entities happily, but it does so straight from OnTick, on a real game
+        // frame. NextWorldUpdate lands at a different point in the frame, and the engine's entity
+        // factory is not obviously safe to call there.
+        //
+        // Moved onto DelayBySeconds, which this codebase already documents (see
+        // ModifierRuntime.PlaySpinThenReveal) as "the one delay primitive already confirmed working
+        // in this codebase" after DelayAndRepeatBySeconds turned out not to fire live at all. The
+        // deferral itself must stay: ApplyXrayToPlayer is called from EventPlayerSpawn, where the
+        // pawn's model is not reliably assigned yet, which is why this was deferred to begin with.
+        Core.Scheduler.DelayBySeconds(GlowChainBuildDelaySeconds, () =>
         {
             // See _activationGeneration: a roll that was superseded while this callback sat in the
             // queue must not build props nothing will ever own.
@@ -165,12 +186,22 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
             Step(targetSlot, "GetModel");
             var modelName = pawn.GetModel();
+
+            // Logged as its own step rather than folded into the next message. The live crash log
+            // ended on "GetModel" followed by a HALF-WRITTEN timestamp header, which means a further
+            // entry had begun flushing as the process died - so the logger is racing the fault and
+            // the last complete line cannot be trusted to be the last statement executed. Splitting
+            // the two candidates onto separate lines is what makes the next log decisive: ending on
+            // "GetModel" means GetModel() itself faulted, ending on "model resolved" means it
+            // returned and the fault is in entity creation.
+            Step(targetSlot, $"model resolved: {modelName}");
+
             if (string.IsNullOrEmpty(modelName))
             {
                 return;
             }
 
-            Step(targetSlot, $"create relay prop (model={modelName})");
+            Step(targetSlot, "create relay prop");
             var relay = CreateGlowChainProp(modelName);
             Step(targetSlot, "create glow prop");
             var glow = CreateGlowChainProp(modelName);
