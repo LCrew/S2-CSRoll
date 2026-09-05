@@ -243,7 +243,7 @@ public sealed class GameModifierFlanker : GameModifierBase
                    "<span class=\"fontWeight-Bold\">Press \"F\" to Teleport</span><br/>" +
                    statusLine;
 
-        SetHud(player.Slot, html);
+        player.SendCenterHTML(html, HtmlDurationMs);
     }
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
