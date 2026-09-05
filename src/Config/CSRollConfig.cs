@@ -781,4 +781,20 @@ public class XrayConfig
     /// line names the last engine call that completed.
     /// </summary>
     public bool GlowProps { get; set; } = false;
+
+    /// <summary>
+    /// The actual wallhack, and the default: every enemy is continuously marked as "spotted" for
+    /// the x-ray holder alone, so they track everyone on the radar through walls for the whole round.
+    ///
+    /// This is CCSPlayerPawn.EntitySpottedState.SpottedByMask - a per-viewer bitmask the engine
+    /// already maintains, one bit per player slot. Writing a bit there is an ordinary networked
+    /// schema write on a pawn that already exists, which is the same class of operation every other
+    /// modifier in this plugin performs safely. It creates no entities, dispatches no entity I/O and
+    /// despawns nothing - none of the three things that were crashing the server via GlowProps.
+    ///
+    /// The trade against the glow chain is what it draws: radar contacts rather than glowing
+    /// outlines through walls. That is the standard server-side way to do this in CS2, and unlike
+    /// the prop chain it does not risk the process.
+    /// </summary>
+    public bool RadarSpotting { get; set; } = true;
 }

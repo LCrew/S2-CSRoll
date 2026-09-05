@@ -91,6 +91,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawnEvent);
         _deathHookId = Core.GameEvent.HookPost<EventPlayerDeath>(OnPlayerDeathEvent);
+        Core.Event.OnTick += RefreshRadarSpotting;
 
         SetupXray();
     }
@@ -101,6 +102,10 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         Core.GameEvent.Unhook(_spawnHookId);
         Core.GameEvent.Unhook(_deathHookId);
+        Core.Event.OnTick -= RefreshRadarSpotting;
+
+        // Before CachedXrayEnabledSlots is cleared below - it is the set of bits to take back.
+        ClearRadarSpotting();
 
         // Union of both dictionaries rather than just the glow one: they are written together today,
         // but teardown that only consults one of them is one edit away from leaking the other.
@@ -136,7 +141,9 @@ public abstract class GameModifierXrayBase : GameModifierBase
         // its own switch and off by default. See XrayConfig.GlowProps.
         if (!Runtime.Config.Xray.GlowProps)
         {
-            Core.Logger.LogInformation("[CSRoll] XRAY: glow-prop chain disabled (Xray.GlowProps=false) - x-ray vision granted, no props built.");
+            Core.Logger.LogInformation(
+                "[CSRoll] XRAY: glow-prop chain disabled (Xray.GlowProps=false). Wallhack is running on radar spotting (Xray.RadarSpotting={Radar}) for {Count} viewer(s).",
+                Runtime.Config.Xray.RadarSpotting, CachedXrayEnabledSlots.Count);
             return;
         }
 
@@ -147,6 +154,111 @@ public abstract class GameModifierXrayBase : GameModifierBase
     }
 
     protected virtual bool CheckEnableXray(IPlayer viewer) => false;
+
+    /// <summary>
+    /// The wallhack itself: marks every other alive player as "spotted" for the x-ray holders only,
+    /// so they hold everyone on the radar through walls.
+    ///
+    /// CCSPlayerPawn.EntitySpottedState.SpottedByMask is a per-viewer bitmask the engine already
+    /// maintains - one bit per player slot, two 32-bit words. Setting a bit is an ordinary networked
+    /// schema write on a pawn that already exists, which is the same thing every other modifier in
+    /// this plugin does safely. Crucially it creates no entities, dispatches no entity I/O and
+    /// despawns nothing, so it avoids all three calls that were confirmed live to crash the server
+    /// through the GlowProps chain.
+    ///
+    /// Re-asserted every tick rather than set once: the engine recomputes real visibility each frame
+    /// and clears bits it does not agree with, so a one-shot write lasts a single frame. The
+    /// already-set check keeps this to a network update only on the frames the engine actually
+    /// cleared the bit.
+    /// </summary>
+    private void RefreshRadarSpotting()
+    {
+        if (!Runtime.Config.Xray.RadarSpotting || CachedXrayEnabledSlots.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var target in Core.PlayerManager.GetAlive())
+        {
+            if (target.PlayerPawn is not { } pawn)
+            {
+                continue;
+            }
+
+            var changed = false;
+            foreach (var viewerSlot in CachedXrayEnabledSlots)
+            {
+                if (viewerSlot != target.Slot)
+                {
+                    changed |= SetSpottedBit(pawn, viewerSlot, spotted: true);
+                }
+            }
+
+            if (changed)
+            {
+                pawn.EntitySpottedState.SpottedByMaskUpdated();
+            }
+        }
+    }
+
+    /// <summary>Takes back every bit this modifier set, so a holder losing x-ray stops seeing the radar contacts immediately rather than waiting for the engine to notice.</summary>
+    private void ClearRadarSpotting()
+    {
+        foreach (var target in Core.PlayerManager.GetAllValidPlayers())
+        {
+            if (target.PlayerPawn is not { } pawn)
+            {
+                continue;
+            }
+
+            var changed = false;
+            foreach (var viewerSlot in CachedXrayEnabledSlots)
+            {
+                changed |= SetSpottedBit(pawn, viewerSlot, spotted: false);
+            }
+
+            if (changed)
+            {
+                pawn.EntitySpottedState.SpottedByMaskUpdated();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flips one viewer's bit in a pawn's spotted mask, returning whether it actually changed so the
+    /// caller can skip the network update when nothing moved.
+    ///
+    /// Bounds-checked against the array's own ElementCount rather than an assumed length of two. A
+    /// slot index past the end would otherwise be a raw out-of-bounds write straight into engine
+    /// memory - the exact failure mode that has already cost this plugin several crash hunts.
+    /// </summary>
+    private static bool SetSpottedBit(CCSPlayerPawn pawn, int viewerSlot, bool spotted)
+    {
+        var mask = pawn.EntitySpottedState.SpottedByMask;
+        var word = viewerSlot / 32;
+        if (viewerSlot < 0 || word >= mask.ElementCount)
+        {
+            return false;
+        }
+
+        var bit = 1u << (viewerSlot % 32);
+        var isSet = (mask[word] & bit) != 0;
+        if (isSet == spotted)
+        {
+            return false;
+        }
+
+        if (spotted)
+        {
+            mask[word] |= bit;
+        }
+        else
+        {
+            mask[word] &= ~bit;
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Crash breadcrumb for this modifier specifically. Wallhack was confirmed live to kill the
