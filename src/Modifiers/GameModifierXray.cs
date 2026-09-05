@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 using SwiftlyS2.Shared.EntitySystem;
 using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.GameEventDefinitions;
@@ -40,9 +42,26 @@ public abstract class GameModifierXrayBase : GameModifierBase
     private static readonly Color CounterTerroristGlowColor = new(135, 206, 235);
     private static readonly Color GlowPropRenderColor = new(1, 255, 255, 255);
 
+    /// <summary>The only classname this modifier ever creates - see DespawnTrackedProp for why it has to be checked before anything is destroyed.</summary>
+    private const string GlowChainPropDesignerName = "prop_dynamic";
+
     protected readonly HashSet<int> CachedXrayEnabledSlots = [];
     private readonly Dictionary<int, uint> _relayEntityIndex = [];
     private readonly Dictionary<int, uint> _glowPropEntityIndex = [];
+
+    /// <summary>
+    /// Bumped on every activation and deactivation. ApplyXrayToPlayer defers all of its entity
+    /// creation into a NextWorldUpdate callback, and that callback used to run unconditionally.
+    ///
+    /// Bug fix: if the modifier deactivated between the queue and the callback - round end,
+    /// RemoveAllModifiers, the double EventRoundStart CS2 fires out of warmup, a disconnect -
+    /// OnDisabled walked an empty dictionary, despawned nothing, and then the callback fired anyway
+    /// and built two props that nothing owned, nothing tracked and nothing would ever remove. It
+    /// also wrote their indices back into the dictionaries of a now-inactive modifier, which is how
+    /// those indices went stale in the first place and set up the recycled-index despawn below.
+    /// The callback now refuses to build anything once its generation has been superseded.
+    /// </summary>
+    private int _activationGeneration;
 
     private Guid _spawnHookId;
     private Guid _deathHookId;
@@ -61,6 +80,8 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
     protected override void OnEnabled()
     {
+        _activationGeneration++;
+
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawnEvent);
         _deathHookId = Core.GameEvent.HookPost<EventPlayerDeath>(OnPlayerDeathEvent);
 
@@ -69,10 +90,14 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
     protected override void OnDisabled()
     {
+        _activationGeneration++;
+
         Core.GameEvent.Unhook(_spawnHookId);
         Core.GameEvent.Unhook(_deathHookId);
 
-        foreach (var slot in _glowPropEntityIndex.Keys.ToList())
+        // Union of both dictionaries rather than just the glow one: they are written together today,
+        // but teardown that only consults one of them is one edit away from leaking the other.
+        foreach (var slot in _glowPropEntityIndex.Keys.Concat(_relayEntityIndex.Keys).Distinct().ToList())
         {
             RemoveXrayFromSlot(slot);
         }
@@ -105,36 +130,63 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
     protected virtual bool CheckEnableXray(IPlayer viewer) => false;
 
+    /// <summary>
+    /// Crash breadcrumb for this modifier specifically. Wallhack was confirmed live to kill the
+    /// server the moment it activates, and every call below crosses into the engine - entity
+    /// creation, model assignment, entity I/O parenting, raw identity-flag and collision writes.
+    /// A fault in any of them takes the process down without unwinding, so the console's last XRAY
+    /// line names the exact call that was executing. Kept unconditional for the same reason as the
+    /// ACTIVATING/ACTIVATED pairs in GameModifierBase: this has to be on before the crash, not
+    /// after someone predicts it.
+    /// </summary>
+    private void Step(int slot, string step) => Core.Logger.LogInformation("[CSRoll] XRAY slot {Slot}: {Step}", slot, step);
+
     protected void ApplyXrayToPlayer(IPlayer target)
     {
         RemoveXrayFromSlot(target.Slot);
 
         var targetSlot = target.Slot;
+        var generation = _activationGeneration;
         Core.Scheduler.NextWorldUpdate(() =>
         {
+            // See _activationGeneration: a roll that was superseded while this callback sat in the
+            // queue must not build props nothing will ever own.
+            if (!IsActive || _activationGeneration != generation)
+            {
+                Step(targetSlot, "skipped - deactivated or superseded before the deferred build ran");
+                return;
+            }
+
             var currentTarget = Core.PlayerManager.GetPlayer(targetSlot);
             if (currentTarget is not { IsValid: true, IsAlive: true } || currentTarget.PlayerPawn is not { } pawn)
             {
                 return;
             }
 
+            Step(targetSlot, "GetModel");
             var modelName = pawn.GetModel();
             if (string.IsNullOrEmpty(modelName))
             {
                 return;
             }
 
+            Step(targetSlot, $"create relay prop (model={modelName})");
             var relay = CreateGlowChainProp(modelName);
+            Step(targetSlot, "create glow prop");
             var glow = CreateGlowChainProp(modelName);
 
+            Step(targetSlot, "relay RenderMode");
             relay.RenderMode = RenderMode_t.kRenderNone;
             relay.RenderModeUpdated();
             if (pawn.AbsOrigin is { } relayPosition)
             {
+                Step(targetSlot, "relay Teleport");
                 relay.Teleport(relayPosition, null, null);
             }
+            Step(targetSlot, "relay AcceptInput FollowEntity -> pawn");
             relay.AcceptInput("FollowEntity", "!activator", pawn, pawn, 0);
 
+            Step(targetSlot, "glow Render/Glow properties");
             glow.Render = GlowPropRenderColor;
             glow.RenderUpdated();
             // The original plugin also sets RenderMode to a "kRenderGlow" mode here, but
@@ -154,49 +206,60 @@ public abstract class GameModifierXrayBase : GameModifierBase
             glow.GlowUpdated();
             if (pawn.AbsOrigin is { } glowPosition)
             {
+                Step(targetSlot, "glow Teleport");
                 glow.Teleport(glowPosition, null, null);
             }
             // The glow prop follows the RELAY, not the real player directly - this is the change
             // from the previous single-hop attempt.
+            Step(targetSlot, "glow AcceptInput FollowEntity -> relay");
             glow.AcceptInput("FollowEntity", "!activator", relay, relay, 0);
 
             _relayEntityIndex[targetSlot] = relay.Index;
             _glowPropEntityIndex[targetSlot] = glow.Index;
 
+            Step(targetSlot, "ApplyTransmitStateForAllViewers");
             ApplyTransmitStateForAllViewers((int)relay.Index);
             ApplyTransmitStateForAllViewers((int)glow.Index);
+
+            Step(targetSlot, $"done (relay={relay.Index}, glow={glow.Index})");
         });
     }
 
     /// <summary>Creates one link of the relay chain: spawn, model, and the collision/identity setup both links share.</summary>
     private CDynamicProp CreateGlowChainProp(string modelName)
     {
-        var prop = Core.EntitySystem.CreateEntityByDesignerName<CDynamicProp>("prop_dynamic");
+        Core.Logger.LogInformation("[CSRoll] XRAY prop: CreateEntityByDesignerName");
+        var prop = Core.EntitySystem.CreateEntityByDesignerName<CDynamicProp>(GlowChainPropDesignerName);
 
         // Spawnflags configures the spawn process itself, so - unlike SetModel and the rest of
         // this setup - it must be set BEFORE DispatchSpawn. 256 is copied verbatim from the
         // original CS2-GameModifiers CSS plugin's proven glow-effect code; exact meaning
         // undocumented for this engine version.
+        Core.Logger.LogInformation("[CSRoll] XRAY prop: Spawnflags + SpawnflagsUpdated (pre-spawn)");
         prop.Spawnflags = 256u;
         prop.SpawnflagsUpdated();
 
         // SetModel (and the rest of this configuration) must happen AFTER DispatchSpawn, or it
         // hits a Source 2 engine assertion ("SetupModel(): entity is still in the staging list")
         // and the model never actually gets set.
+        Core.Logger.LogInformation("[CSRoll] XRAY prop: DispatchSpawn");
         using var keyValues = new CEntityKeyValues();
         prop.DispatchSpawn(keyValues);
 
+        Core.Logger.LogInformation("[CSRoll] XRAY prop: SetModel");
         prop.SetModel(modelName);
 
         // Also copied verbatim from the original plugin's proven code - clears bit 2 of the
         // entity's own identity flags. Exact semantics undocumented; kept as an unexplained but
         // reproduced detail of a working reference rather than guessed at.
+        Core.Logger.LogInformation("[CSRoll] XRAY prop: Identity.Flags raw write");
         if (prop.Identity is { } identity)
         {
             identity.Flags &= ~(uint)(1 << 2);
         }
 
         // Non-solid: these overlap the real player and must never physically collide with anyone.
+        Core.Logger.LogInformation("[CSRoll] XRAY prop: Collision writes");
         prop.Collision.CollisionGroup = (byte)CollisionGroup.Nonphysical;
         prop.Collision.CollisionGroupUpdated();
         prop.Collision.SolidFlags = 4; // FSOLID_NOT_SOLID
@@ -204,6 +267,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
         prop.Collision.SolidType = SolidType_t.SOLID_NONE;
         prop.Collision.SolidTypeUpdated();
 
+        Core.Logger.LogInformation("[CSRoll] XRAY prop: built ok");
         return prop;
     }
 
@@ -221,16 +285,43 @@ public abstract class GameModifierXrayBase : GameModifierBase
         }
     }
 
-    protected void RemoveXrayFromSlot(int slot)
+    /// <summary>
+    /// Bug fix: this despawned whatever entity currently sat at a remembered index, with no check
+    /// that it was still one of ours. CS2 recycles entity indices aggressively, so once a stored
+    /// index went stale - which the orphan path above used to guarantee - GetEntityByIndex handed
+    /// back whatever had since been given that slot, and Despawn() destroyed it. That is a live
+    /// player pawn, a weapon or the bomb being ripped out from under the engine, which is an
+    /// immediate hard crash with nothing in the log. Verifying the designer name first means the
+    /// worst a stale index can now do is nothing at all.
+    /// </summary>
+    private void DespawnTrackedProp(uint entityIndex, int slot, string role)
     {
-        if (_relayEntityIndex.Remove(slot, out var relayIndex) && Core.EntitySystem.GetEntityByIndex(relayIndex) is { IsValid: true } relayEntity)
+        if (Core.EntitySystem.GetEntityByIndex(entityIndex) is not { IsValid: true } entity)
         {
-            relayEntity.Despawn();
+            return;
         }
 
-        if (_glowPropEntityIndex.Remove(slot, out var glowIndex) && Core.EntitySystem.GetEntityByIndex(glowIndex) is { IsValid: true } glowEntity)
+        if (entity.DesignerName != GlowChainPropDesignerName)
         {
-            glowEntity.Despawn();
+            Core.Logger.LogWarning(
+                "[CSRoll] XRAY slot {Slot}: refusing to despawn {Role} at recycled index {Index} - it is now a {DesignerName}, not one of ours.",
+                slot, role, entityIndex, entity.DesignerName);
+            return;
+        }
+
+        entity.Despawn();
+    }
+
+    protected void RemoveXrayFromSlot(int slot)
+    {
+        if (_relayEntityIndex.Remove(slot, out var relayIndex))
+        {
+            DespawnTrackedProp(relayIndex, slot, "relay");
+        }
+
+        if (_glowPropEntityIndex.Remove(slot, out var glowIndex))
+        {
+            DespawnTrackedProp(glowIndex, slot, "glow");
         }
     }
 
