@@ -127,6 +127,9 @@ public class CSRollConfig
     /// <summary>Tunables for the ChineseGrenades ("Chinese Grenades") modifier (randomized fuse timer range applied to HE/flashbang/smoke).</summary>
     public ChineseGrenadesConfig ChineseGrenades { get; set; } = new();
 
+    /// <summary>Tunables for the Wallhack modifier - notably whether its crash-prone glow-prop chain is built at all.</summary>
+    public XrayConfig Xray { get; set; } = new();
+
     /// <summary>Tunables for the BoomerangBullets ("Boomerang Bullets") modifier (bonus max health so a heavy weapon's self-damage on a miss doesn't one-shot the player).</summary>
     public BoomerangBulletsConfig BoomerangBullets { get; set; } = new();
 
@@ -755,4 +758,27 @@ public class ChineseGrenadesConfig
 
     /// <summary>Maximum possible fuse length, in seconds.</summary>
     public float MaxFuseSeconds { get; set; } = 10f;
+}
+
+/// <summary>Tunables for the Wallhack modifier (GameModifierXrayBase).</summary>
+public class XrayConfig
+{
+    /// <summary>
+    /// Whether Wallhack builds its glowing relay/glow prop_dynamic chain around each target.
+    ///
+    /// Default OFF, and deliberately so: this chain was confirmed live to hard-crash the game
+    /// server, at three progressively later points as each one was fixed (entity despawn by
+    /// recycled index, then entity creation from inside NextWorldUpdate, then the property writes
+    /// on the freshly built props). Every call in it crosses into the engine and a fault there
+    /// takes the process down with no managed exception and no dump.
+    ///
+    /// With this off, Wallhack still does its OTHER job - it grants x-ray vision into
+    /// CSRollUtils' shared registry, which GameModifierInvisibleBase reads to exempt those viewers
+    /// from its transmit block, so a Wallhack holder still sees players that
+    /// ConditionalInvisibility/Vanish have hidden. It just does not draw the glow outline.
+    ///
+    /// Turn this on to reproduce the crash with the XRAY step logging active - the last "ok {step}"
+    /// line names the last engine call that completed.
+    /// </summary>
+    public bool GlowProps { get; set; } = false;
 }

@@ -129,6 +129,17 @@ public abstract class GameModifierXrayBase : GameModifierBase
             }
         }
 
+        // The x-ray-vision grant above is the half of this modifier that costs nothing and cannot
+        // crash - it only writes into CSRollUtils' shared registry, which GameModifierInvisibleBase
+        // reads to let a Wallhack holder see through ConditionalInvisibility/Vanish. The glow-prop
+        // chain below is the half that has been confirmed live to kill the server, so it is behind
+        // its own switch and off by default. See XrayConfig.GlowProps.
+        if (!Runtime.Config.Xray.GlowProps)
+        {
+            Core.Logger.LogInformation("[CSRoll] XRAY: glow-prop chain disabled (Xray.GlowProps=false) - x-ray vision granted, no props built.");
+            return;
+        }
+
         foreach (var player in Core.PlayerManager.GetAlive())
         {
             ApplyXrayToPlayer(player);
@@ -148,9 +159,37 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// </summary>
     private void Step(int slot, string step) => Core.Logger.LogInformation("[CSRoll] XRAY slot {Slot}: {Step}", slot, step);
 
+    /// <summary>
+    /// Brackets one engine call with a before AND an after line.
+    ///
+    /// Single-sided logging cost two rounds of live testing to nothing. Both crash logs ended on a
+    /// complete step line followed by a HALF-WRITTEN timestamp header - the logger had already begun
+    /// flushing the next entry when the process died - so "the last line printed" was never provably
+    /// "the last call executed", and each round narrowed the fault by exactly one statement.
+    ///
+    /// With a pair per call the reading rule stops depending on the trailing line surviving: the
+    /// last "ok {step}" is the last call that definitely COMPLETED, so the fault is in whatever runs
+    /// next, whether or not its own "-> {step}" line made it out.
+    /// </summary>
+    private void Do(int slot, string step, Action call)
+    {
+        Core.Logger.LogInformation("[CSRoll] XRAY slot {Slot}: -> {Step}", slot, step);
+        call();
+        Core.Logger.LogInformation("[CSRoll] XRAY slot {Slot}: ok {Step}", slot, step);
+    }
+
     protected void ApplyXrayToPlayer(IPlayer target)
     {
+        // Runs before the GlowProps gate below, deliberately: if the switch is flipped off at
+        // runtime (config hot-reload) while props are already standing, this is what takes them
+        // down rather than stranding them in the map for the rest of the round.
         RemoveXrayFromSlot(target.Slot);
+
+        // Gated here rather than only in SetupXray because EventPlayerSpawn calls in here directly.
+        if (!Runtime.Config.Xray.GlowProps)
+        {
+            return;
+        }
 
         var targetSlot = target.Slot;
         var generation = _activationGeneration;
@@ -206,51 +245,73 @@ public abstract class GameModifierXrayBase : GameModifierBase
             Step(targetSlot, "create glow prop");
             var glow = CreateGlowChainProp(modelName);
 
-            Step(targetSlot, "relay RenderMode");
-            relay.RenderMode = RenderMode_t.kRenderNone;
-            relay.RenderModeUpdated();
+            Do(targetSlot, "relay RenderMode", () =>
+            {
+                relay.RenderMode = RenderMode_t.kRenderNone;
+                relay.RenderModeUpdated();
+            });
+
             if (pawn.AbsOrigin is { } relayPosition)
             {
-                Step(targetSlot, "relay Teleport");
-                relay.Teleport(relayPosition, null, null);
+                Do(targetSlot, "relay Teleport", () => relay.Teleport(relayPosition, null, null));
             }
-            Step(targetSlot, "relay AcceptInput FollowEntity -> pawn");
-            relay.AcceptInput("FollowEntity", "!activator", pawn, pawn, 0);
 
-            Step(targetSlot, "glow Render/Glow properties");
-            glow.Render = GlowPropRenderColor;
-            glow.RenderUpdated();
+            Do(targetSlot, "relay FollowEntity -> pawn", () => relay.AcceptInput("FollowEntity", "!activator", pawn, pawn, 0));
+
+            Do(targetSlot, "glow Render", () =>
+            {
+                glow.Render = GlowPropRenderColor;
+                glow.RenderUpdated();
+            });
+
             // The original plugin also sets RenderMode to a "kRenderGlow" mode here, but
             // SwiftlyS2's RenderMode_t only exposes a small remapped subset (0-3, not matching
             // the true native enum) with no glow-specific value - casting an arbitrary int would
             // set the wrong mode entirely. Relying on the Glow.* properties alone, which is what
             // actually produced visible glow-through-walls rendering in earlier testing here.
-            glow.Glow.GlowColorOverride = currentTarget.Controller?.Team == Team.T ? TerroristGlowColor : CounterTerroristGlowColor;
-            glow.Glow.GlowColorOverrideUpdated();
-            glow.Glow.GlowRange = 5000;
-            glow.Glow.GlowRangeUpdated();
-            glow.Glow.GlowRangeMin = 20;
-            glow.Glow.GlowRangeMinUpdated();
-            glow.Glow.GlowTeam = -1;
-            glow.Glow.GlowTeamUpdated();
-            glow.Glow.GlowType = 3;
-            glow.GlowUpdated();
+            //
+            // Each Glow.* write is bracketed separately: CGlowProperty is a nested schema object on
+            // the prop, so every one of these is an independent offset resolution and an independent
+            // networked write, and any one of them could be the bad one.
+            Do(targetSlot, "glow GlowColorOverride", () =>
+            {
+                glow.Glow.GlowColorOverride = currentTarget.Controller?.Team == Team.T ? TerroristGlowColor : CounterTerroristGlowColor;
+                glow.Glow.GlowColorOverrideUpdated();
+            });
+            Do(targetSlot, "glow GlowRange", () =>
+            {
+                glow.Glow.GlowRange = 5000;
+                glow.Glow.GlowRangeUpdated();
+            });
+            Do(targetSlot, "glow GlowRangeMin", () =>
+            {
+                glow.Glow.GlowRangeMin = 20;
+                glow.Glow.GlowRangeMinUpdated();
+            });
+            Do(targetSlot, "glow GlowTeam", () =>
+            {
+                glow.Glow.GlowTeam = -1;
+                glow.Glow.GlowTeamUpdated();
+            });
+            Do(targetSlot, "glow GlowType", () =>
+            {
+                glow.Glow.GlowType = 3;
+                glow.GlowUpdated();
+            });
+
             if (pawn.AbsOrigin is { } glowPosition)
             {
-                Step(targetSlot, "glow Teleport");
-                glow.Teleport(glowPosition, null, null);
+                Do(targetSlot, "glow Teleport", () => glow.Teleport(glowPosition, null, null));
             }
             // The glow prop follows the RELAY, not the real player directly - this is the change
             // from the previous single-hop attempt.
-            Step(targetSlot, "glow AcceptInput FollowEntity -> relay");
-            glow.AcceptInput("FollowEntity", "!activator", relay, relay, 0);
+            Do(targetSlot, "glow FollowEntity -> relay", () => glow.AcceptInput("FollowEntity", "!activator", relay, relay, 0));
 
             _relayEntityIndex[targetSlot] = relay.Index;
             _glowPropEntityIndex[targetSlot] = glow.Index;
 
-            Step(targetSlot, "ApplyTransmitStateForAllViewers");
-            ApplyTransmitStateForAllViewers((int)relay.Index);
-            ApplyTransmitStateForAllViewers((int)glow.Index);
+            Do(targetSlot, "transmit state relay", () => ApplyTransmitStateForAllViewers((int)relay.Index));
+            Do(targetSlot, "transmit state glow", () => ApplyTransmitStateForAllViewers((int)glow.Index));
 
             Step(targetSlot, $"done (relay={relay.Index}, glow={glow.Index})");
         });
