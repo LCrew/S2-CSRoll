@@ -885,6 +885,47 @@ public static partial class CSRollUtils
     public const string MonoFontClass = "stratum-regular-mono";
 
     /// <summary>
+    /// Pads (or truncates) text to a fixed rendered width and wraps it monospaced, so whatever
+    /// follows it on the same line always starts at the same horizontal position.
+    ///
+    /// Needed because Panorama's default font is proportional: a HUD line like "M4A4 [16,4s]" that
+    /// re-renders with a different name every frame makes the trailing timer visibly jump left and
+    /// right during a roll. Padding alone isn't enough - the pad characters would themselves be
+    /// proportional - hence the mono class, and hence &amp;nbsp; rather than plain spaces, which
+    /// Panorama collapses.
+    ///
+    /// Width is measured on the RAW text, so callers must pass unescaped text and let this escape it;
+    /// passing pre-escaped markup would count "&amp;lt;" as four characters instead of one.
+    /// </summary>
+    public static string BuildFixedWidthField(string text, int width)
+    {
+        // Truncated with an ellipsis rather than a hard cut, so a clipped name reads as clipped
+        // instead of looking like a modifier that genuinely has a stumpy name.
+        var trimmed = text.Length > width ? text[..Math.Max(0, width - 1)] + "\u2026" : text;
+        var escaped = trimmed.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+        var padding = string.Concat(Enumerable.Repeat("&nbsp;", Math.Max(0, width - trimmed.Length)));
+
+        return $"<span class=\"fontWeight-Bold {MonoFontClass}\">{escaped}{padding}</span>";
+    }
+
+    /// <summary>
+    /// Just the progress bar, with no label line of its own - for HUDs that supply their own title
+    /// above and status text below, where BuildGaugeHtml's built-in label would insert a blank line
+    /// between them.
+    /// </summary>
+    public static string BuildBarHtml(float ratio, string barColor, int barWidth = 20)
+    {
+        var clamped = Math.Clamp(ratio, 0f, 1f);
+        var filled = (int)Math.Round(clamped * barWidth);
+        var empty = barWidth - filled;
+
+        var filledSegment = filled > 0 ? $"<span color=\"{barColor}\">{new string('█', filled)}</span>" : "";
+        var emptySegment = empty > 0 ? $"<span color=\"grey\">{new string('░', empty)}</span>" : "";
+
+        return $"<span class=\"fontWeight-Bold {MonoFontClass}\">[{filledSegment}{emptySegment}] {(int)Math.Round(clamped * 100f),3}%</span>";
+    }
+
+    /// <summary>
     /// Builds a two-line center-HTML status gauge: a colored label line, then a progress bar
     /// ("[████████░░░░░░░░░░░░] 42%"). Deliberately plain bold text with no "fontSize-l" class - the
     /// same size as BuildSpinFrameHtml's "Rolling..." frame - so every gauge popup (invisibility
@@ -956,11 +997,19 @@ public static partial class CSRollUtils
     }
 
     /// <summary>Gauge-bar color band shared by every percentage-based gauge popup - green when healthy, orange mid, red low.</summary>
+    /// <summary>
+    /// Green only once a gauge is nearly full. The green threshold used to sit at 50%, which read as
+    /// "ready" on a bar that still had half its charge to go - a Recall/Vanish cooldown showed green
+    /// while the ability was still unusable for another ten seconds. Yellow now covers everything
+    /// below 75%, so green means "about to be available" rather than "past halfway".
+    ///
+    /// Shared by every gauge-style HUD (Recall, Vanish, ConditionalInvisibility), deliberately - they
+    /// all mean the same thing by a filling bar, so they should agree on when it turns green.
+    /// </summary>
     public static string GetGaugeBarColor(float ratio) => ratio switch
     {
-        > 0.5f => "lime",
-        > 0.2f => "orange",
-        _ => "red",
+        >= 0.75f => "lime",
+        _ => "yellow",
     };
 
     /// <summary>Modifier display name wrapped in [gold]...[default] and color-resolved - the shared accessibility formatting used by !rolllist and !rollactive.</summary>
@@ -1199,20 +1248,41 @@ public static partial class CSRollUtils
         return grenade.Thrower.Value is { } pawn ? core.PlayerManager.GetPlayerFromPawn(pawn) : null;
     }
 
+    /// <summary>
+    /// A random spawn point belonging to `team`, restricted to the ones the CURRENT game mode
+    /// actually uses.
+    ///
+    /// Bug fix: this used to take every info_player_terrorist/info_player_counterterrorist entity on
+    /// the map. Maps that support more than one mode ship several complete sets of spawns in the same
+    /// BSP - Wingman's pair of spawns sits alongside the full competitive set - and the map's own
+    /// logic switches the unused sets OFF for whichever mode is running, via SpawnPoint.m_bEnabled.
+    /// Ignoring that flag meant a Wingman round could teleport a player (TeleportOnHit,
+    /// TeleportOnReload, Revive) to a competitive-only spawn somewhere else on the map entirely,
+    /// nowhere near where Wingman actually plays.
+    ///
+    /// Filtering on Enabled is mode-agnostic on purpose - it needs no "am I in Wingman" check,
+    /// because it simply asks the map which spawns are live right now, and in a normal competitive
+    /// round that answer is the competitive set. Falling back to the unfiltered list if nothing is
+    /// enabled keeps a map that never populates the flag behaving exactly as it did before, rather
+    /// than failing to find any spawn at all.
+    /// </summary>
     public static Vector? GetSpawnLocation(ISwiftlyCore core, Team team)
     {
-        if (team == Team.T)
+        var spawns = team switch
         {
-            var spawns = core.EntitySystem.GetAllEntitiesByDesignerName<CInfoPlayerTerrorist>("info_player_terrorist").ToList();
-            return spawns.Count > 0 ? spawns[Random.Shared.Next(spawns.Count)].AbsOrigin : null;
+            Team.T => core.EntitySystem.GetAllEntitiesByDesignerName<CInfoPlayerTerrorist>("info_player_terrorist").Cast<SpawnPoint>().ToList(),
+            Team.CT => core.EntitySystem.GetAllEntitiesByDesignerName<CInfoPlayerCounterterrorist>("info_player_counterterrorist").Cast<SpawnPoint>().ToList(),
+            _ => [],
+        };
+
+        if (spawns.Count == 0)
+        {
+            return null;
         }
 
-        if (team == Team.CT)
-        {
-            var spawns = core.EntitySystem.GetAllEntitiesByDesignerName<CInfoPlayerCounterterrorist>("info_player_counterterrorist").ToList();
-            return spawns.Count > 0 ? spawns[Random.Shared.Next(spawns.Count)].AbsOrigin : null;
-        }
+        var enabled = spawns.Where(spawn => spawn.Enabled).ToList();
+        var usable = enabled.Count > 0 ? enabled : spawns;
 
-        return null;
+        return usable[Random.Shared.Next(usable.Count)].AbsOrigin;
     }
 }

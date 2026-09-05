@@ -311,7 +311,7 @@ public sealed class GameModifierJetpack : GameModifierBase
         }
 
         _nextGaugeUpdateTime[player.Slot] = now + interval;
-        player.SendCenterHTML(BuildFuelGaugeHtml(fuel, maxFuel), (int)((interval * 1000) + 100));
+        SetHud(player.Slot, BuildFuelGaugeHtml(fuel, maxFuel));
     }
 
     private static string BuildFuelGaugeHtml(float fuel, float maxFuel)

@@ -172,5 +172,14 @@
   "Bounty.Description": "Damage enemies for bonus money",
 
   "WeaponRoulette.DisplayName": "Weapon Roulette",
-  "WeaponRoulette.Description": "Random weapon, re-rolled often"
+  "WeaponRoulette.Description": "Random weapon, re-rolled often",
+
+  "Recall.DisplayName": "Recall",
+  "Recall.Description": "Press [green]Inspect[default] to rewind {rewind}",
+
+  "ButterflyEffect.DisplayName": "Butterfly Effect",
+  "ButterflyEffect.Description": "A 2nd modifier, re-rolled every {interval}",
+
+  "Mimic.DisplayName": "Mimic",
+  "Mimic.Description": "Kills steal the victim's modifier"
 }

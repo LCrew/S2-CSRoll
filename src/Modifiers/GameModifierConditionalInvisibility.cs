@@ -34,14 +34,13 @@ namespace CSRoll.Modifiers;
 /// reason. CheckHidePlayer/base hide-unhide plumbing still gate the final settled network state;
 /// the alpha ramp is purely the cosmetic transition layered on top.
 ///
-/// Status HUD: a center-HTML box is kept continuously visible (re-sent on a short refresh interval
-/// with a duration slightly longer than that interval, so it never visibly expires) showing the
-/// player's CURRENT target state instantly (green INVISIBLE / red VISIBLE - based on the logical
-/// silence check, not the cosmetic fade progress, so feedback is immediate) as the same ASCII gauge
-/// format Vanish uses (CSRollUtils.BuildGaugeHtml) - the bar fills as elapsed
-/// silence approaches SoundCooldownSeconds and hits 100%/green exactly when the player actually goes
-/// invisible, at the same plain text size as the spin-reveal's "Rolling..." frame rather than the
-/// larger fontSize-l this used before.
+/// Status HUD: a center-HTML box showing how visible the player actually IS, as the same ASCII gauge
+/// format Vanish uses (CSRollUtils.BuildGaugeHtml). The bar is driven by the live alpha ramp, not by
+/// the cooldown - it fills toward 100% as they fade out, and reads red VISIBLE / yellow FADING /
+/// green INVISIBLE according to where that ramp currently sits. It previously reported the logical
+/// silence check instead, which flipped to INVISIBLE a whole fade duration before the player had
+/// finished disappearing; see ShouldFadeToHidden for the matching offset that makes the fade land
+/// exactly on the deadline rather than starting there.
 /// </summary>
 public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleBase
 {
@@ -49,6 +48,9 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
     private const float InvisibleAlpha = 0f;
     private const float HtmlRefreshIntervalSeconds = 0.1f;
     private const int HtmlDurationMs = 400;
+
+    /// <summary>Narrowed from BuildGaugeHtml's default 20 for the same reason Recall's was - at 20 the bar plus its trailing percentage overflows the HUD line and wraps onto an extra line.</summary>
+    private const int GaugeBarWidth = 12;
 
     private readonly Dictionary<int, float> _lastSoundTime = [];
     private readonly Dictionary<int, float> _damageFlashUntil = [];
@@ -152,6 +154,37 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         _damageFlashUntil.TryGetValue(slot, out var until) && now < until;
 
     /// <summary>
+    /// The moment this player stops being revealed - whichever of the two independent reveal timers
+    /// (sound cooldown, damage flash) runs out LAST, since either one alone is enough to keep them
+    /// visible.
+    /// </summary>
+    private float GetRevealUntil(int slot)
+    {
+        var soundUntil = _lastSoundTime.TryGetValue(slot, out var lastSound)
+            ? lastSound + Runtime.Config.ConditionalInvisibility.SoundCooldownSeconds
+            : float.NegativeInfinity;
+        var flashUntil = _damageFlashUntil.TryGetValue(slot, out var until) ? until : float.NegativeInfinity;
+
+        return MathF.Max(soundUntil, flashUntil);
+    }
+
+    /// <summary>
+    /// Whether the fade toward invisible should be running.
+    ///
+    /// Bug fix: this used to be "the reveal timer has expired", which started the fade only once the
+    /// cooldown was already over - so the player then spent a further FadeDurationSeconds visibly
+    /// fading while every readout already said INVISIBLE. The fade is now OFFSET to start a full fade
+    /// duration EARLY, so alpha reaches zero exactly as the timer runs out: when the cooldown ends the
+    /// player is genuinely gone, rather than just beginning to disappear.
+    ///
+    /// The settled network state (CheckHidePlayer/IsSilent) deliberately still flips at the real
+    /// deadline - that's the instant alpha hits zero, so the transmit block engages on a pawn that is
+    /// already fully transparent and there's still no visible pop.
+    /// </summary>
+    private bool ShouldFadeToHidden(int slot) =>
+        Core.Engine.GlobalVars.CurrentTime >= GetRevealUntil(slot) - GetFadeDurationSeconds(slot);
+
+    /// <summary>
     /// Picks which fade speed currently governs slot's alpha ramp by comparing whichever of the two
     /// independent reveal timers (normal sound-cooldown vs the damage flash) expires LATER - that's
     /// whichever one is actually "in charge" of keeping the player visible right now, so it also
@@ -191,11 +224,11 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
             }
 
             var slot = player.Slot;
-            var desiredHidden = IsSilent(slot) && !IsDamageFlashActive(slot, now);
+            var desiredHidden = ShouldFadeToHidden(slot);
             var settledHidden = CachedHiddenSlots.Contains(slot);
 
             AdvanceFade(player, slot, pawn, desiredHidden, settledHidden, now);
-            RefreshStatusHtml(player, slot, desiredHidden, now);
+            RefreshStatusHtml(player, slot, now);
         }
     }
 
@@ -270,7 +303,17 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         pawn.RenderUpdated();
     }
 
-    private void RefreshStatusHtml(IPlayer player, int slot, bool invisible, float now)
+    /// <summary>
+    /// Reports how visible the player actually IS, read straight off the live alpha ramp, rather than
+    /// how long is left on the cooldown that will eventually hide them.
+    ///
+    /// Bug fix: the gauge used to fill with elapsed silence and flip to INVISIBLE the instant the
+    /// cooldown expired - which was a full fade duration before the player had actually finished
+    /// disappearing, so it announced INVISIBLE while they were still plainly on screen. Driving it off
+    /// alpha means the readout can't disagree with what the player looks like, whichever timer (sound
+    /// or damage flash) happens to be governing the fade.
+    /// </summary>
+    private void RefreshStatusHtml(IPlayer player, int slot, float now)
     {
         if (_lastHtmlUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < HtmlRefreshIntervalSeconds)
         {
@@ -286,15 +329,17 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
 
         _lastHtmlUpdateTime[slot] = now;
 
-        var cooldown = MathF.Max(0.05f, Runtime.Config.ConditionalInvisibility.SoundCooldownSeconds);
-        var lastSound = _lastSoundTime.TryGetValue(slot, out var last) ? last : now - cooldown;
-        var ratio = Math.Clamp((now - lastSound) / cooldown, 0f, 1f);
+        var alpha = _currentAlpha.TryGetValue(slot, out var current) ? current : VisibleAlpha;
 
-        var label = invisible ? "INVISIBLE" : "VISIBLE";
-        var labelColor = invisible ? "lime" : "red";
-        var barColor = CSRollUtils.GetGaugeBarColor(ratio);
+        // Bar fills toward invisibility, so 100% means "fully hidden" - same direction the old
+        // cooldown gauge filled in, just measuring the thing it was only predicting.
+        var concealment = Math.Clamp(1f - (alpha / VisibleAlpha), 0f, 1f);
 
-        player.SendCenterHTML(CSRollUtils.BuildGaugeHtml(label, labelColor, ratio, barColor), HtmlDurationMs);
+        var (label, labelColor) = alpha <= InvisibleAlpha
+            ? ("INVISIBLE", "lime")
+            : alpha >= VisibleAlpha ? ("VISIBLE", "red") : ("FADING", "yellow");
+
+        SetHud(slot, CSRollUtils.BuildGaugeHtml(label, labelColor, concealment, CSRollUtils.GetGaugeBarColor(concealment), GaugeBarWidth));
     }
 
     private void MarkSoundMade(int slot) => _lastSoundTime[slot] = Core.Engine.GlobalVars.CurrentTime;

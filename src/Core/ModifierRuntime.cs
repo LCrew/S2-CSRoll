@@ -28,8 +28,18 @@ public sealed class ModifierRuntime
     /// <summary>
     /// Off by default. When off, per-player random-round assignments ("who got which modifier")
     /// are never sent to chat at all - each player's own center-HTML banner already tells them
-    /// privately. When toggled on via !rolldebug, that "who got what" breakdown is sent to connected
-    /// admins only, never broadcast to the whole server.
+    /// privately. When toggled on via !rolldebug, that "who got what" breakdown is broadcast to
+    /// every connected player, naming each modifier BEFORE it is activated.
+    ///
+    /// Changed from admins-only: the old routing went through Permission.PlayerHasPermission, so on
+    /// a server with nobody registered in SwiftlyS2's permission system !rolldebug printed to no
+    /// one and looked broken. This output exists to be read live while diagnosing a server that
+    /// dies mid-roll, so it has to reach whoever is testing; the privacy argument for hiding it
+    /// applies to normal play, and in normal play DebugMode is off.
+    ///
+    /// Independent of this flag, every roll is also written to the server console unconditionally
+    /// (the ROLLED lines), as are the ACTIVATING/ACTIVATED pairs in GameModifierBase - chat can be
+    /// lost with the process, the log usually is not.
     /// </summary>
     public bool DebugMode { get; set; }
 
@@ -126,6 +136,7 @@ public sealed class ModifierRuntime
     {
         _modifierHudSuppressedUntil = 0f;
         _lastSpectatorHudUpdateTime.Clear();
+        _lastModifierHudUpdateTime.Clear();
     }
 
     /// <summary>Extends the HUD blackout to at least <paramref name="seconds"/> from now - never shortens an existing one, so overlapping reveals can't cut each other short.</summary>
@@ -224,6 +235,7 @@ public sealed class ModifierRuntime
         }
 
         _core.Event.OnTick += RefreshSpectatorHud;
+        _core.Event.OnTick += RefreshModifierHud;
         _core.Event.OnClientDisconnected += OnClientDisconnected;
     }
 
@@ -290,6 +302,7 @@ public sealed class ModifierRuntime
     public void Unregister()
     {
         _core.Event.OnTick -= RefreshSpectatorHud;
+        _core.Event.OnTick -= RefreshModifierHud;
         _core.Event.OnClientDisconnected -= OnClientDisconnected;
 
         RemoveAllModifiers();
@@ -302,6 +315,7 @@ public sealed class ModifierRuntime
         _lastActiveModifiers.Clear();
         _registeredModifiers.Clear();
         _lastSpectatorHudUpdateTime.Clear();
+        _lastModifierHudUpdateTime.Clear();
 
         // Bug fix: this used to also clear _lastRoundAssignedPerPlayer and reset _roundNumber to 0 -
         // meaning any Unregister()-then-Initialise() registry reload (e.g. after a config change)
@@ -330,6 +344,11 @@ public sealed class ModifierRuntime
     /// </summary>
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
+        // Slots are recycled by the next player to join, so any HUD blocks published for this one
+        // have to go with them or the newcomer inherits a stale panel.
+        _hudSections.Remove(@event.PlayerId);
+        _lastModifierHudUpdateTime.Remove(@event.PlayerId);
+
         // Iterating a copy: an orphaned modifier is removed from _activeModifiers inside this loop.
         foreach (var modifier in _activeModifiers.ToList())
         {
@@ -558,16 +577,33 @@ public sealed class ModifierRuntime
             return false;
         }
 
+        // Unconditional console record of what this round SELECTED, written before anything is
+        // activated. The ACTIVATING/ACTIVATED pairs in GameModifierBase cover a fault inside
+        // OnEnabled, but activation is deferred by a second or more (the spin-then-reveal), so a
+        // crash in the window between the roll and the reveal would otherwise leave nothing at all
+        // naming the modifiers that were in flight. This line closes that gap.
+        _core.Logger.LogInformation(
+            "[CSRoll] ROLLED (per-player): {Roll}",
+            string.Join(" | ", modifiersByPlayerSlot.Select(entry => $"slot {entry.Key}: {string.Join(", ", entry.Value.Select(m => m.Name))}")));
+
         if (DebugMode)
         {
-            CSRollUtils.PrintTitleToAdminsOnly(_core, "Rolled modifiers (randomized per player):");
+            // Broadcast, not admins-only. This listing used to go through PrintToAdminsOnly, which
+            // filters on Permission.PlayerHasPermission - so on a server where nobody is registered
+            // in SwiftlyS2's permission system (a local test box, most obviously) !rolldebug printed
+            // to precisely nobody and read as "debug mode does nothing". The whole point of this
+            // output is to name the modifier that is about to be activated while you are standing
+            // there watching the server die, so it has to be visible to whoever is testing.
+            // DebugMode is off by default and is an explicit opt-in via !rolldebug, so broadcasting
+            // while it is on costs a normal match nothing.
+            CSRollUtils.PrintTitleToChatAll(_core, "Rolled modifiers (randomized per player):");
             foreach (var (slot, modifiers) in modifiersByPlayerSlot)
             {
                 var player = _core.PlayerManager.GetPlayer(slot);
                 var playerName = player?.Controller is { IsValid: true } controller ? controller.PlayerName : $"Player {slot}";
                 foreach (var modifier in modifiers)
                 {
-                    CSRollUtils.PrintToAdminsOnly(_core, $"• {playerName}: {CSRollUtils.GetModifierDisplayName(_core, modifier)} - [{CSRollUtils.GetModifierDescription(_core, modifier)}]");
+                    CSRollUtils.PrintToChatAll(_core, $"• {playerName}: {CSRollUtils.GetModifierDisplayName(_core, modifier)} - [{CSRollUtils.GetModifierDescription(_core, modifier)}]");
                 }
             }
         }
@@ -858,9 +894,275 @@ public sealed class ModifierRuntime
         return true;
     }
 
-    /// <summary>Empty AssignedSlots means global/"everyone" (the same convention GameModifierBase.IsAssignedTo uses internally) - this is the equivalent check from outside the modifier.</summary>
-    private static bool ModifierAppliesToSlot(GameModifierBase modifier, int slot) =>
-        modifier.AssignedSlots.Count == 0 || modifier.AssignedSlots.Contains(slot);
+    /// <summary>How often the composed per-player modifier HUD is pushed. Matches what each modifier used to use individually when they still owned their own SendCenterHTML call.</summary>
+    private const float ModifierHudRefreshIntervalSeconds = 0.1f;
+
+    /// <summary>Panel lifetime per push - comfortably longer than the refresh interval, so the HUD reads as persistent rather than strobing between pushes.</summary>
+    private const int ModifierHudDurationMs = 400;
+
+    /// <summary>
+    /// How long a published block stays live without being re-published.
+    ///
+    /// This is what preserves the semantics modifiers already depended on. Before the composer they
+    /// each pushed center-HTML with a ~400ms lifetime and simply STOPPED pushing when their HUD no
+    /// longer applied - dead player, no fuel, cooldown state gone - and the panel expired on its own.
+    /// A section held until explicitly retracted would instead re-push that last frame forever, so a
+    /// player who died mid-Vanish would keep a frozen gauge on screen for the rest of the round.
+    /// Expiring on the same kind of short timer restores "stop drawing and it goes away" for every
+    /// modifier, without each one having to remember an explicit ClearHud on every exit path.
+    ///
+    /// Comfortably longer than ModifierHudRefreshIntervalSeconds so a section that IS still being
+    /// published every tick can never lapse between two composer passes.
+    /// </summary>
+    private const float HudSectionTtlSeconds = 0.5f;
+
+    private sealed record HudSection(string Html, int Priority, float ExpiresAt);
+
+    /// <summary>
+    /// Per-slot, per-modifier HUD fragments, composed into ONE center-HTML push per player per
+    /// refresh.
+    ///
+    /// Center-HTML is a single shared surface: every SendCenterHTML rebuilds the whole Panorama panel,
+    /// so two modifiers drawing their own HUD for the same player don't stack - they overwrite each
+    /// other, and the player sees whichever push landed last, flickering between them several times a
+    /// second. That was already possible whenever two of the seven HUD-drawing modifiers happened to
+    /// roll onto the same player, but Mimic and ButterflyEffect make it systematic: both exist
+    /// specifically to put a SECOND modifier on someone who already has one.
+    ///
+    /// So modifiers no longer call SendCenterHTML for their own persistent HUD - they publish a
+    /// fragment here and the runtime joins every fragment for a slot into one panel. Priority orders
+    /// the blocks (higher first), which is how a granting modifier's header stays above the modifier
+    /// it handed out.
+    ///
+    /// Transient, animation-driven HTML (WeaponRoulette's spin frames, the roll reveal itself) still
+    /// goes direct - it owns the surface deliberately and briefly.
+    /// </summary>
+    private readonly Dictionary<int, Dictionary<GameModifierBase, HudSection>> _hudSections = [];
+
+    private readonly Dictionary<int, float> _lastModifierHudUpdateTime = [];
+
+    /// <summary>Publishes (or replaces) one modifier's HUD block for one player. Cheap enough to call every tick - composition and the actual send are throttled separately in RefreshModifierHud.</summary>
+    public void SetHudSection(GameModifierBase owner, int slot, string html, int priority = 0)
+    {
+        if (!_hudSections.TryGetValue(slot, out var sections))
+        {
+            sections = [];
+            _hudSections[slot] = sections;
+        }
+
+        sections[owner] = new HudSection(html, priority, _core.Engine.GlobalVars.CurrentTime + HudSectionTtlSeconds);
+    }
+
+    /// <summary>
+    /// Whether a modifier currently has a live HUD block published for this player.
+    ///
+    /// Exists so a GRANTING modifier (ButterflyEffect, Mimic) can avoid printing the name of what it
+    /// handed out when that modifier already draws its own block directly underneath - otherwise the
+    /// composed panel repeats the same name on two adjacent lines ("Active: Jetpack" immediately
+    /// above Jetpack's own header). Modifiers with no HUD of their own still need the name printed,
+    /// which is why this is a question rather than a blanket rule.
+    /// </summary>
+    public bool HasHudSection(GameModifierBase owner, int slot) =>
+        _hudSections.TryGetValue(slot, out var sections) &&
+        sections.TryGetValue(owner, out var section) &&
+        _core.Engine.GlobalVars.CurrentTime < section.ExpiresAt;
+
+    /// <summary>Retracts one modifier's block for one player - e.g. Vanish's own HUD while the player is dead.</summary>
+    public void ClearHudSection(GameModifierBase owner, int slot)
+    {
+        if (_hudSections.TryGetValue(slot, out var sections) && sections.Remove(owner) && sections.Count == 0)
+        {
+            _hudSections.Remove(slot);
+        }
+    }
+
+    /// <summary>Retracts every block a modifier owns, for every player. Called automatically from GameModifierBase.Deactivate so no modifier can leave a stale block on screen after it ends.</summary>
+    public void ClearHudSections(GameModifierBase owner)
+    {
+        foreach (var slot in _hudSections.Keys.ToList())
+        {
+            ClearHudSection(owner, slot);
+        }
+    }
+
+    /// <summary>
+    /// Joins every published fragment for each player into a single center-HTML push. Ordered by
+    /// descending priority, then by modifier name so equal-priority blocks keep a stable order
+    /// instead of shuffling with dictionary enumeration between frames.
+    /// </summary>
+    private void RefreshModifierHud()
+    {
+        if (_hudSections.Count == 0)
+        {
+            return;
+        }
+
+        var now = _core.Engine.GlobalVars.CurrentTime;
+
+        foreach (var (slot, sections) in _hudSections.ToList())
+        {
+            // Bug fix shape shared with every other map-relative timestamp in this file: CurrentTime
+            // restarts near zero on a map change, so expiries carried over from the previous map sit
+            // far in the future. Treating "now is BEFORE the section was even published" as expired
+            // clears them out instead of freezing every HUD for the rest of the session.
+            foreach (var (owner, section) in sections.ToList())
+            {
+                if (now >= section.ExpiresAt || now + HudSectionTtlSeconds < section.ExpiresAt)
+                {
+                    sections.Remove(owner);
+                }
+            }
+
+            if (sections.Count == 0)
+            {
+                _hudSections.Remove(slot);
+                continue;
+            }
+
+            // Bug fix shape borrowed from the spectator HUD: CurrentTime is map-relative and restarts
+            // near zero, so a timestamp carried over from the previous map sits in the future and
+            // would gate every refresh off for the rest of the session.
+            if (_lastModifierHudUpdateTime.TryGetValue(slot, out var lastUpdate) &&
+                now >= lastUpdate && now - lastUpdate < ModifierHudRefreshIntervalSeconds)
+            {
+                continue;
+            }
+
+            // Same gate every modifier HUD used to apply individually - stay off the surface while
+            // the roll's own spin/reveal owns it. See IsModifierHudSuppressed.
+            if (IsModifierHudSuppressed)
+            {
+                continue;
+            }
+
+            var player = _core.PlayerManager.GetAllValidPlayers().FirstOrDefault(p => p.Slot == slot);
+            if (player is not { IsValid: true })
+            {
+                continue;
+            }
+
+            _lastModifierHudUpdateTime[slot] = now;
+
+            var html = string.Join("<br/>", sections
+                .OrderByDescending(entry => entry.Value.Priority)
+                .ThenBy(entry => entry.Key.Name, StringComparer.Ordinal)
+                .Select(entry => entry.Value.Html));
+
+            player.SendCenterHTML(html, ModifierHudDurationMs);
+        }
+    }
+
+    /// <summary>
+    /// Set while RemoveAllModifiers is walking _activeModifiers, so a granting modifier's own
+    /// OnDisabled cleanup (Mimic/ButterflyEffect revoking what they handed out) can't mutate the list
+    /// underneath that loop. Deactivate() runs OnDisabled synchronously, so without this a revoke
+    /// triggered from teardown would List.Remove an entry the reverse loop hadn't reached yet and skip
+    /// deactivating it entirely. Everything is being torn down anyway, so no-oping is the correct
+    /// behaviour rather than merely the safe one.
+    /// </summary>
+    private bool _isRemovingAllModifiers;
+
+    /// <summary>
+    /// Empty AssignedSlots means global/"everyone" (the same convention GameModifierBase.IsAssignedTo
+    /// uses internally) - this is the equivalent check from outside the modifier.
+    ///
+    /// Bug fix: the liveness test is what makes that convention safe to apply here. Deactivate()
+    /// CLEARS AssignedSlots, so an inactive modifier and an active global one are indistinguishable by
+    /// slots alone - both have an empty set. Without this check every registered-but-inactive modifier
+    /// read as "already applies to everyone", which inverted GetGrantableModifiersForSlot: instead of
+    /// offering the whole pool it offered only modifiers currently active on OTHER players, so
+    /// ButterflyEffect on a server where nobody else had rolled anything had nothing to roll and sat
+    /// on "&lt;none&gt;" all round. (Mimic hid the bug - it intersects with its victim's modifiers,
+    /// which are active by definition.)
+    /// </summary>
+    private bool ModifierAppliesToSlot(GameModifierBase modifier, int slot) =>
+        _activeModifiers.Contains(modifier) &&
+        (modifier.AssignedSlots.Count == 0 || modifier.AssignedSlots.Contains(slot));
+
+    /// <summary>Every currently-active modifier scoped to this player, including globally-scoped ones.</summary>
+    public IReadOnlyList<GameModifierBase> GetModifiersForSlot(int slot) =>
+        _activeModifiers.Where(m => ModifierAppliesToSlot(m, slot)).ToList();
+
+    /// <summary>
+    /// Modifiers a "steal/roll another modifier onto this player" effect (Mimic, ButterflyEffect) is
+    /// allowed to hand out: registered, per-player-capable, not already on them, not the granting
+    /// modifier itself, and compatible with everything they currently have.
+    ///
+    /// Globally-scoped ACTIVES are deliberately excluded as candidates - they apply to everyone
+    /// already, so "granting" one to a single player is a no-op that would look like a broken steal.
+    /// Inactive modifiers are the opposite case and must stay in: the pool this draws from is the full
+    /// registered set, not "whatever happens to be running right now" - see ModifierAppliesToSlot for
+    /// the bug that came of conflating the two.
+    /// </summary>
+    public IReadOnlyList<GameModifierBase> GetGrantableModifiersForSlot(int slot, GameModifierBase granter)
+    {
+        // Bug fix: this pool skipped the team-size rule that PickRandomModifiersForPlayer applies to
+        // the normal per-player roll, so Config.RequiresMultiplePlayersPerTeam (Saint, SwapOnDeath,
+        // SuicideBomber - modifiers that simply cannot function with one player per side) was
+        // enforced for rolled modifiers but bypassed entirely for granted ones. In a 1v1, Mimic or
+        // ButterflyEffect would happily hand out the exact modifiers that list exists to keep out.
+        var teamSize = _core.PlayerManager.GetPlayer(slot) is { IsValid: true, Controller: { IsValid: true } controller }
+            ? _core.PlayerManager.GetInTeam(controller.Team).Count()
+            : 0;
+
+        return _registeredModifiers
+            .Where(m => m != granter && m.SupportsPerPlayerRandomization && !ModifierAppliesToSlot(m, slot))
+            .Where(m => MeetsTeamSizeRequirement(m, teamSize))
+            .Where(m => !GetModifiersForSlot(slot).Any(active => active.CheckIfIncompatible(m) || m.CheckIfIncompatible(active)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Scopes an already-active modifier onto one more player, activating it for them if this is the
+    /// first owner. Counterpart to RevokeModifierFromSlot.
+    /// </summary>
+    public bool GrantModifierToSlot(GameModifierBase modifier, int slot)
+    {
+        if (_isRemovingAllModifiers)
+        {
+            return false;
+        }
+
+        if (ModifierAppliesToSlot(modifier, slot) && _activeModifiers.Contains(modifier))
+        {
+            return false;
+        }
+
+        if (_activeModifiers.Contains(modifier))
+        {
+            modifier.AddAssignedSlots([slot]);
+        }
+        else
+        {
+            modifier.Activate([slot]);
+            _activeModifiers.Add(modifier);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Un-scopes a modifier from one player, fully deactivating it only if they were its last owner.
+    /// Mirrors the disconnect path's IsOnlyAssignedSlot handling - dropping the slot from a modifier
+    /// that still has other owners must not tear it down for them, and a modifier left with an empty
+    /// AssignedSlots would silently widen to "everyone" rather than switching off.
+    /// </summary>
+    public void RevokeModifierFromSlot(GameModifierBase modifier, int slot)
+    {
+        if (_isRemovingAllModifiers || !_activeModifiers.Contains(modifier) || !modifier.AssignedSlots.Contains(slot))
+        {
+            return;
+        }
+
+        if (modifier.IsOnlyAssignedSlot(slot))
+        {
+            modifier.Deactivate();
+            _activeModifiers.Remove(modifier);
+            return;
+        }
+
+        modifier.RemoveAssignedSlot(slot);
+    }
 
     /// <summary>
     /// Permanently removes a modifier from the registered pool for the rest of this session (the
@@ -1001,10 +1303,19 @@ public sealed class ModifierRuntime
             return;
         }
 
-        for (var i = _activeModifiers.Count - 1; i >= 0; i--)
+        _isRemovingAllModifiers = true;
+
+        try
         {
-            _core.Logger.LogInformation("[CSRoll] RemoveAllModifiers: deactivating {Name} (slots=[{Slots}])", _activeModifiers[i].Name, string.Join(",", _activeModifiers[i].AssignedSlots));
-            _activeModifiers[i].Deactivate();
+            for (var i = _activeModifiers.Count - 1; i >= 0; i--)
+            {
+                _core.Logger.LogInformation("[CSRoll] RemoveAllModifiers: deactivating {Name} (slots=[{Slots}])", _activeModifiers[i].Name, string.Join(",", _activeModifiers[i].AssignedSlots));
+                _activeModifiers[i].Deactivate();
+            }
+        }
+        finally
+        {
+            _isRemovingAllModifiers = false;
         }
 
         _activeModifiers.Clear();
@@ -1059,12 +1370,18 @@ public sealed class ModifierRuntime
         // anything that doesn't support per-player randomization, including the
         // ConditionalInvisibility/Vanish supplementary roll) reported as "hidden": nobody
         // showed up as having received them in the debug output because there simply wasn't any.
+        // See the per-player twin above - unconditional console record of the selection, written
+        // before activation, covering the gap between the roll and the deferred reveal.
+        _core.Logger.LogInformation("[CSRoll] ROLLED (global): {Roll}", string.Join(", ", addedModifiers.Select(m => m.Name)));
+
         if (DebugMode)
         {
-            CSRollUtils.PrintTitleToAdminsOnly(_core, "Activating modifiers (global/shared roll):");
+            // Broadcast rather than admins-only, for the reason spelled out on the per-player twin
+            // above: the admin filter made !rolldebug silent on any server with no registered admins.
+            CSRollUtils.PrintTitleToChatAll(_core, "Activating modifiers (global/shared roll):");
             foreach (var modifier in addedModifiers)
             {
-                CSRollUtils.PrintToAdminsOnly(_core, $"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - [{CSRollUtils.GetModifierDescription(_core, modifier)}]");
+                CSRollUtils.PrintToChatAll(_core, $"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - [{CSRollUtils.GetModifierDescription(_core, modifier)}]");
             }
         }
 

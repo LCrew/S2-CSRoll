@@ -1,5 +1,7 @@
 using System.Linq;
 
+using Microsoft.Extensions.Logging;
+
 using SwiftlyS2.Shared;
 using SwiftlyS2.Shared.GameHooks;
 using SwiftlyS2.Shared.Players;
@@ -107,9 +109,21 @@ public abstract class GameModifierBase
             _assignedSlots.UnionWith(slots);
         }
 
+        // Crash breadcrumb, deliberately unconditional (RemoveAllModifiers already logs the mirror
+        // line on every deactivation, so this is the shape the console already has). OnEnabled() is
+        // where a modifier first touches the engine - spawning entities, stripping weapons, writing
+        // schema fields - and a fault down there takes the whole game server with it, leaving no
+        // managed exception and no dump to read. The paired lines are the diagnostic: a console
+        // ending in ACTIVATING with no matching ACTIVATED names the exact modifier that was mid-
+        // OnEnabled when the process died. Do not gate this behind DebugMode - a crash you have to
+        // have predicted in order to log is a crash you cannot catch.
+        Core.Logger.LogInformation("[CSRoll] ACTIVATING {Name} (slots=[{Slots}])", Name, string.Join(",", _assignedSlots));
+
         IsActive = true;
         CvarConfig?.Apply();
         OnEnabled();
+
+        Core.Logger.LogInformation("[CSRoll] ACTIVATED {Name}", Name);
     }
 
     /// <summary>Adds more owning slots to an already-active per-player modifier (e.g. a second player rolls the same modifier this round) without re-running OnEnabled().</summary>
@@ -118,7 +132,11 @@ public abstract class GameModifierBase
         var added = slots.Where(_assignedSlots.Add).ToList();
         if (added.Count > 0)
         {
+            // Same breadcrumb pair as Activate, for the same reason: OnSlotsAdded is the OTHER entry
+            // into a modifier's own code, and it is the one Mimic/ButterflyEffect drive mid-round.
+            Core.Logger.LogInformation("[CSRoll] ADDING SLOTS to {Name} (slots=[{Slots}])", Name, string.Join(",", added));
             OnSlotsAdded(added);
+            Core.Logger.LogInformation("[CSRoll] ADDED SLOTS to {Name}", Name);
         }
     }
 
@@ -143,7 +161,48 @@ public abstract class GameModifierBase
     /// on every disconnect so a freed slot is never still "owned" by anyone.
     ///
     /// </summary>
-    internal void RemoveAssignedSlot(int slot) => _assignedSlots.Remove(slot);
+    internal void RemoveAssignedSlot(int slot)
+    {
+        if (!_assignedSlots.Remove(slot))
+        {
+            return;
+        }
+
+        // Bug fix: Deactivate() clears this modifier's HUD blocks for everyone, but that only runs
+        // when the LAST owner loses it. Un-scoping one player off a modifier that other players still
+        // have takes this path instead, which left that player's block published forever - nothing
+        // ever refreshed it (the modifier no longer counts them as assigned) and nothing ever
+        // retracted it. Reachable as soon as one modifier can grant another: ButterflyEffect re-rolls
+        // a granted Jetpack away from its carrier while an unrelated player also has Jetpack, and the
+        // carrier keeps a frozen fuel gauge on screen for the rest of the round.
+        Runtime.ClearHudSection(this, slot);
+
+        OnSlotsRemoved([slot]);
+    }
+
+    /// <summary>
+    /// Called when a slot is un-scoped from an ALREADY-ACTIVE modifier, which (like OnSlotsAdded, its
+    /// mirror) deliberately does not run OnDisabled.
+    ///
+    /// Bug fix: this is what makes it safe for one modifier to grant another. ButterflyEffect and
+    /// Mimic hand out other registered modifiers per-slot; if THEY are themselves granted to someone
+    /// and later revoked (Mimic steals ButterflyEffect, then steals something else off the next kill),
+    /// they stop being assigned to that player - but whatever they had handed out was still scoped
+    /// onto them, with no OnDisabled to clean it up, so it was stranded on that player until the round
+    /// ended. Implementers release per-slot state here.
+    /// </summary>
+    protected virtual void OnSlotsRemoved(IReadOnlyCollection<int> slots)
+    {
+    }
+
+    /// <summary>Publishes this modifier's persistent HUD block for one player. See ModifierRuntime._hudSections for why modifiers must not call SendCenterHTML directly for this.</summary>
+    protected void SetHud(int slot, string html, int priority = 0) => Runtime.SetHudSection(this, slot, html, priority);
+
+    /// <summary>Whether another modifier is currently drawing its own HUD block for this player - see ModifierRuntime.HasHudSection.</summary>
+    protected bool HasHud(GameModifierBase other, int slot) => Runtime.HasHudSection(other, slot);
+
+    /// <summary>Retracts this modifier's HUD block for one player (e.g. while they're dead).</summary>
+    protected void ClearHud(int slot) => Runtime.ClearHudSection(this, slot);
 
     /// <summary>
     /// Bug fix: true when `slot` is the ONLY slot this modifier is currently assigned to - i.e.
@@ -166,10 +225,24 @@ public abstract class GameModifierBase
 
     internal void Deactivate()
     {
+        // Third entry point into modifier-owned code, and just as capable of faulting as OnEnabled -
+        // OnDisabled is where props get despawned, weapons handed back and cvars rolled off.
+        // RemoveAllModifiers already logs its own line before calling this, but the disconnect and
+        // Mimic/ButterflyEffect revoke paths did not, so a crash on those routes was invisible.
+        Core.Logger.LogInformation("[CSRoll] DEACTIVATING {Name} (slots=[{Slots}])", Name, string.Join(",", _assignedSlots));
+
         OnDisabled();
+
+        // Unconditional, so no modifier can leave a stale block on a player's HUD after it ends -
+        // this is cleanup every HUD-drawing modifier would otherwise have to remember in its own
+        // OnDisabled, and forgetting it leaves text on screen with nothing behind it.
+        Runtime.ClearHudSections(this);
+
         CvarConfig?.Remove();
         IsActive = false;
         _assignedSlots.Clear();
+
+        Core.Logger.LogInformation("[CSRoll] DEACTIVATED {Name}", Name);
     }
 
     protected virtual void OnRegistered() { }
