@@ -777,8 +777,12 @@ public class XrayConfig
     /// from its transmit block, so a Wallhack holder still sees players that
     /// ConditionalInvisibility/Vanish have hidden. It just does not draw the glow outline.
     ///
-    /// Turn this on to reproduce the crash with the XRAY step logging active - the last "ok {step}"
-    /// line names the last engine call that completed.
+    /// KNOWN BROKEN, and not merely unproven: nine live crashes across eight distinct engine calls,
+    /// surviving a full from-scratch rewrite. The last fault is EXCEPTION_ACCESS_VIOLATION_READ at
+    /// 0xFFFFFFFFFFFFFFFF from the tick path, i.e. GetEntityByIndex handing back a wrapper that
+    /// passes IsValid over memory the engine has already freed. The engine deletes these props by
+    /// itself and IsValid cannot see it, so no managed-side guard fixes this. Use GlowRealPawn for
+    /// outlines; this stays only for anyone who wants to keep digging.
     /// </summary>
     public bool GlowProps { get; set; } = false;
 
@@ -814,4 +818,23 @@ public class XrayConfig
     /// load-bearing for the glow rendering.
     /// </summary>
     public bool ClearIdentityFlagBit2 { get; set; } = false;
+
+    /// <summary>
+    /// Through-wall outlines drawn on the REAL player pawns instead of on duplicate props.
+    ///
+    /// This writes CGlowProperty on pawns that already exist - the same class of operation as
+    /// RadarSpotting above, and as every other modifier in this plugin. It creates no entities,
+    /// dispatches no entity I/O, despawns nothing and defers nothing, so it has none of the crash
+    /// surface that GlowProps spent eight releases failing to survive.
+    ///
+    /// The trade is who can see it. CS2 has no per-viewer glow: glow lives on the entity, and the
+    /// finest filter the engine offers is CGlowProperty.GlowTeam, which restricts it to one team.
+    /// So the x-ray holder's TEAMMATES see the outlines too. In a 2v2 that is one extra player. If
+    /// holders somehow span both teams the glow would have to go to everyone, so this skips instead
+    /// and logs - it will not silently hand the whole server a wallhack.
+    ///
+    /// If GlowTeam turns out not to be honoured on a given build, the visible symptom is enemies
+    /// glowing for everyone rather than a crash. Turn this off if you see that.
+    /// </summary>
+    public bool GlowRealPawn { get; set; } = true;
 }

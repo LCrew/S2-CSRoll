@@ -12,15 +12,26 @@ using CSRoll.Core;
 namespace CSRoll.Modifiers;
 
 /// <summary>
-/// Wallhack. Two independent mechanisms, each behind its own config switch:
+/// Wallhack. Three independent mechanisms, each behind its own config switch:
 ///
-/// 1. Radar spotting (Xray.RadarSpotting, ON by default) - every enemy is continuously marked as
-///    spotted for the x-ray holder alone via CCSPlayerPawn.EntitySpottedState.SpottedByMask, a
-///    per-viewer bitmask the engine already maintains. Pure schema writes on pawns that already
-///    exist. This is the mechanism that works and the one that ships enabled.
+/// 1. Radar spotting (Xray.RadarSpotting, ON) - every enemy is continuously marked as spotted for
+///    the x-ray holder alone via CCSPlayerPawn.EntitySpottedState.SpottedByMask, a per-viewer
+///    bitmask the engine already maintains. Per-viewer and exact, but radar contacts only.
 ///
-/// 2. Glow props (Xray.GlowProps, OFF by default) - a glowing duplicate of each target's model,
-///    transmitted only to x-ray holders, giving a true through-wall outline.
+/// 2. Pawn glow (Xray.GlowRealPawn, ON) - through-wall outlines written straight onto the real
+///    pawns' CGlowProperty. Same class of operation as (1): no entities, nothing deferred. CS2 has
+///    no per-viewer glow, so GlowTeam limits it to the holder's team and their teammates see it
+///    too; that is the accepted price of a mechanism that does not crash.
+///
+/// 3. Glow props (Xray.GlowProps, OFF - KNOWN BROKEN) - a glowing duplicate of each target's model,
+///    transmitted only to holders. This is the only way to get per-viewer outlines, and it has
+///    never survived contact with a live server. Nine crashes across eight distinct engine calls.
+///    After the rewrite below the fault moved from EXCEPTION_ACCESS_VIOLATION_EXEC at "ibute" to
+///    EXCEPTION_ACCESS_VIOLATION_READ at 0xFFFFFFFFFFFFFFFF in the tick path, which means
+///    GetEntityByIndex returned a wrapper that passed IsValid over memory the engine had already
+///    freed. The engine deletes these props on its own and IsValid does not detect it, so there is
+///    no guard that makes this safe from managed code. Left in, off, for anyone who wants to keep
+///    digging - mechanism (2) is the supported way to get outlines.
 ///
 /// The glow half was rebuilt from scratch after the original crashed the server at four
 /// progressively later points. That original was ported from a CounterStrikeSharp plugin and
@@ -61,6 +72,12 @@ public abstract class GameModifierXrayBase : GameModifierBase
     private static readonly Color CounterTerroristGlowColor = new(135, 206, 235);
     private static readonly Color GlowPropRenderColor = new(1, 255, 255, 255);
 
+    /// <summary>CGlowProperty.GlowType value for a through-wall outline.</summary>
+    private const int GlowTypeOutline = 3;
+
+    /// <summary>How far the outline stays visible, in world units. Comfortably past the length of any competitive map sightline.</summary>
+    private const int GlowRangeUnits = 5000;
+
     /// <summary>The only classname this modifier ever creates - checked before anything is despawned, since CS2 recycles entity indices aggressively.</summary>
     private const string GlowChainPropDesignerName = "prop_dynamic";
 
@@ -94,8 +111,9 @@ public abstract class GameModifierXrayBase : GameModifierBase
     {
         Core.Event.OnTick -= OnTick;
 
-        // Before CachedXrayEnabledSlots is cleared below - it is the set of bits to take back.
+        // Both before CachedXrayEnabledSlots is cleared below - it is what they are keyed off.
         ClearRadarSpotting();
+        ClearPawnGlow();
 
         foreach (var slot in _glowPropEntityIndex.Keys.ToList())
         {
@@ -125,8 +143,8 @@ public abstract class GameModifierXrayBase : GameModifierBase
         }
 
         Core.Logger.LogInformation(
-            "[CSRoll] XRAY: {Count} viewer(s) granted x-ray. RadarSpotting={Radar}, GlowProps={Glow}.",
-            CachedXrayEnabledSlots.Count, Runtime.Config.Xray.RadarSpotting, Runtime.Config.Xray.GlowProps);
+            "[CSRoll] XRAY: {Count} viewer(s) granted x-ray. RadarSpotting={Radar}, GlowRealPawn={PawnGlow}, GlowProps={Glow}.",
+            CachedXrayEnabledSlots.Count, Runtime.Config.Xray.RadarSpotting, Runtime.Config.Xray.GlowRealPawn, Runtime.Config.Xray.GlowProps);
     }
 
     protected virtual bool CheckEnableXray(IPlayer viewer) => false;
@@ -139,7 +157,140 @@ public abstract class GameModifierXrayBase : GameModifierBase
         }
 
         RefreshRadarSpotting();
+        RefreshPawnGlow();
         RefreshGlowProps();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Mechanism 3: glow on the real pawns
+    // ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Draws the through-wall outline on the REAL player pawns rather than on duplicate props.
+    ///
+    /// This is what GlowProps was trying to achieve, done without creating anything: CGlowProperty
+    /// is written on pawns the engine already owns, exactly like RadarSpotting writes
+    /// EntitySpottedState. No entity creation, no entity I/O, no despawn, no deferred callback -
+    /// none of the surface that made the prop chain fail at eight different engine calls.
+    ///
+    /// The compromise is visibility. CS2 has no per-viewer glow; glow is a property of the entity,
+    /// and GlowTeam is the finest filter the engine exposes, so the holder's teammates see the
+    /// outlines too. That is accepted deliberately as the price of a mechanism that works. If
+    /// holders span both teams there is no team value that would exclude anyone, so this refuses to
+    /// draw rather than handing the whole server a wallhack.
+    /// </summary>
+    private void RefreshPawnGlow()
+    {
+        if (!Runtime.Config.Xray.GlowRealPawn)
+        {
+            return;
+        }
+
+        if (ResolveGlowAudienceTeam() is not { } audienceTeam)
+        {
+            return;
+        }
+
+        foreach (var target in Core.PlayerManager.GetAlive())
+        {
+            if (CachedXrayEnabledSlots.Contains(target.Slot) || target.PlayerPawn is not { IsValid: true } pawn)
+            {
+                continue;
+            }
+
+            ApplyPawnGlow(pawn, target, audienceTeam);
+        }
+    }
+
+    /// <summary>
+    /// Which team is allowed to see the outlines: the team every current holder is on. Null when
+    /// there are no holders, or when they are split across both teams and no single GlowTeam value
+    /// could exclude anybody.
+    /// </summary>
+    private Team? ResolveGlowAudienceTeam()
+    {
+        Team? team = null;
+
+        foreach (var slot in CachedXrayEnabledSlots)
+        {
+            if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true, Controller: { IsValid: true } controller })
+            {
+                continue;
+            }
+
+            if (team is null)
+            {
+                team = controller.Team;
+                continue;
+            }
+
+            if (team != controller.Team)
+            {
+                // Holders on both sides - any GlowTeam value here would reveal outlines to players
+                // who did not roll this. Drawing nothing is the correct call.
+                return null;
+            }
+        }
+
+        return team is Team.T or Team.CT ? team : null;
+    }
+
+    /// <summary>
+    /// Writes the glow properties, but only when they are not already what we want. The engine
+    /// resets these on respawn, so this is re-checked per tick rather than tracked in a set - and
+    /// the equality check keeps it to a network update only on the frames something actually
+    /// changed.
+    /// </summary>
+    private static void ApplyPawnGlow(CCSPlayerPawn pawn, IPlayer target, Team audienceTeam)
+    {
+        var glow = pawn.Glow;
+        if (!glow.IsValid)
+        {
+            return;
+        }
+
+        var color = target.Controller is { IsValid: true, Team: Team.T } ? TerroristGlowColor : CounterTerroristGlowColor;
+
+        if (glow.GlowType == GlowTypeOutline && glow.GlowTeam == (int)audienceTeam && glow.GlowRange == GlowRangeUnits)
+        {
+            return;
+        }
+
+        glow.GlowColorOverride = color;
+        glow.GlowColorOverrideUpdated();
+        glow.GlowRange = GlowRangeUnits;
+        glow.GlowRangeUpdated();
+        glow.GlowRangeMin = 0;
+        glow.GlowRangeMinUpdated();
+        glow.GlowTeam = (int)audienceTeam;
+        glow.GlowTeamUpdated();
+        glow.GlowType = GlowTypeOutline;
+        pawn.GlowUpdated();
+    }
+
+    /// <summary>Turns the pawn outlines back off. Players do not glow in normal play, so "restore" means "off" rather than a saved value.</summary>
+    private void ClearPawnGlow()
+    {
+        foreach (var target in Core.PlayerManager.GetAllValidPlayers())
+        {
+            if (target.PlayerPawn is not { IsValid: true } pawn)
+            {
+                continue;
+            }
+
+            var glow = pawn.Glow;
+            if (!glow.IsValid || glow.GlowType == 0)
+            {
+                continue;
+            }
+
+            glow.GlowRange = 0;
+            glow.GlowRangeUpdated();
+            glow.GlowTeam = -1;
+            glow.GlowTeamUpdated();
+            glow.GlowType = 0;
+            pawn.GlowUpdated();
+        }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -393,13 +544,13 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         glow.GlowColorOverride = target.Controller is { IsValid: true, Team: Team.T } ? TerroristGlowColor : CounterTerroristGlowColor;
         glow.GlowColorOverrideUpdated();
-        glow.GlowRange = 5000;
+        glow.GlowRange = GlowRangeUnits;
         glow.GlowRangeUpdated();
         glow.GlowRangeMin = 20;
         glow.GlowRangeMinUpdated();
         glow.GlowTeam = -1;
         glow.GlowTeamUpdated();
-        glow.GlowType = 3;
+        glow.GlowType = GlowTypeOutline;
         prop.GlowUpdated();
 
         _glowPropEntityIndex[slot] = prop.Index;
