@@ -68,8 +68,12 @@ namespace CSRoll.Modifiers;
 /// </summary>
 public abstract class GameModifierXrayBase : GameModifierBase
 {
-    private static readonly Color TerroristGlowColor = new(255, 165, 0);
-    private static readonly Color CounterTerroristGlowColor = new(135, 206, 235);
+    // Alpha given explicitly. Color has a three-argument overload and these used it, so the alpha
+    // byte was whatever that constructor defaults to - and a glow colour with zero alpha renders as
+    // nothing at all, which is one of the two candidate explanations for the outline never
+    // appearing once the crash was out of the way.
+    private static readonly Color TerroristGlowColor = new(255, 165, 0, 255);
+    private static readonly Color CounterTerroristGlowColor = new(135, 206, 235, 255);
     private static readonly Color GlowPropRenderColor = new(1, 255, 255, 255);
 
     /// <summary>CGlowProperty.GlowType value for a through-wall outline.</summary>
@@ -192,9 +196,9 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// <summary>Human-readable name of what the current isolation phase permits.</summary>
     private string DescribeIsolationPhase() => (_isolationPhase % 3) switch
     {
-        1 => "GLOW via PER-FIELD notifiers only (no parent GlowUpdated)",
-        2 => "GLOW with NO notifier at all (fields written, nothing marked dirty)",
-        _ => "GLOW with Glowing=true + per-field notifiers",
+        1 => "GLOW with GlowTeam=-1 (visible to everyone) + opaque colour",
+        2 => "SCREEN HIGHLIGHT (EligibleForScreenHighlight) - CS2's own through-wall outline",
+        _ => "GLOW with GlowTeam=holder team + opaque colour",
     };
 
     // Radar spotting is settled - phase 1 ran it alone and survived, phase 2 skipped it and still
@@ -376,7 +380,18 @@ public abstract class GameModifierXrayBase : GameModifierBase
         TracePawnGlowStep("pawnglow: reading current glow state");
         var color = target.Controller is { IsValid: true, Team: Team.T } ? TerroristGlowColor : CounterTerroristGlowColor;
 
-        if (glow.GlowType == GlowTypeOutline && glow.GlowTeam == (int)audienceTeam && glow.GlowRange == GlowRangeUnits)
+        // Strategy-aware, so a phase that writes a different GlowTeam is not treated as already
+        // applied - and so the screen-highlight phase, which never touches GlowType, is not
+        // re-written on every one of the 64 ticks a second.
+        var desiredTeam = GlowNotifierStrategy == 1 ? -1 : (int)audienceTeam;
+        if (GlowNotifierStrategy == 2)
+        {
+            if (glow.EligibleForScreenHighlight)
+            {
+                return;
+            }
+        }
+        else if (glow.GlowType == GlowTypeOutline && glow.GlowTeam == desiredTeam && glow.GlowRange == GlowRangeUnits)
         {
             return;
         }
@@ -391,36 +406,43 @@ public abstract class GameModifierXrayBase : GameModifierBase
         // any call we make. Marking the same region dirty by five different paths in one frame is
         // the most plausible way to do that. All the fields are written first, then the containing
         // subobject is marked changed exactly once.
+        // The crash is solved: dropping the parent pawn.GlowUpdated() ended nine consecutive glow
+        // crashes, and all three notifier phases then ran clean. What remains is that nothing
+        // renders, which is a different problem with two candidate causes, cycled here.
+        //
+        // GlowTeam is the first. It is being set to the holder's team on an ENEMY pawn, on the
+        // assumption that the field means "who may see this glow". If it instead means "which team
+        // this glow belongs to", CS2 will decline to draw an enemy glow for the other side and the
+        // whole thing is silently filtered out. Phase 1 sets -1 (everyone) to find out; if outlines
+        // appear, the field is an audience filter and phase 3's holder-team value is the shippable
+        // version. If -1 also shows nothing, GlowTeam is not the problem.
+        var strategy = GlowNotifierStrategy;
+
+        if (strategy == 2)
+        {
+            // CS2's OWN through-wall outline - the teammate highlight players already see every
+            // round - is the screen-highlight system, not GlowType. EligibleForScreenHighlight has
+            // a real notifier, so it is replicated, and nothing in this plugin has ever set it.
+            // If glow proper is simply not drawn for enemies on this build, this is the field that
+            // does what the modifier actually wants.
+            TracePawnGlowStep("pawnglow: strategy 2 - EligibleForScreenHighlight");
+            glow.EligibleForScreenHighlight = true;
+            glow.EligibleForScreenHighlightUpdated();
+            TracePawnGlowStep("pawnglow: EligibleForScreenHighlight ok");
+            return;
+        }
+
         TracePawnGlowStep("pawnglow: writing glow fields");
         glow.GlowColorOverride = color;
         glow.GlowRange = GlowRangeUnits;
         glow.GlowRangeMin = 0;
-        glow.GlowTeam = (int)audienceTeam;
+        glow.GlowTeam = strategy == 1 ? -1 : (int)audienceTeam;
         glow.GlowType = GlowTypeOutline;
 
-        var strategy = GlowNotifierStrategy;
-        if (strategy == 0)
-        {
-            // Glowing is a field nothing in this plugin has ever set. If the renderer gates on it,
-            // a GlowType with no Glowing flag may be what leaves the encode pass walking a
-            // half-configured glow.
-            TracePawnGlowStep("pawnglow: setting Glowing=true");
-            glow.Glowing = true;
-        }
-
-        if (strategy == 2)
-        {
-            TracePawnGlowStep("pawnglow: strategy 2 - NO notifier, nothing marked dirty");
-            return;
-        }
-
-        // GlowTypeUpdated is in here for the first time. CGlowProperty exposes a notifier for every
-        // networked member - GlowType, GlowTeam, GlowRange, GlowRangeMin, GlowColorOverride,
-        // Flashing, GlowTime, GlowStartTime, EligibleForScreenHighlight - and previous versions set
-        // GlowType and then relied on the parent pawn.GlowUpdated() to announce it, never calling
-        // GlowTypeUpdated at all. There is deliberately NO GlowingUpdated: Glowing has no notifier,
-        // which means it is not a replicated field and setting it is a local write only.
-        TracePawnGlowStep($"pawnglow: strategy {strategy} - per-field notifiers incl. GlowTypeUpdated");
+        // Every networked member gets its own notifier. The parent pawn.GlowUpdated() is gone for
+        // good - it was the single call common to all nine glow crashes, and removing it is what
+        // stopped them.
+        TracePawnGlowStep($"pawnglow: strategy {strategy} - per-field notifiers, GlowTeam={glow.GlowTeam}, alpha={color.A}");
         glow.GlowColorOverrideUpdated();
         glow.GlowRangeUpdated();
         glow.GlowRangeMinUpdated();
