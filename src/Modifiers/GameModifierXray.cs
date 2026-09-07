@@ -144,7 +144,10 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// <summary>Separates the field WRITE from the network-state notifier that follows it. Both cross into the engine and only one of them can be the one that faults.</summary>
     private void Trace(string step)
     {
-        if (_traceTicksRemaining > 0)
+        // Gated behind DebugMode as well as the tick countdown. These lines existed to find a crash
+        // that is now fixed; leaving them unconditional put ~20 lines in the console on every single
+        // Wallhack activation, every round.
+        if (_traceTicksRemaining > 0 && Runtime.DebugMode)
         {
             Core.Logger.LogInformation("[CSRoll] XRAY tick trace: {Step}", step);
         }
@@ -205,15 +208,18 @@ public abstract class GameModifierXrayBase : GameModifierBase
             }
         }
 
-        Core.Logger.LogInformation(
-            "[CSRoll] XRAY: {Count} viewer(s) granted x-ray. RadarSpotting={Radar}, GlowRealPawn={PawnGlow}, GlowProps={Glow}.",
-            CachedXrayEnabledSlots.Count, Runtime.Config.Xray.RadarSpotting, Runtime.Config.Xray.GlowRealPawn, Runtime.Config.Xray.GlowProps);
+        if (Runtime.DebugMode)
+        {
+            Core.Logger.LogInformation(
+                "[CSRoll] XRAY: {Count} viewer(s) granted x-ray. RadarSpotting={Radar}, GlowRealPawn={PawnGlow}, GlowProps={Glow}.",
+                CachedXrayEnabledSlots.Count, Runtime.Config.Xray.RadarSpotting, Runtime.Config.Xray.GlowRealPawn, Runtime.Config.Xray.GlowProps);
+        }
 
-        Core.Logger.LogWarning(
-            "[CSRoll] XRAY ISOLATION phase {Phase}: this activation runs {What}. If the server dies now, that is what killed it.",
-            _isolationPhase, DescribeIsolationPhase());
-
-        LogSchemaResolution();
+        if (Runtime.DebugMode)
+        {
+            Core.Logger.LogInformation("[CSRoll] XRAY: {What}", DescribeIsolationPhase());
+            LogSchemaResolution();
+        }
     }
 
     /// <summary>Human-readable name of what the current isolation phase permits.</summary>
@@ -840,9 +846,12 @@ public abstract class GameModifierXrayBase : GameModifierBase
         ApplyTransmitStateForAllViewers((int)relay.Index);
         ApplyTransmitStateForAllViewers((int)glow.Index);
 
-        Core.Logger.LogInformation(
-            "[CSRoll] XRAY slot {Slot}: glow chain built (relay={Relay}, glow={Glow}, model={Model}).",
-            slot, relay.Index, glow.Index, modelName);
+        if (Runtime.DebugMode)
+        {
+            Core.Logger.LogInformation(
+                "[CSRoll] XRAY slot {Slot}: glow chain built (relay={Relay}, glow={Glow}, model={Model}).",
+                slot, relay.Index, glow.Index, modelName);
+        }
     }
 
     /// <summary>

@@ -375,7 +375,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         // instead of counting smoothly down to zero as the new weapon lands.
         var landingRemaining = Math.Max(0f, _nextRerollTime - Runtime.Config.WeaponRoulette.RerollIntervalSeconds - now);
         SetHud(player.Slot, BuildStatusHtml(randomName, landingRemaining));
-        CSRollUtils.PlaySoundToPlayer(Core, player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume, debugMode: Runtime.DebugMode);
+        CSRollUtils.PlaySoundToPlayer(player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume);
 
         spin.FrameIndex++;
         spin.NextFrameTime = now + interval;

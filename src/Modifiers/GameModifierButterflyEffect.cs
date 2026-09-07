@@ -271,7 +271,7 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
         // get THIS roll's landing moment, or the timer would jump forward a full interval mid-roll.
         var landingRemaining = Math.Max(0f, _nextSwapTime.GetValueOrDefault(slot, now) - Runtime.Config.ButterflyEffect.SwapIntervalSeconds - now);
         SetHud(slot, BuildStatusHtml(flashed, landingRemaining), HudPriority);
-        CSRollUtils.PlaySoundToPlayer(Core, player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume, debugMode: Runtime.DebugMode);
+        CSRollUtils.PlaySoundToPlayer(player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume);
 
         spin.FrameIndex++;
         spin.NextFrameTime = now + interval;

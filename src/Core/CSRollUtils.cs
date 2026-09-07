@@ -367,10 +367,15 @@ public static partial class CSRollUtils
     /// player only - confirmed via SDK reflection: SwiftlyS2.Shared.Sounds.SoundEvent takes a
     /// soundevent name directly, and CRecipientFilter.AddRecipient(slot) scopes who hears it before
     /// Emit() fires it. An unknown/invalid soundevent name just silently does nothing (no exception),
-    /// so a bad name here fails quietly rather than crashing anything - debugMode logs the emitted
-    /// GUID so "the call ran but nothing was heard" can be told apart from "this never even fired".
+    /// so a bad name here fails quietly rather than crashing anything.
+    ///
+    /// This used to take a debugMode flag and log the emitted GUID, to tell "the call ran but
+    /// nothing was heard" apart from "this never even fired". That question is long settled, and
+    /// the cost was not: the tick sound fires once per spin FRAME, so with SpinCount frames per
+    /// player per roll it buried the console every time !rolldebug was on - which is exactly when
+    /// the console needs to be readable.
     /// </summary>
-    public static void PlaySoundToPlayer(ISwiftlyCore core, IPlayer player, string soundName, float volume = 1f, float pitch = 1f, bool debugMode = false)
+    public static void PlaySoundToPlayer(IPlayer player, string soundName, float volume = 1f, float pitch = 1f)
     {
         if (string.IsNullOrEmpty(soundName))
         {
@@ -379,16 +384,11 @@ public static partial class CSRollUtils
 
         using var soundEvent = new SoundEvent(soundName, volume, pitch);
         soundEvent.Recipients.AddRecipient(player.Slot);
-        var guid = soundEvent.Emit();
-
-        if (debugMode)
-        {
-            core.Logger.LogInformation("[CSRoll] PlaySoundToPlayer: name={Name} slot={Slot} guid={Guid}", soundName, player.Slot, guid);
-        }
+        soundEvent.Emit();
     }
 
     /// <summary>Broadcast counterpart to PlaySoundToPlayer - same soundevent, heard by every currently connected player.</summary>
-    public static void PlaySoundToAll(ISwiftlyCore core, string soundName, float volume = 1f, float pitch = 1f, bool debugMode = false)
+    public static void PlaySoundToAll(string soundName, float volume = 1f, float pitch = 1f)
     {
         if (string.IsNullOrEmpty(soundName))
         {
@@ -397,12 +397,7 @@ public static partial class CSRollUtils
 
         using var soundEvent = new SoundEvent(soundName, volume, pitch);
         soundEvent.Recipients.AddAllPlayers();
-        var guid = soundEvent.Emit();
-
-        if (debugMode)
-        {
-            core.Logger.LogInformation("[CSRoll] PlaySoundToAll: name={Name} guid={Guid}", soundName, guid);
-        }
+        soundEvent.Emit();
     }
 
     /// <summary>DMG_BULLET/DMG_BUCKSHOT are the flags CS2 uses for gunfire damage (as opposed to DMG_SLASH for knives or DMG_BLAST for explosives) - confirmed via SwiftlyS2.CS2.dll's DamageTypes_t enum.</summary>
