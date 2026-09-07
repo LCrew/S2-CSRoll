@@ -335,6 +335,16 @@ public abstract class GameModifierXrayBase : GameModifierBase
                 return;
             }
 
+            // PlayerPawn being non-null only says the wrapper exists, not that it points at a live
+            // entity. This pawn is about to be read for its model and handed to the engine twice as
+            // an AcceptInput activator/caller, so it gets the same INativeHandle check as everything
+            // else on this path.
+            if (!pawn.IsValid)
+            {
+                Core.Logger.LogWarning("[CSRoll] XRAY slot {Slot}: pawn is non-null but INVALID - aborting build.", targetSlot);
+                return;
+            }
+
             Step(targetSlot, "GetModel");
             var modelName = pawn.GetModel();
 
@@ -354,8 +364,37 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
             Step(targetSlot, "create relay prop");
             var relay = CreateGlowChainProp(modelName);
+            if (relay is null)
+            {
+                return;
+            }
+
             Step(targetSlot, "create glow prop");
             var glow = CreateGlowChainProp(modelName);
+            if (glow is null)
+            {
+                // The relay is already standing at this point - take it back down rather than
+                // stranding a prop nothing tracks (nothing has been written to the index
+                // dictionaries yet, so teardown would never find it).
+                Core.Logger.LogWarning("[CSRoll] XRAY slot {Slot}: glow prop failed to build - despawning the orphaned relay.", targetSlot);
+                relay.Despawn();
+                return;
+            }
+
+            // Resolved once and validated before any of the five writes below. Glow is the subobject
+            // the live crash is currently sitting on top of, and it is precisely the kind of nested
+            // schema field whose offset can fail to resolve against a newer CS2 build while the
+            // wrapper still hands back a usable-looking object.
+            var glowProperties = glow.Glow;
+            if (!glowProperties.IsValid)
+            {
+                Core.Logger.LogWarning(
+                    "[CSRoll] XRAY slot {Slot}: Glow subobject is INVALID (address={Address:X}) - skipping all Glow writes. The outline will not render; this is the write that would have corrupted memory.",
+                    targetSlot, glowProperties.Address);
+                relay.Despawn();
+                glow.Despawn();
+                return;
+            }
 
             Do(targetSlot, "relay RenderMode", () =>
             {
@@ -387,27 +426,27 @@ public abstract class GameModifierXrayBase : GameModifierBase
             // networked write, and any one of them could be the bad one.
             Do(targetSlot, "glow GlowColorOverride", () =>
             {
-                glow.Glow.GlowColorOverride = currentTarget.Controller?.Team == Team.T ? TerroristGlowColor : CounterTerroristGlowColor;
-                glow.Glow.GlowColorOverrideUpdated();
+                glowProperties.GlowColorOverride = currentTarget.Controller?.Team == Team.T ? TerroristGlowColor : CounterTerroristGlowColor;
+                glowProperties.GlowColorOverrideUpdated();
             });
             Do(targetSlot, "glow GlowRange", () =>
             {
-                glow.Glow.GlowRange = 5000;
-                glow.Glow.GlowRangeUpdated();
+                glowProperties.GlowRange = 5000;
+                glowProperties.GlowRangeUpdated();
             });
             Do(targetSlot, "glow GlowRangeMin", () =>
             {
-                glow.Glow.GlowRangeMin = 20;
-                glow.Glow.GlowRangeMinUpdated();
+                glowProperties.GlowRangeMin = 20;
+                glowProperties.GlowRangeMinUpdated();
             });
             Do(targetSlot, "glow GlowTeam", () =>
             {
-                glow.Glow.GlowTeam = -1;
-                glow.Glow.GlowTeamUpdated();
+                glowProperties.GlowTeam = -1;
+                glowProperties.GlowTeamUpdated();
             });
             Do(targetSlot, "glow GlowType", () =>
             {
-                glow.Glow.GlowType = 3;
+                glowProperties.GlowType = 3;
                 glow.GlowUpdated();
             });
 
@@ -430,10 +469,25 @@ public abstract class GameModifierXrayBase : GameModifierBase
     }
 
     /// <summary>Creates one link of the relay chain: spawn, model, and the collision/identity setup both links share.</summary>
-    private CDynamicProp CreateGlowChainProp(string modelName)
+    private CDynamicProp? CreateGlowChainProp(string modelName)
     {
         Core.Logger.LogInformation("[CSRoll] XRAY prop: CreateEntityByDesignerName");
         var prop = Core.EntitySystem.CreateEntityByDesignerName<CDynamicProp>(GlowChainPropDesignerName);
+
+        // Every schema wrapper in SwiftlyS2 derives from INativeHandle, which carries IsValid and
+        // Address - and until now this whole path checked neither, anywhere. A schema subobject
+        // resolves to "entity address + field offset", so if the entity failed to create, or a field
+        // offset failed to resolve against the running CS2 build, the wrapper still hands back a
+        // perfectly ordinary-looking object pointing at an address that is not the field. Writing
+        // through it is a raw write into whatever happens to live there, which is memory corruption
+        // in the host process - not something a try/catch can ever see, and the exact profile of a
+        // crash with no managed exception and no dump. The only place it can be stopped is before
+        // the call, so every hop is checked from here on.
+        if (!prop.IsValid)
+        {
+            Core.Logger.LogWarning("[CSRoll] XRAY prop: CreateEntityByDesignerName returned an INVALID entity - aborting build.");
+            return null;
+        }
 
         // Spawnflags configures the spawn process itself, so - unlike SetModel and the rest of
         // this setup - it must be set BEFORE DispatchSpawn. 256 is copied verbatim from the
@@ -464,12 +518,20 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         // Non-solid: these overlap the real player and must never physically collide with anyone.
         Core.Logger.LogInformation("[CSRoll] XRAY prop: Collision writes");
-        prop.Collision.CollisionGroup = (byte)CollisionGroup.Nonphysical;
-        prop.Collision.CollisionGroupUpdated();
-        prop.Collision.SolidFlags = 4; // FSOLID_NOT_SOLID
-        prop.Collision.SolidFlagsUpdated();
-        prop.Collision.SolidType = SolidType_t.SOLID_NONE;
-        prop.Collision.SolidTypeUpdated();
+        var collision = prop.Collision;
+        if (!collision.IsValid)
+        {
+            Core.Logger.LogWarning("[CSRoll] XRAY prop: Collision subobject is INVALID - skipping collision writes (prop will be solid).");
+        }
+        else
+        {
+            collision.CollisionGroup = (byte)CollisionGroup.Nonphysical;
+            collision.CollisionGroupUpdated();
+            collision.SolidFlags = 4; // FSOLID_NOT_SOLID
+            collision.SolidFlagsUpdated();
+            collision.SolidType = SolidType_t.SOLID_NONE;
+            collision.SolidTypeUpdated();
+        }
 
         Core.Logger.LogInformation("[CSRoll] XRAY prop: built ok");
         return prop;
