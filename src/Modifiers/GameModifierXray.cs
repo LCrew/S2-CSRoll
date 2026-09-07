@@ -218,13 +218,13 @@ public abstract class GameModifierXrayBase : GameModifierBase
             return;
         }
 
-        Trace("tick begin");
+        Trace($"tick {4 - _traceTicksRemaining} begin");
         RefreshRadarSpotting();
         Trace("radar done");
         RefreshPawnGlow();
         Trace("pawn glow done");
         RefreshGlowProps();
-        Trace("tick end");
+        Trace($"tick {4 - _traceTicksRemaining} end - engine now processes the frame");
 
         if (_traceTicksRemaining > 0)
         {
@@ -338,15 +338,21 @@ public abstract class GameModifierXrayBase : GameModifierBase
             return;
         }
 
+        // One notifier for one logical change, not five.
+        //
+        // This used to fire GlowColorOverrideUpdated, GlowRangeUpdated, GlowRangeMinUpdated and
+        // GlowTeamUpdated on the subobject AND then GlowUpdated on the pawn - five overlapping
+        // dirty-path notifications for a single edit. The live trace shows every one of those calls
+        // returning cleanly and the whole tick completing, with the server dying only afterwards,
+        // which points at the engine choking while it encodes the state we marked rather than at
+        // any call we make. Marking the same region dirty by five different paths in one frame is
+        // the most plausible way to do that. All the fields are written first, then the containing
+        // subobject is marked changed exactly once.
         TracePawnGlowStep("pawnglow: writing glow fields");
         glow.GlowColorOverride = color;
-        glow.GlowColorOverrideUpdated();
         glow.GlowRange = GlowRangeUnits;
-        glow.GlowRangeUpdated();
         glow.GlowRangeMin = 0;
-        glow.GlowRangeMinUpdated();
         glow.GlowTeam = (int)audienceTeam;
-        glow.GlowTeamUpdated();
         glow.GlowType = GlowTypeOutline;
         TracePawnGlowStep("pawnglow: GlowUpdated notifier");
         pawn.GlowUpdated();
@@ -373,9 +379,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
             }
 
             glow.GlowRange = 0;
-            glow.GlowRangeUpdated();
             glow.GlowTeam = -1;
-            glow.GlowTeamUpdated();
             glow.GlowType = 0;
             pawn.GlowUpdated();
         }
@@ -641,14 +645,11 @@ public abstract class GameModifierXrayBase : GameModifierBase
             return;
         }
 
+        // Same single-notifier rule as the pawn path above.
         glow.GlowColorOverride = target.Controller is { IsValid: true, Team: Team.T } ? TerroristGlowColor : CounterTerroristGlowColor;
-        glow.GlowColorOverrideUpdated();
         glow.GlowRange = GlowRangeUnits;
-        glow.GlowRangeUpdated();
         glow.GlowRangeMin = 20;
-        glow.GlowRangeMinUpdated();
         glow.GlowTeam = -1;
-        glow.GlowTeamUpdated();
         glow.GlowType = GlowTypeOutline;
         prop.GlowUpdated();
 
