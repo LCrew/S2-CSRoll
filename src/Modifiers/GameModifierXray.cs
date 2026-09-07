@@ -363,14 +363,14 @@ public abstract class GameModifierXrayBase : GameModifierBase
             }
 
             Step(targetSlot, "create relay prop");
-            var relay = CreateGlowChainProp(modelName);
+            var relay = CreateGlowChainProp(modelName, pawn.AbsOrigin);
             if (relay is null)
             {
                 return;
             }
 
             Step(targetSlot, "create glow prop");
-            var glow = CreateGlowChainProp(modelName);
+            var glow = CreateGlowChainProp(modelName, pawn.AbsOrigin);
             if (glow is null)
             {
                 // The relay is already standing at this point - take it back down rather than
@@ -415,6 +415,22 @@ public abstract class GameModifierXrayBase : GameModifierBase
                 glow.RenderUpdated();
             });
 
+            // Moved AHEAD of the Glow.* writes, which is where it used to sit. The live crash landed
+            // on exactly this call with "ok glow GlowType" logged immediately before it: once
+            // GlowType and GlowRange are live the prop is on the glow render path, and moving it then
+            // triggers a transform update that reads render bounds. Positioning it while it is still
+            // an inert prop and only switching glow on afterwards means the one ordering confirmed
+            // to kill the server cannot happen again, whatever else is wrong.
+            //
+            // Belt and braces with the spawn-keyvalue fix in CreateGlowChainProp, which is the real
+            // cause - the prop now arrives with a model and valid bounds, so this update has
+            // something to read. Both are kept: the reorder costs nothing and this is not a call
+            // worth being wrong about twice.
+            if (pawn.AbsOrigin is { } glowPosition)
+            {
+                Do(targetSlot, "glow Teleport", () => glow.Teleport(glowPosition, null, null));
+            }
+
             // The original plugin also sets RenderMode to a "kRenderGlow" mode here, but
             // SwiftlyS2's RenderMode_t only exposes a small remapped subset (0-3, not matching
             // the true native enum) with no glow-specific value - casting an arbitrary int would
@@ -450,10 +466,6 @@ public abstract class GameModifierXrayBase : GameModifierBase
                 glow.GlowUpdated();
             });
 
-            if (pawn.AbsOrigin is { } glowPosition)
-            {
-                Do(targetSlot, "glow Teleport", () => glow.Teleport(glowPosition, null, null));
-            }
             // The glow prop follows the RELAY, not the real player directly - this is the change
             // from the previous single-hop attempt.
             Do(targetSlot, "glow FollowEntity -> relay", () => glow.AcceptInput("FollowEntity", "!activator", relay, relay, 0));
@@ -469,7 +481,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
     }
 
     /// <summary>Creates one link of the relay chain: spawn, model, and the collision/identity setup both links share.</summary>
-    private CDynamicProp? CreateGlowChainProp(string modelName)
+    private CDynamicProp? CreateGlowChainProp(string modelName, Vector? spawnOrigin)
     {
         Core.Logger.LogInformation("[CSRoll] XRAY prop: CreateEntityByDesignerName");
         var prop = Core.EntitySystem.CreateEntityByDesignerName<CDynamicProp>(GlowChainPropDesignerName);
@@ -497,11 +509,32 @@ public abstract class GameModifierXrayBase : GameModifierBase
         prop.Spawnflags = 256u;
         prop.SpawnflagsUpdated();
 
-        // SetModel (and the rest of this configuration) must happen AFTER DispatchSpawn, or it
-        // hits a Source 2 engine assertion ("SetupModel(): entity is still in the staging list")
-        // and the model never actually gets set.
-        Core.Logger.LogInformation("[CSRoll] XRAY prop: DispatchSpawn");
+        // Bug fix, and the actual cause of the live crash: this used to DispatchSpawn with an EMPTY
+        // CEntityKeyValues, and the engine said so on every single spawn -
+        //     prop_dynamic at (0.000, 0.000, 0.000) has no model name!
+        // - a line that was in the console the whole time and went unread. The prop was being
+        // brought into the world with no model and no origin, and SetModel below then attached one
+        // after the fact, which sets the model but never re-runs the spawn-time setup that builds
+        // the entity's render and collision bounds from it.
+        //
+        // That is survivable right up until something asks for those bounds. The relay prop is
+        // kRenderNone with no glow and teleports perfectly happily; the glow prop, once GlowType and
+        // GlowRange are live, crashes the server on its very next Teleport - the transform update
+        // walks a render/glow path that reads model bounds which were never built. Hence the fault
+        // landing on "glow Teleport" with "ok glow GlowType" immediately before it.
+        //
+        // Passing model (and origin) through the spawn keyvalues is the normal Source 2 way to do
+        // this and means the prop is fully set up by the time it exists, rather than patched up
+        // afterwards. This is separate from the SetModel-after-DispatchSpawn rule noted below: that
+        // is about the SetModel CALL, not about the spawn keyvalue.
+        Core.Logger.LogInformation("[CSRoll] XRAY prop: DispatchSpawn (model={Model})", modelName);
         using var keyValues = new CEntityKeyValues();
+        keyValues.SetString("model", modelName);
+        if (spawnOrigin is { } origin)
+        {
+            keyValues.SetVector("origin", origin);
+        }
+
         prop.DispatchSpawn(keyValues);
 
         Core.Logger.LogInformation("[CSRoll] XRAY prop: SetModel");
