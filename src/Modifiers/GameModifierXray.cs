@@ -74,7 +74,15 @@ public abstract class GameModifierXrayBase : GameModifierBase
     // appearing once the crash was out of the way.
     private static readonly Color TerroristGlowColor = new(255, 165, 0, 255);
     private static readonly Color CounterTerroristGlowColor = new(135, 206, 235, 255);
-    private static readonly Color GlowPropRenderColor = new(1, 255, 255, 255);
+    /// <summary>
+    /// White at alpha 1 - the model itself is meant to be invisible so that ONLY its glow outline
+    /// draws. This was new(1, 255, 255, 255), which with a Color(r, g, b, a) constructor is
+    /// r=1 g=255 b=255 a=255: fully opaque cyan. That is exactly the solid teal duplicate that
+    /// appeared once the crash was fixed and the props finally rendered. The intent had always been
+    /// alpha 1; the arguments were simply in the wrong order, and nobody could see it because the
+    /// path had never survived long enough to draw anything.
+    /// </summary>
+    private static readonly Color GlowPropRenderColor = new(255, 255, 255, 1);
 
     /// <summary>CGlowProperty.GlowType value for a through-wall outline.</summary>
     private const int GlowTypeOutline = 3;
@@ -625,6 +633,14 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         foreach (var target in Core.PlayerManager.GetAlive())
         {
+            // Never build a duplicate of an x-ray holder. They are the one person who cannot
+            // benefit from their own outline, and the prop spawns inside their first-person view -
+            // which is the giant model that was filling the screen.
+            if (CachedXrayEnabledSlots.Contains(target.Slot))
+            {
+                continue;
+            }
+
             if (target.PlayerPawn is not { } pawn || !CSRollUtils.IsUsableHandle(pawn))
             {
                 continue;
@@ -638,6 +654,12 @@ public abstract class GameModifierXrayBase : GameModifierBase
                 {
                     prop.Teleport(origin, pawn.AbsRotation, null);
                 }
+
+                // Re-asserted every tick rather than only at build. A transmit block set once is
+                // not guaranteed to survive a viewer respawning, a full update, or someone joining
+                // mid-round - and the failure mode is an enemy seeing a duplicate model standing on
+                // top of a player, which is worse than the feature not working at all.
+                ApplyTransmitStateForAllViewers((int)prop.Index);
 
                 continue;
             }
@@ -724,6 +746,12 @@ public abstract class GameModifierXrayBase : GameModifierBase
             prop.Collision.SolidTypeUpdated();
         }
 
+        // Alpha is ignored in kRenderNormal, so the colour above only hides the model once the
+        // entity is in a translucent mode. RenderMode_t exposes exactly three usable values here -
+        // kRenderNormal, kRenderTransAlpha, kRenderNone - and kRenderNone would hide the glow along
+        // with the model, so TransAlpha is the one that leaves an outline behind.
+        prop.RenderMode = RenderMode_t.kRenderTransAlpha;
+        prop.RenderModeUpdated();
         prop.Render = GlowPropRenderColor;
         prop.RenderUpdated();
 
@@ -773,6 +801,15 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         if (TryResolveGlowProp(slot) is { } prop)
         {
+            // Lift the blocks before the entity goes away. CS2 recycles entity indices, so a block
+            // left behind on this index would later hide whatever entity inherits it - a weapon, a
+            // pawn, the bomb - from every viewer who was blocked here.
+            var index = (int)prop.Index;
+            foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
+            {
+                viewer.ShouldBlockTransmitEntity(index, false);
+            }
+
             prop.Despawn();
         }
 
