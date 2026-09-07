@@ -283,6 +283,45 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
     protected virtual bool CheckEnableXray(IPlayer viewer) => false;
 
+    /// <summary>
+    /// Grants x-ray to players scoped onto an ALREADY-ACTIVE Wallhack.
+    ///
+    /// Bug fix: SetupXray runs from OnEnabled, which by design does not re-run when a second player
+    /// is added to a live modifier (see GameModifierBase.OnSlotsAdded). So the first player to roll
+    /// Wallhack got it and the second got nothing at all - no outlines, no radar - because their
+    /// slot never reached CachedXrayEnabledSlots. Reachable any time two players roll it in the same
+    /// round, and also every time Mimic or ButterflyEffect hands it to someone.
+    /// </summary>
+    protected override void OnSlotsAdded(IReadOnlyCollection<int> slots)
+    {
+        foreach (var slot in slots)
+        {
+            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } viewer && CheckEnableXray(viewer))
+            {
+                CachedXrayEnabledSlots.Add(slot);
+                CSRollUtils.GrantXrayVision(slot);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Revokes x-ray from a player un-scoped off a still-active Wallhack - the mirror of
+    /// OnSlotsAdded, and reachable whenever Mimic steals it away or ButterflyEffect re-rolls it.
+    ///
+    /// Without this they kept seeing through walls for the rest of the round: OnDisabled is what
+    /// clears CachedXrayEnabledSlots, and it only runs when the LAST owner loses the modifier.
+    /// </summary>
+    protected override void OnSlotsRemoved(IReadOnlyCollection<int> slots)
+    {
+        foreach (var slot in slots)
+        {
+            if (CachedXrayEnabledSlots.Remove(slot))
+            {
+                CSRollUtils.RevokeXrayVision(slot);
+            }
+        }
+    }
+
     private void OnTick()
     {
         if (CachedXrayEnabledSlots.Count == 0)
@@ -654,14 +693,6 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         foreach (var target in Core.PlayerManager.GetAlive())
         {
-            // Never build a duplicate of an x-ray holder. They are the one person who cannot
-            // benefit from their own outline, and the prop spawns inside their first-person view -
-            // which is the giant model that was filling the screen.
-            if (CachedXrayEnabledSlots.Contains(target.Slot))
-            {
-                continue;
-            }
-
             if (target.PlayerPawn is not { } pawn || !CSRollUtils.IsUsableHandle(pawn))
             {
                 continue;
@@ -676,10 +707,10 @@ public abstract class GameModifierXrayBase : GameModifierBase
                 // Transmit state is still re-asserted per tick: a block set once does not reliably
                 // survive a viewer respawning, a full update, or someone joining mid-round, and the
                 // failure mode is an enemy seeing a duplicate standing on top of a player.
-                ApplyTransmitStateForAllViewers((int)prop.Index);
+                ApplyTransmitStateForAllViewers((int)prop.Index, target.Slot);
                 if (_relayEntityIndex.TryGetValue(target.Slot, out var relayIndex))
                 {
-                    ApplyTransmitStateForAllViewers((int)relayIndex);
+                    ApplyTransmitStateForAllViewers((int)relayIndex, target.Slot);
                 }
 
                 continue;
@@ -843,8 +874,8 @@ public abstract class GameModifierXrayBase : GameModifierBase
         _relayEntityIndex[slot] = relay.Index;
         _glowPropEntityIndex[slot] = glow.Index;
 
-        ApplyTransmitStateForAllViewers((int)relay.Index);
-        ApplyTransmitStateForAllViewers((int)glow.Index);
+        ApplyTransmitStateForAllViewers((int)relay.Index, slot);
+        ApplyTransmitStateForAllViewers((int)glow.Index, slot);
 
         if (Runtime.DebugMode)
         {
@@ -859,11 +890,18 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// non-x-ray viewers, and explicitly un-blocked (not just left as a default) for x-ray-enabled
     /// viewers. The explicit un-block is what makes the prop visible to holders only.
     /// </summary>
-    private void ApplyTransmitStateForAllViewers(int entityIndex)
+    private void ApplyTransmitStateForAllViewers(int entityIndex, int targetSlot)
     {
         foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
         {
-            viewer.ShouldBlockTransmitEntity(entityIndex, !CachedXrayEnabledSlots.Contains(viewer.Slot));
+            // A holder sees every outline except the one standing on themselves. Excluding it here,
+            // per viewer, rather than by refusing to build the prop at all, is what makes a global
+            // !rolltoggle work: with an empty AssignedSlots every player is a holder, so skipping
+            // holders at BUILD time meant no prop was ever created for anyone and the modifier did
+            // visibly nothing. The prop exists for every target now; who receives it is decided
+            // here.
+            var shouldSee = CachedXrayEnabledSlots.Contains(viewer.Slot) && viewer.Slot != targetSlot;
+            viewer.ShouldBlockTransmitEntity(entityIndex, !shouldSee);
         }
     }
 
@@ -913,9 +951,9 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         // A newly connected viewer must be told about every currently glowing target individually.
         var isXrayEnabled = CachedXrayEnabledSlots.Contains(viewer.Slot);
-        foreach (var entityIndex in _glowPropEntityIndex.Values)
+        foreach (var (targetSlot, entityIndex) in _glowPropEntityIndex)
         {
-            viewer.ShouldBlockTransmitEntity((int)entityIndex, !isXrayEnabled);
+            viewer.ShouldBlockTransmitEntity((int)entityIndex, !(isXrayEnabled && viewer.Slot != targetSlot));
         }
     }
 
