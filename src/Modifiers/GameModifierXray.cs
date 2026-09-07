@@ -95,8 +95,23 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
     protected readonly HashSet<int> CachedXrayEnabledSlots = [];
 
-    /// <summary>Target slot -> that target's glow prop entity index. One prop per target now, not two.</summary>
+    /// <summary>Target slot -> that target's visible glow prop entity index.</summary>
     private readonly Dictionary<int, uint> _glowPropEntityIndex = [];
+
+    /// <summary>
+    /// Target slot -> the invisible relay prop that bone-merges to the real pawn, with the glow prop
+    /// bone-merged to it in turn.
+    ///
+    /// The relay is back because FollowEntity is back, and FollowEntity is back because it was never
+    /// what crashed. In v1.39.3 the trace shows "relay FollowEntity -> pawn" completing normally and
+    /// "glow FollowEntity -> relay" dying - and the only thing between them was glow.GlowUpdated().
+    /// That notifier corrupted the networked state and the next engine call to walk it took the
+    /// blame. With the notifier gone the input is safe, which matters enormously: FollowEntity does
+    /// not merely track position, it bone-merges, so the duplicate is driven by the real pawn's
+    /// animation graph. Per-tick Teleport can only copy origin and angles, which is why v1.42.0's
+    /// outline stood in its spawn pose while the player ran around inside it.
+    /// </summary>
+    private readonly Dictionary<int, uint> _relayEntityIndex = [];
 
     /// <summary>Slots whose prop build failed, so the per-tick loop does not retry it 64 times a second forever.</summary>
     private readonly HashSet<int> _glowPropBuildFailed = [];
@@ -648,18 +663,18 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
             if (TryResolveGlowProp(target.Slot) is { } prop)
             {
-                // Angles as well as origin: without them the duplicate keeps its spawn orientation
-                // while the real player turns, which reads as a statue rather than a silhouette.
-                if (pawn.AbsOrigin is { } origin)
-                {
-                    prop.Teleport(origin, pawn.AbsRotation, null);
-                }
-
-                // Re-asserted every tick rather than only at build. A transmit block set once is
-                // not guaranteed to survive a viewer respawning, a full update, or someone joining
-                // mid-round - and the failure mode is an enemy seeing a duplicate model standing on
-                // top of a player, which is worse than the feature not working at all.
+                // No Teleport here any more. The chain is bone-merged to the pawn via FollowEntity,
+                // so the engine drives position, angles AND pose; writing a transform on top of that
+                // every tick would fight the parent and lose the animation that is the whole point.
+                //
+                // Transmit state is still re-asserted per tick: a block set once does not reliably
+                // survive a viewer respawning, a full update, or someone joining mid-round, and the
+                // failure mode is an enemy seeing a duplicate standing on top of a player.
                 ApplyTransmitStateForAllViewers((int)prop.Index);
+                if (_relayEntityIndex.TryGetValue(target.Slot, out var relayIndex))
+                {
+                    ApplyTransmitStateForAllViewers((int)relayIndex);
+                }
 
                 continue;
             }
@@ -694,28 +709,23 @@ public abstract class GameModifierXrayBase : GameModifierBase
         return entity;
     }
 
-    private void TryBuildGlowProp(IPlayer target, CCSPlayerPawn pawn)
+    /// <summary>
+    /// Spawns one bare prop_dynamic carrying the target's model, fully configured at spawn time.
+    /// Shared by both links of the chain; the caller decides how each one renders.
+    /// </summary>
+    private CDynamicProp? SpawnChainProp(int slot, string modelName, Vector origin, string role)
     {
-        var slot = target.Slot;
-
-        var modelName = pawn.GetModel();
-        if (string.IsNullOrEmpty(modelName) || pawn.AbsOrigin is not { } origin)
-        {
-            return;
-        }
-
         var prop = Core.EntitySystem.CreateEntityByDesignerName<CDynamicProp>(GlowChainPropDesignerName);
         if (!prop.IsValid)
         {
-            Core.Logger.LogWarning("[CSRoll] XRAY slot {Slot}: entity creation returned an invalid handle - no glow prop for this player.", slot);
-            _glowPropBuildFailed.Add(slot);
-            return;
+            Core.Logger.LogWarning("[CSRoll] XRAY slot {Slot}: {Role} creation returned an invalid handle.", slot, role);
+            return null;
         }
 
         // Model and origin go in as spawn keyvalues so the prop is fully set up the moment it
         // exists. Spawning it bare and calling SetModel afterwards is what produced
         // "prop_dynamic at (0.000, 0.000, 0.000) has no model name!" and left it with no render
-        // bounds - which then crashed the server on the first Teleport once glow was enabled.
+        // bounds - which crashed the server on the first Teleport once glow was enabled.
         using (var keyValues = new CEntityKeyValues())
         {
             keyValues.SetString("model", modelName);
@@ -725,9 +735,8 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         if (!prop.IsValid)
         {
-            Core.Logger.LogWarning("[CSRoll] XRAY slot {Slot}: prop was destroyed during DispatchSpawn - no glow prop for this player.", slot);
-            _glowPropBuildFailed.Add(slot);
-            return;
+            Core.Logger.LogWarning("[CSRoll] XRAY slot {Slot}: {Role} was destroyed during DispatchSpawn.", slot, role);
+            return null;
         }
 
         if (Runtime.Config.Xray.ClearIdentityFlagBit2 && prop.Identity is { IsValid: true } identity)
@@ -735,7 +744,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
             identity.Flags &= ~(uint)(1 << 2);
         }
 
-        // Non-solid: this overlaps the real player and must never physically collide with anyone.
+        // Non-solid: these overlap the real player and must never physically collide with anyone.
         if (prop.Collision.IsValid)
         {
             prop.Collision.CollisionGroup = (byte)CollisionGroup.Nonphysical;
@@ -746,40 +755,94 @@ public abstract class GameModifierXrayBase : GameModifierBase
             prop.Collision.SolidTypeUpdated();
         }
 
-        // Alpha is ignored in kRenderNormal, so the colour above only hides the model once the
-        // entity is in a translucent mode. RenderMode_t exposes exactly three usable values here -
-        // kRenderNormal, kRenderTransAlpha, kRenderNone - and kRenderNone would hide the glow along
-        // with the model, so TransAlpha is the one that leaves an outline behind.
-        prop.RenderMode = RenderMode_t.kRenderTransAlpha;
-        prop.RenderModeUpdated();
-        prop.Render = GlowPropRenderColor;
-        prop.RenderUpdated();
+        return prop;
+    }
 
-        var glow = prop.Glow;
-        if (!glow.IsValid)
+    /// <summary>
+    /// Builds the two-hop chain that makes the outline mimic the player: an invisible relay
+    /// bone-merged to the real pawn, and the visible glow prop bone-merged to the relay.
+    ///
+    /// The relay hop is the original author's, kept because their reason for it stands - a single
+    /// prop merged straight onto a pawn was observed vanishing after about a second. What is new is
+    /// that the chain no longer carries the parent GlowUpdated() notifier that was corrupting the
+    /// networked state and taking the following engine call down with it.
+    /// </summary>
+    private void TryBuildGlowProp(IPlayer target, CCSPlayerPawn pawn)
+    {
+        var slot = target.Slot;
+
+        var modelName = pawn.GetModel();
+        if (string.IsNullOrEmpty(modelName) || pawn.AbsOrigin is not { } origin)
         {
-            Core.Logger.LogWarning("[CSRoll] XRAY slot {Slot}: Glow subobject is invalid (address={Address:X}) - despawning, no outline for this player.", slot, glow.Address);
-            prop.Despawn();
+            return;
+        }
+
+        var relay = SpawnChainProp(slot, modelName, origin, "relay");
+        if (relay is null)
+        {
             _glowPropBuildFailed.Add(slot);
             return;
         }
 
-        // Same single-notifier rule as the pawn path above.
-        glow.GlowColorOverride = target.Controller is { IsValid: true, Team: Team.T } ? TerroristGlowColor : CounterTerroristGlowColor;
-        glow.GlowRange = GlowRangeUnits;
-        glow.GlowRangeMin = 20;
-        glow.GlowTeam = -1;
-        glow.GlowType = GlowTypeOutline;
-        glow.GlowColorOverrideUpdated();
-        glow.GlowRangeUpdated();
-        glow.GlowRangeMinUpdated();
-        glow.GlowTeamUpdated();
-        glow.GlowTypeUpdated();
+        // The relay exists only to carry the merged skeleton; it must never be drawn.
+        relay.RenderMode = RenderMode_t.kRenderNone;
+        relay.RenderModeUpdated();
 
-        _glowPropEntityIndex[slot] = prop.Index;
-        ApplyTransmitStateForAllViewers((int)prop.Index);
+        var glow = SpawnChainProp(slot, modelName, origin, "glow");
+        if (glow is null)
+        {
+            relay.Despawn();
+            _glowPropBuildFailed.Add(slot);
+            return;
+        }
 
-        Core.Logger.LogInformation("[CSRoll] XRAY slot {Slot}: glow prop built (index={Index}, model={Model}).", slot, prop.Index, modelName);
+        // Alpha is ignored in kRenderNormal, so the near-zero alpha above only hides the model once
+        // the entity is translucent. kRenderNone would take the glow with it, leaving TransAlpha as
+        // the only mode that renders an outline and nothing else.
+        glow.RenderMode = RenderMode_t.kRenderTransAlpha;
+        glow.RenderModeUpdated();
+        glow.Render = GlowPropRenderColor;
+        glow.RenderUpdated();
+
+        var glowProperties = glow.Glow;
+        if (!CSRollUtils.IsUsableHandle(glowProperties))
+        {
+            Core.Logger.LogWarning("[CSRoll] XRAY slot {Slot}: Glow subobject unusable - tearing the chain down.", slot);
+            relay.Despawn();
+            glow.Despawn();
+            _glowPropBuildFailed.Add(slot);
+            return;
+        }
+
+        glowProperties.GlowColorOverride = target.Controller is { IsValid: true, Team: Team.T } ? TerroristGlowColor : CounterTerroristGlowColor;
+        glowProperties.GlowRange = GlowRangeUnits;
+        glowProperties.GlowRangeMin = 20;
+        glowProperties.GlowTeam = -1;
+        glowProperties.GlowType = GlowTypeOutline;
+
+        // Per-field notifiers only. The parent GlowUpdated() is what crashed this feature nine
+        // times over, and it is deliberately absent - see the class comment.
+        glowProperties.GlowColorOverrideUpdated();
+        glowProperties.GlowRangeUpdated();
+        glowProperties.GlowRangeMinUpdated();
+        glowProperties.GlowTeamUpdated();
+        glowProperties.GlowTypeUpdated();
+
+        // FollowEntity is a bone merge, not a parent-and-follow. This is what makes the outline
+        // copy the player's pose instead of standing in its spawn stance, and it is the single
+        // reason the relay chain exists at all.
+        relay.AcceptInput("FollowEntity", "!activator", pawn, pawn, 0);
+        glow.AcceptInput("FollowEntity", "!activator", relay, relay, 0);
+
+        _relayEntityIndex[slot] = relay.Index;
+        _glowPropEntityIndex[slot] = glow.Index;
+
+        ApplyTransmitStateForAllViewers((int)relay.Index);
+        ApplyTransmitStateForAllViewers((int)glow.Index);
+
+        Core.Logger.LogInformation(
+            "[CSRoll] XRAY slot {Slot}: glow chain built (relay={Relay}, glow={Glow}, model={Model}).",
+            slot, relay.Index, glow.Index, modelName);
     }
 
     /// <summary>
@@ -799,21 +862,37 @@ public abstract class GameModifierXrayBase : GameModifierBase
     {
         _glowPropBuildFailed.Remove(slot);
 
-        if (TryResolveGlowProp(slot) is { } prop)
-        {
-            // Lift the blocks before the entity goes away. CS2 recycles entity indices, so a block
-            // left behind on this index would later hide whatever entity inherits it - a weapon, a
-            // pawn, the bomb - from every viewer who was blocked here.
-            var index = (int)prop.Index;
-            foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
-            {
-                viewer.ShouldBlockTransmitEntity(index, false);
-            }
+        DespawnChainProp(_glowPropEntityIndex, slot);
+        DespawnChainProp(_relayEntityIndex, slot);
+    }
 
-            prop.Despawn();
+    /// <summary>
+    /// Removes one tracked chain prop, unblocking it for every viewer first.
+    ///
+    /// The unblock has to happen while the entity still exists: CS2 recycles entity indices, so a
+    /// block left behind on this one would later hide whatever entity inherits it - a weapon, a
+    /// pawn, the bomb - from every viewer that was blocked here. The designer-name check inside
+    /// TryResolve is the other half of that same problem, guarding against despawning a stranger.
+    /// </summary>
+    private void DespawnChainProp(Dictionary<int, uint> tracker, int slot)
+    {
+        if (!tracker.Remove(slot, out var index))
+        {
+            return;
         }
 
-        _glowPropEntityIndex.Remove(slot);
+        var entity = Core.EntitySystem.GetEntityByIndex<CDynamicProp>(index);
+        if (entity is not { IsValid: true } || entity.DesignerName != GlowChainPropDesignerName)
+        {
+            return;
+        }
+
+        foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
+        {
+            viewer.ShouldBlockTransmitEntity((int)index, false);
+        }
+
+        entity.Despawn();
     }
 
     private void OnClientConnected(IOnClientConnectedEvent @event)
