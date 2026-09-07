@@ -192,14 +192,26 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// <summary>Human-readable name of what the current isolation phase permits.</summary>
     private string DescribeIsolationPhase() => (_isolationPhase % 3) switch
     {
-        1 => "RADAR SPOTTING ONLY",
-        2 => "PAWN GLOW ONLY",
-        _ => "RADAR + PAWN GLOW TOGETHER",
+        1 => "GLOW via PER-FIELD notifiers only (no parent GlowUpdated)",
+        2 => "GLOW with NO notifier at all (fields written, nothing marked dirty)",
+        _ => "GLOW with Glowing=true + per-field notifiers",
     };
 
-    private bool RadarAllowedThisActivation => (_isolationPhase % 3) is 1 or 0;
+    // Radar spotting is settled - phase 1 ran it alone and survived, phase 2 skipped it and still
+    // crashed - so it is always on now. The cycle moved to the open question instead: WHICH
+    // notification path makes the engine fall over.
+    //
+    // Every glow attempt to date called the parent pawn.GlowUpdated(), either alone (v1.41.3+) or
+    // alongside the per-field ones (v1.41.2 and earlier). Both crash. The combination never tried
+    // is per-field notifiers WITHOUT the parent, and writing the fields with no notifier at all.
+    // If CCSPlayerPawn does not actually replicate m_Glow as a whole, the parent notifier is
+    // marking a field path the encoder has no entry for, which would fault exactly where this
+    // does - in the post-tick encode pass rather than at the call.
+    private bool RadarAllowedThisActivation => true;
 
-    private bool PawnGlowAllowedThisActivation => (_isolationPhase % 3) is 2 or 0;
+    private bool PawnGlowAllowedThisActivation => true;
+
+    private int GlowNotifierStrategy => _isolationPhase % 3;
 
     /// <summary>
     /// Prints the addresses the schema fields this modifier writes actually resolve to, once per
@@ -385,9 +397,37 @@ public abstract class GameModifierXrayBase : GameModifierBase
         glow.GlowRangeMin = 0;
         glow.GlowTeam = (int)audienceTeam;
         glow.GlowType = GlowTypeOutline;
-        TracePawnGlowStep("pawnglow: GlowUpdated notifier");
-        pawn.GlowUpdated();
-        TracePawnGlowStep("pawnglow: GlowUpdated ok");
+
+        var strategy = GlowNotifierStrategy;
+        if (strategy == 0)
+        {
+            // Glowing is a field nothing in this plugin has ever set. If the renderer gates on it,
+            // a GlowType with no Glowing flag may be what leaves the encode pass walking a
+            // half-configured glow.
+            TracePawnGlowStep("pawnglow: setting Glowing=true");
+            glow.Glowing = true;
+        }
+
+        if (strategy == 2)
+        {
+            TracePawnGlowStep("pawnglow: strategy 2 - NO notifier, nothing marked dirty");
+            return;
+        }
+
+        // GlowTypeUpdated is in here for the first time. CGlowProperty exposes a notifier for every
+        // networked member - GlowType, GlowTeam, GlowRange, GlowRangeMin, GlowColorOverride,
+        // Flashing, GlowTime, GlowStartTime, EligibleForScreenHighlight - and previous versions set
+        // GlowType and then relied on the parent pawn.GlowUpdated() to announce it, never calling
+        // GlowTypeUpdated at all. There is deliberately NO GlowingUpdated: Glowing has no notifier,
+        // which means it is not a replicated field and setting it is a local write only.
+        TracePawnGlowStep($"pawnglow: strategy {strategy} - per-field notifiers incl. GlowTypeUpdated");
+        glow.GlowColorOverrideUpdated();
+        glow.GlowRangeUpdated();
+        glow.GlowRangeMinUpdated();
+        glow.GlowTeamUpdated();
+        glow.GlowTypeUpdated();
+
+        TracePawnGlowStep("pawnglow: per-field notifiers ok (parent GlowUpdated deliberately NOT called)");
     }
 
     /// <summary>Trace hook usable from the static glow writer above.</summary>
@@ -412,7 +452,9 @@ public abstract class GameModifierXrayBase : GameModifierBase
             glow.GlowRange = 0;
             glow.GlowTeam = -1;
             glow.GlowType = 0;
-            pawn.GlowUpdated();
+            glow.GlowRangeUpdated();
+            glow.GlowTeamUpdated();
+            glow.GlowTypeUpdated();
         }
     }
 
@@ -682,7 +724,11 @@ public abstract class GameModifierXrayBase : GameModifierBase
         glow.GlowRangeMin = 20;
         glow.GlowTeam = -1;
         glow.GlowType = GlowTypeOutline;
-        prop.GlowUpdated();
+        glow.GlowColorOverrideUpdated();
+        glow.GlowRangeUpdated();
+        glow.GlowRangeMinUpdated();
+        glow.GlowTeamUpdated();
+        glow.GlowTypeUpdated();
 
         _glowPropEntityIndex[slot] = prop.Index;
         ApplyTransmitStateForAllViewers((int)prop.Index);
