@@ -16,6 +16,21 @@ public partial class CSRoll
 
     private Guid _chatHookId;
     private readonly List<Guid> _commandGuids = [];
+
+    /// <summary>
+    /// Identifies the current !rolltestall sweep. Every scheduled step captures the value it was
+    /// started under and does nothing if it has moved on, so a second invocation cancels the run in
+    /// flight rather than ending up with two sweeps applying modifiers to the same player at once.
+    /// </summary>
+    private int _testAllRunId;
+
+    private bool _testAllRunning;
+
+    /// <summary>Default seconds a modifier is left on before being removed. Overridable per run, since some are far easier to judge with longer than a second to look at them.</summary>
+    private const float TestAllDefaultHoldSeconds = 1f;
+
+    /// <summary>Gap between removing one modifier and applying the next, so teardown and setup never land on the same tick.</summary>
+    private const float TestAllGapSeconds = 0.25f;
     private readonly Dictionary<(int PlayerId, string Command), DateTime> _lastInvocation = [];
 
     // Every command is registered manually (not via [Command] attributes) so registration count
@@ -43,6 +58,7 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("rolldebug", Debounce("rolldebug", OnRollDebug), registerRaw: true, permission: AdminPermission, helpText: "Toggle whether per-player random-round assignments are reported to admins in chat."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollreload", Debounce("rollreload", OnRollReload), registerRaw: true, permission: AdminPermission, helpText: "Reload config.jsonc from disk without restarting the plugin or resetting active modifiers."));
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rolltestall", Debounce("rolltestall", OnRollTestAll), registerRaw: true, permission: AdminPermission, helpText: "[seconds] - Applies every registered modifier to you one at a time, announcing each on and off, so broken ones can be spotted. Run again to stop."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollhelp", Debounce("rollhelp", OnRollHelp), registerRaw: true, helpText: "Prints every available CSRoll command."));
 
         InitializeMenu();
@@ -73,6 +89,12 @@ public partial class CSRoll
 
     private void UninitializeCommands()
     {
+        // Cancel any !rolltestall sweep still in flight. Its steps are scheduler callbacks holding
+        // Runtime, and a map change or plugin reload tears Runtime down underneath them - bumping
+        // the run id makes every remaining step a no-op instead.
+        _testAllRunId++;
+        _testAllRunning = false;
+
         foreach (var guid in _commandGuids)
         {
             Core.Command.UnregisterCommand(guid);
@@ -190,6 +212,124 @@ public partial class CSRoll
         var modifierName = context.Args.Length > 0 ? context.Args[0] : "";
         Runtime.AddModifierToPlayer(modifierName, sender.Slot, out var message);
         CSRollUtils.PrintTitleToChat(Core, sender, message);
+    }
+
+    /// <summary>
+    /// Walks every registered modifier, applying each to the calling admin alone for a moment and
+    /// then removing it, announcing both to console and chat.
+    ///
+    /// Built for exactly the job of finding which modifiers misbehave: one modifier is live at a
+    /// time, each is scoped to a single player rather than the server, and every step is named in
+    /// the console - so if the server dies or something visibly breaks, the last "turning ON" line
+    /// is the modifier responsible. The same reasoning as the ACTIVATING/ACTIVATED breadcrumbs in
+    /// GameModifierBase, applied deliberately rather than only when something has already gone
+    /// wrong.
+    /// </summary>
+    public void OnRollTestAll(ICommandContext context)
+    {
+        if (context.Sender is not { IsValid: true } sender)
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, "Only an in-game player can use this command.");
+            return;
+        }
+
+        // Second invocation stops the sweep - the alternative is being stuck riding it out while
+        // something visibly broken is applied to you.
+        if (_testAllRunning)
+        {
+            _testAllRunId++;
+            _testAllRunning = false;
+            Core.Logger.LogInformation("[CSRoll] TESTALL: stopped by {Player}.", sender.Slot);
+            CSRollUtils.PrintTitleToChat(Core, sender, "Modifier sweep stopped.");
+            Runtime.RemoveAllModifiers();
+            return;
+        }
+
+        if (Runtime.RegisteredModifiers.Count == 0)
+        {
+            CSRollUtils.PrintTitleToChat(Core, sender, "No registered modifiers to test.");
+            return;
+        }
+
+        var holdSeconds = TestAllDefaultHoldSeconds;
+        if (context.Args.Length > 0 && float.TryParse(context.Args[0], out var parsed) && parsed > 0f)
+        {
+            holdSeconds = Math.Clamp(parsed, 0.25f, 60f);
+        }
+
+        var runId = ++_testAllRunId;
+        _testAllRunning = true;
+
+        Core.Logger.LogInformation(
+            "[CSRoll] TESTALL: starting sweep of {Count} modifiers for slot {Slot}, {Hold}s each.",
+            Runtime.RegisteredModifiers.Count, sender.Slot, holdSeconds);
+        CSRollUtils.PrintTitleToChat(Core, sender, $"Testing all {Runtime.RegisteredModifiers.Count} modifiers, {holdSeconds:0.#}s each. Run !rolltestall again to stop.");
+
+        StepTestAll(sender.Slot, 0, holdSeconds, runId);
+    }
+
+    /// <summary>
+    /// One modifier of the sweep: announce, apply, hold, announce, remove, then schedule the next.
+    ///
+    /// Self-rescheduling DelayBySeconds rather than a repeating timer, matching what the spin-reveal
+    /// animation settled on - it is the one scheduler primitive this codebase has confirmed working
+    /// live. The player is re-resolved every step because a sweep outlives a disconnect easily.
+    /// </summary>
+    private void StepTestAll(int slot, int index, float holdSeconds, int runId)
+    {
+        if (runId != _testAllRunId)
+        {
+            return;
+        }
+
+        var modifiers = Runtime.RegisteredModifiers;
+        if (index >= modifiers.Count)
+        {
+            _testAllRunning = false;
+            Core.Logger.LogInformation("[CSRoll] TESTALL: sweep complete, {Count} modifiers tested.", modifiers.Count);
+            CSRollUtils.PrintTitleToChat(Core, Core.PlayerManager.GetPlayer(slot), $"Modifier sweep complete - {modifiers.Count} tested.");
+            return;
+        }
+
+        if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true } player)
+        {
+            _testAllRunning = false;
+            Core.Logger.LogWarning("[CSRoll] TESTALL: aborted - slot {Slot} is no longer a valid player.", slot);
+            return;
+        }
+
+        var modifier = modifiers[index];
+        var position = $"{index + 1}/{modifiers.Count}";
+
+        Core.Logger.LogInformation("[CSRoll] TESTALL {Position}: turning ON {Name}", position, modifier.Name);
+        CSRollUtils.PrintTitleToChat(Core, player, $"[{position}] Turning ON [gold]{modifier.Name}[default]");
+
+        if (!Runtime.AddModifierToPlayer(modifier.Name, slot, out var addMessage))
+        {
+            // Not fatal, and worth seeing rather than skipping silently - a modifier that refuses to
+            // apply is itself a result the sweep exists to surface.
+            Core.Logger.LogWarning("[CSRoll] TESTALL {Position}: {Name} did NOT apply - {Message}", position, modifier.Name, addMessage);
+        }
+
+        Core.Scheduler.DelayBySeconds(holdSeconds, () =>
+        {
+            if (runId != _testAllRunId)
+            {
+                return;
+            }
+
+            Core.Logger.LogInformation("[CSRoll] TESTALL {Position}: turning OFF {Name}", position, modifier.Name);
+            if (Core.PlayerManager.GetPlayer(slot) is { IsValid: true } current)
+            {
+                CSRollUtils.PrintTitleToChat(Core, current, $"[{position}] Turning OFF {modifier.Name}");
+            }
+
+            Runtime.RevokeModifierFromSlot(modifier, slot);
+
+            // A gap before the next one so a modifier's teardown and the next one's setup never
+            // land on the same tick - several of these strip weapons or spawn entities on both.
+            Core.Scheduler.DelayBySeconds(TestAllGapSeconds, () => StepTestAll(slot, index + 1, holdSeconds, runId));
+        });
     }
 
     public void OnRollHelp(ICommandContext context)
