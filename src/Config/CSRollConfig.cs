@@ -784,7 +784,7 @@ public class XrayConfig
     /// itself and IsValid cannot see it, so no managed-side guard fixes this. Use GlowRealPawn for
     /// outlines; this stays only for anyone who wants to keep digging.
     /// </summary>
-    public bool GlowProps { get; set; } = false;
+    public bool GlowProps { get; set; } = true;
 
     /// <summary>
     /// The actual wallhack, and the default: every enemy is continuously marked as "spotted" for
@@ -836,5 +836,5 @@ public class XrayConfig
     /// If GlowTeam turns out not to be honoured on a given build, the visible symptom is enemies
     /// glowing for everyone rather than a crash. Turn this off if you see that.
     /// </summary>
-    public bool GlowRealPawn { get; set; } = true;
+    public bool GlowRealPawn { get; set; } = false;
 }

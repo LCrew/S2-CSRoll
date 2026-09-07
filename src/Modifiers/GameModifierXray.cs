@@ -194,12 +194,8 @@ public abstract class GameModifierXrayBase : GameModifierBase
     }
 
     /// <summary>Human-readable name of what the current isolation phase permits.</summary>
-    private string DescribeIsolationPhase() => (_isolationPhase % 3) switch
-    {
-        1 => "GLOW with GlowTeam=-1 (visible to everyone) + opaque colour",
-        2 => "SCREEN HIGHLIGHT (EligibleForScreenHighlight) - CS2's own through-wall outline",
-        _ => "GLOW with GlowTeam=holder team + opaque colour",
-    };
+    private string DescribeIsolationPhase() =>
+        "GLOW PROPS - duplicate models, per-field notifiers only, no parent GlowUpdated anywhere";
 
     // Radar spotting is settled - phase 1 ran it alone and survived, phase 2 skipped it and still
     // crashed - so it is always on now. The cycle moved to the open question instead: WHICH
@@ -215,7 +211,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
     private bool PawnGlowAllowedThisActivation => true;
 
-    private int GlowNotifierStrategy => _isolationPhase % 3;
+    private int GlowNotifierStrategy => 1;
 
     /// <summary>
     /// Prints the addresses the schema fields this modifier writes actually resolve to, once per
