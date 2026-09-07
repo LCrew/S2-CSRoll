@@ -797,4 +797,21 @@ public class XrayConfig
     /// the prop chain it does not risk the process.
     /// </summary>
     public bool RadarSpotting { get; set; } = true;
+
+    /// <summary>
+    /// Whether the glow-chain props get bit 2 of CEntityIdentity.m_flags cleared just after spawn.
+    ///
+    /// Default OFF. This line was copied verbatim from the original CS2-GameModifiers CSS plugin
+    /// with, by that code's own admission, no idea what the bit means on this engine version.
+    /// m_flags is the engine's per-entity lifecycle bookkeeping - the region where "marked for
+    /// deletion" and similar bits live - and the minidump from the live crash shows one of these
+    /// props being destroyed between being built and being used
+    /// (EXCEPTION_ACCESS_VIOLATION_EXEC at an address whose bytes spell "ibute", i.e. a virtual call
+    /// through a vtable pointer that string data has since overwritten).
+    ///
+    /// Clearing an unidentified lifecycle bit and then finding the entity freed early is not a
+    /// coincidence worth defending, so it is opt-in now. Only turn this on to test whether it was
+    /// load-bearing for the glow rendering.
+    /// </summary>
+    public bool ClearIdentityFlagBit2 { get; set; } = false;
 }

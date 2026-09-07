@@ -299,6 +299,29 @@ public abstract class GameModifierXrayBase : GameModifierBase
         Core.Logger.LogInformation("[CSRoll] XRAY slot {Slot}: ok {Step}", slot, step);
     }
 
+    /// <summary>
+    /// Do(), plus a liveness re-check of the entities the step is about to touch.
+    ///
+    /// The live minidump is a use-after-free - one of the glow-chain props is destroyed between
+    /// being built and being used, and the engine then makes a virtual call through what is by then
+    /// string data. Checking IsValid once at creation cannot catch that; the handles have to be
+    /// re-tested at each point of use, which is what this does. A dead handle aborts the step and
+    /// names itself rather than being handed to the engine.
+    /// </summary>
+    private bool DoChecked(int slot, string step, INativeHandle a, INativeHandle b, Action call)
+    {
+        if (!a.IsValid || !b.IsValid)
+        {
+            Core.Logger.LogWarning(
+                "[CSRoll] XRAY slot {Slot}: entity DESTROYED before '{Step}' (first={FirstValid}, second={SecondValid}) - aborting the build.",
+                slot, step, a.IsValid, b.IsValid);
+            return false;
+        }
+
+        Do(slot, step, call);
+        return true;
+    }
+
     protected void ApplyXrayToPlayer(IPlayer target)
     {
         // Runs before the GlowProps gate below, deliberately: if the switch is flipped off at
@@ -413,10 +436,10 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
             if (pawn.AbsOrigin is { } relayPosition)
             {
-                Do(targetSlot, "relay Teleport", () => relay.Teleport(relayPosition, null, null));
+                if (!DoChecked(targetSlot, "relay Teleport", relay, pawn, () => relay.Teleport(relayPosition, null, null))) return;
             }
 
-            Do(targetSlot, "relay FollowEntity -> pawn", () => relay.AcceptInput("FollowEntity", "!activator", pawn, pawn, 0));
+            if (!DoChecked(targetSlot, "relay FollowEntity -> pawn", relay, pawn, () => relay.AcceptInput("FollowEntity", "!activator", pawn, pawn, 0))) return;
 
             Do(targetSlot, "glow Render", () =>
             {
@@ -437,7 +460,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
             // worth being wrong about twice.
             if (pawn.AbsOrigin is { } glowPosition)
             {
-                Do(targetSlot, "glow Teleport", () => glow.Teleport(glowPosition, null, null));
+                if (!DoChecked(targetSlot, "glow Teleport", glow, relay, () => glow.Teleport(glowPosition, null, null))) return;
             }
 
             // The original plugin also sets RenderMode to a "kRenderGlow" mode here, but
@@ -477,13 +500,41 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
             // The glow prop follows the RELAY, not the real player directly - this is the change
             // from the previous single-hop attempt.
+            //
+            // Re-validated immediately before the call rather than trusting the checks made at build
+            // time. The minidump for this exact step is EXCEPTION_ACCESS_VIOLATION_EXEC at
+            // 0x6574756269 - the bytes of that address spell "ibute" - which is a virtual call
+            // through a vtable pointer that has been overwritten by string data. That is a
+            // use-after-free: one of these two props was destroyed between being built and being
+            // used here, and its memory reused. Validity at creation says nothing about validity
+            // several engine calls later, so both handles are re-checked at the point of use and the
+            // dead one is named.
+            if (!relay.IsValid || !glow.IsValid)
+            {
+                Core.Logger.LogWarning(
+                    "[CSRoll] XRAY slot {Slot}: a glow-chain prop was DESTROYED before parenting (relayValid={RelayValid}, glowValid={GlowValid}) - aborting. This is the use-after-free the minidump caught.",
+                    targetSlot, relay.IsValid, glow.IsValid);
+
+                if (relay.IsValid)
+                {
+                    relay.Despawn();
+                }
+
+                if (glow.IsValid)
+                {
+                    glow.Despawn();
+                }
+
+                return;
+            }
+
             Do(targetSlot, "glow FollowEntity -> relay", () => glow.AcceptInput("FollowEntity", "!activator", relay, relay, 0));
 
             _relayEntityIndex[targetSlot] = relay.Index;
             _glowPropEntityIndex[targetSlot] = glow.Index;
 
-            Do(targetSlot, "transmit state relay", () => ApplyTransmitStateForAllViewers((int)relay.Index));
-            Do(targetSlot, "transmit state glow", () => ApplyTransmitStateForAllViewers((int)glow.Index));
+            if (!DoChecked(targetSlot, "transmit state relay", relay, glow, () => ApplyTransmitStateForAllViewers((int)relay.Index))) return;
+            if (!DoChecked(targetSlot, "transmit state glow", relay, glow, () => ApplyTransmitStateForAllViewers((int)glow.Index))) return;
 
             Step(targetSlot, $"done (relay={relay.Index}, glow={glow.Index})");
         });
@@ -552,10 +603,23 @@ public abstract class GameModifierXrayBase : GameModifierBase
         // Also copied verbatim from the original plugin's proven code - clears bit 2 of the
         // entity's own identity flags. Exact semantics undocumented; kept as an unexplained but
         // reproduced detail of a working reference rather than guessed at.
-        Core.Logger.LogInformation("[CSRoll] XRAY prop: Identity.Flags raw write");
-        if (prop.Identity is { IsValid: true } identity)
+        // Now OFF by default, and the prime suspect for the use-after-free.
+        //
+        // CEntityIdentity.m_flags is the engine's own per-entity lifecycle bookkeeping - it is where
+        // "marked for deletion", "spawned", "is in a list" style bits live. This line clears bit 2 of
+        // it and was copied verbatim from the original CSS plugin with, by its own admission, no idea
+        // what the bit means on this engine version. Blindly clearing a lifecycle bit on an entity
+        // and then being surprised when that entity is destroyed underneath you is not a coincidence
+        // worth defending, and the minidump says one of these props is being freed between build and
+        // use. So it goes behind a switch, default off, rather than staying in as an unexplained
+        // write to memory that decides whether the object continues to exist.
+        if (Runtime.Config.Xray.ClearIdentityFlagBit2)
         {
-            identity.Flags &= ~(uint)(1 << 2);
+            Core.Logger.LogInformation("[CSRoll] XRAY prop: Identity.Flags raw write");
+            if (prop.Identity is { IsValid: true } identity)
+            {
+                identity.Flags &= ~(uint)(1 << 2);
+            }
         }
 
         // Non-solid: these overlap the real player and must never physically collide with anyone.
