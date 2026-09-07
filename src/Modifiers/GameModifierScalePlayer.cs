@@ -60,7 +60,7 @@ public abstract class GameModifierScalePlayer : GameModifierBase
 
     private void ApplyScale(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -71,7 +71,7 @@ public abstract class GameModifierScalePlayer : GameModifierBase
 
     private void ResetScale(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -161,7 +161,7 @@ public sealed class GameModifierSmallPlayers : GameModifierScalePlayer
 
     private void ApplyMaxHealth(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -177,7 +177,7 @@ public sealed class GameModifierSmallPlayers : GameModifierScalePlayer
 
     private void RestoreMaxHealth(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }

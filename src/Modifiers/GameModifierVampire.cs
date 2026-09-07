@@ -32,7 +32,7 @@ public sealed class GameModifierVampire : GameModifierBase
         // a hardcoded 100, which would have silently undone any co-active health modifier.
         foreach (var player in Core.PlayerManager.GetAlive())
         {
-            if (!IsAssignedTo(player.Slot) || player.PlayerPawn is not { } pawn)
+            if (!IsAssignedTo(player.Slot) || player.PlayerPawn is not { IsValid: true } pawn)
             {
                 continue;
             }
@@ -63,7 +63,7 @@ public sealed class GameModifierVampire : GameModifierBase
             return HookResult.Continue;
         }
 
-        if (attacker.PlayerPawn is not { } attackerPawn)
+        if (attacker.PlayerPawn is not { IsValid: true } attackerPawn)
         {
             return HookResult.Continue;
         }

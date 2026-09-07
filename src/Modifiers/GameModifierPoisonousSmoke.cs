@@ -85,7 +85,7 @@ public sealed class GameModifierPoisonousSmoke : GameModifierBase
     private HookResult OnSmokegrenadeDetonate(EventSmokegrenadeDetonate @event)
     {
         var thrower = @event.UserIdPlayer;
-        if (thrower is not { IsValid: true } || !IsAssignedTo(thrower.Slot) || thrower.Controller is not { } throwerController)
+        if (thrower is not { IsValid: true } || !IsAssignedTo(thrower.Slot) || thrower.Controller is not { IsValid: true } throwerController)
         {
             return HookResult.Continue;
         }

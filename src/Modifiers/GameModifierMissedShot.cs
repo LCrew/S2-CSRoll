@@ -115,7 +115,7 @@ public sealed class GameModifierButterfingers : GameModifierMissedShot
 
     protected override void OnMissedShot(IPlayer player)
     {
-        if (player.PlayerPawn?.WeaponServices is not { } weaponServices || weaponServices.ActiveWeapon.Value is not { } weapon)
+        if (player.PlayerPawn?.WeaponServices is not { IsValid: true } weaponServices || weaponServices.ActiveWeapon.Value is not { IsValid: true } weapon)
         {
             return;
         }
@@ -198,7 +198,7 @@ public sealed class GameModifierBoomerangBullets : GameModifierMissedShot
 
     private void ApplyBonusHealth(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -214,7 +214,7 @@ public sealed class GameModifierBoomerangBullets : GameModifierMissedShot
 
     private void RestoreHealth(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -230,7 +230,7 @@ public sealed class GameModifierBoomerangBullets : GameModifierMissedShot
     {
         var weapon = player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value;
         var vData = weapon?.PlayerWeaponVData?.As<CCSWeaponBaseVData>();
-        if (vData is null || player.PlayerPawn is not { } pawn)
+        if (vData is null || player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }

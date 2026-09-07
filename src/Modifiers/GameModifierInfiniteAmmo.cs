@@ -39,12 +39,12 @@ public sealed class GameModifierInfiniteAmmo : GameModifierBase
     private HookResult OnWeaponFire(EventWeaponFire @event)
     {
         if (@event.UserIdPlayer is not { IsValid: true } shooter || !IsAssignedTo(shooter.Slot) ||
-            @event.UserIdPawn?.WeaponServices?.ActiveWeapon.Value is not { } weapon)
+            @event.UserIdPawn?.WeaponServices?.ActiveWeapon.Value is not { IsValid: true } weapon)
         {
             return HookResult.Continue;
         }
 
-        if (weapon.PlayerWeaponVData is { } vData)
+        if (weapon.PlayerWeaponVData is { IsValid: true } vData)
         {
             weapon.Clip1 = vData.MaxClip1;
             weapon.Clip1Updated();

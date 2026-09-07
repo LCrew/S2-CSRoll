@@ -58,7 +58,7 @@ public abstract class GameModifierVelocity : GameModifierBase
         var removeStaminaPenalty = ShouldRemoveJumpStaminaPenalty();
         foreach (var player in GetAssignedPlayers())
         {
-            if (player.PlayerPawn is { } pawn)
+            if (player.PlayerPawn is { IsValid: true } pawn)
             {
                 // Walking (IN_SPEED held) is left at 1.0 - see the bug-fix note above.
                 var multiplier = player.PressedButtons.HasFlag(GameButtonFlags.Shift) ? 1.0f : runMultiplier;
@@ -85,7 +85,7 @@ public abstract class GameModifierVelocity : GameModifierBase
                 // accumulate - the same fix GameModifierBunnyHop already uses against the identical
                 // mechanic. Skipped while walking, so shift-walking keeps vanilla fatigue for the
                 // same reason the multiplier itself is skipped there.
-                if (removeStaminaPenalty && multiplier != 1.0f && pawn.MovementServices is { } movementServices)
+                if (removeStaminaPenalty && multiplier != 1.0f && pawn.MovementServices is { IsValid: true } movementServices)
                 {
                     movementServices.Stamina = 0f;
                     movementServices.StaminaUpdated();
@@ -96,7 +96,7 @@ public abstract class GameModifierVelocity : GameModifierBase
 
     private static void SetSpeedMultiplier(SwiftlyS2.Shared.Players.IPlayer player, float multiplier)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -220,7 +220,7 @@ public sealed class GameModifierHeavyBoots : GameModifierVelocity
 
     private void GrantArmorAndHealth(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -231,7 +231,7 @@ public sealed class GameModifierHeavyBoots : GameModifierVelocity
         pawn.ArmorValue = Runtime.Config.HeavyBoots.ArmorValue;
         pawn.ArmorValueUpdated();
 
-        if (pawn.ItemServices is { } itemServices)
+        if (pawn.ItemServices is { IsValid: true } itemServices)
         {
             itemServices.HasHelmet = true;
             itemServices.HasHelmetUpdated();
@@ -243,7 +243,7 @@ public sealed class GameModifierHeavyBoots : GameModifierVelocity
 
     private void RevertArmorAndHealth(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -251,7 +251,7 @@ public sealed class GameModifierHeavyBoots : GameModifierVelocity
         pawn.ArmorValue = _cachedOriginalArmor.GetValueOrDefault(player.Slot);
         pawn.ArmorValueUpdated();
 
-        if (pawn.ItemServices is { } itemServices)
+        if (pawn.ItemServices is { IsValid: true } itemServices)
         {
             itemServices.HasHelmet = _cachedOriginalHasHelmet.GetValueOrDefault(player.Slot);
             itemServices.HasHelmetUpdated();

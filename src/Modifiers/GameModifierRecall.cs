@@ -115,7 +115,7 @@ public sealed class GameModifierRecall : GameModifierBase
 
         foreach (var player in GetAssignedPlayers())
         {
-            if (!player.IsAlive || player.PlayerPawn is not { } pawn)
+            if (!player.IsAlive || player.PlayerPawn is not { IsValid: true } pawn)
             {
                 // Dying mid-rewind drops the replay; the pawn is being respawned, which resets its
                 // collision group anyway, so there's nothing to restore.
@@ -210,10 +210,13 @@ public sealed class GameModifierRecall : GameModifierBase
         // through several seconds of geometry in a fraction of the time it originally took can wedge
         // it in a doorway or on a step it had cleanly walked through - the same protection
         // CSRollUtils.TeleportPlayer applies for a single hop, held open across the whole replay.
-        if (player.PlayerPawn is { } pawn)
+        if (player.PlayerPawn is { IsValid: true } pawn)
         {
-            pawn.Collision.CollisionGroup = (byte)CollisionGroup.Pushaway;
-            pawn.Collision.CollisionGroupUpdated();
+            if (pawn.Collision.IsValid)
+            {
+                pawn.Collision.CollisionGroup = (byte)CollisionGroup.Pushaway;
+                pawn.Collision.CollisionGroupUpdated();
+            }
         }
     }
 
@@ -276,10 +279,13 @@ public sealed class GameModifierRecall : GameModifierBase
         // Yaw only, pitch and roll zeroed - see AdvanceRewind's note.
         player.Teleport(landing.Position, new QAngle(0f, landing.Angles.Yaw, 0f), new Vector(0f, 0f, 0f));
 
-        if (player.PlayerPawn is { } pawn)
+        if (player.PlayerPawn is { IsValid: true } pawn)
         {
-            pawn.Collision.CollisionGroup = (byte)CollisionGroup.Player;
-            pawn.Collision.CollisionGroupUpdated();
+            if (pawn.Collision.IsValid)
+            {
+                pawn.Collision.CollisionGroup = (byte)CollisionGroup.Player;
+                pawn.Collision.CollisionGroupUpdated();
+            }
 
             pawn.Health = Math.Clamp(landing.Health, 1, pawn.MaxHealth);
             pawn.HealthUpdated();

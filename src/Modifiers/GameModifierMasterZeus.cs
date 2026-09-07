@@ -169,8 +169,8 @@ public sealed class GameModifierMasterZeus : GameModifierBase
     {
         foreach (var player in Core.PlayerManager.GetAlive())
         {
-            if (!IsAssignedTo(player.Slot) || player.PlayerPawn is not { } pawn ||
-                pawn.WeaponServices?.ActiveWeapon.Value is not { } weapon || weapon.DesignerName != TaserDesignerName)
+            if (!IsAssignedTo(player.Slot) || player.PlayerPawn is not { IsValid: true } pawn ||
+                pawn.WeaponServices?.ActiveWeapon.Value is not { IsValid: true } weapon || weapon.DesignerName != TaserDesignerName)
             {
                 _attackButtonWasDown.Remove(player.Slot);
                 continue;
@@ -203,8 +203,8 @@ public sealed class GameModifierMasterZeus : GameModifierBase
 
     private HookResult OnWeaponFire(EventWeaponFire @event)
     {
-        if (@event.UserIdPlayer is { IsValid: true } shooter && @event.UserIdPawn is { } pawn &&
-            pawn.WeaponServices?.ActiveWeapon.Value is { } weapon)
+        if (@event.UserIdPlayer is { IsValid: true } shooter && @event.UserIdPawn is { IsValid: true } pawn &&
+            pawn.WeaponServices?.ActiveWeapon.Value is { IsValid: true } weapon)
         {
             if (IsAssignedTo(shooter.Slot) && weapon.DesignerName == TaserDesignerName)
             {
@@ -564,14 +564,31 @@ public sealed class GameModifierMasterZeus : GameModifierBase
         // This mechanism was tried once very early on and dismissed, but that judgement was made
         // while the composite parent particle meant NOTHING rendered at all, so it was never actually
         // ruled out - the dismissal was based on bad evidence.
-        particle.ServerControlPointAssignments[0] = 0;
-        particle.ServerControlPoints[0] = origin;
-        particle.ServerControlPointAssignments[1] = 1;
-        particle.ServerControlPoints[1] = target;
-        particle.ServerControlPointAssignments[2] = 255;
-        particle.ServerControlPointAssignments[3] = 255;
-        particle.ServerControlPointsUpdated();
-        particle.ServerControlPointAssignmentsUpdated();
+        // Both of these are ISchemaFixedArray, which is itself an INativeHandle, and both were being
+        // indexed at hardcoded 0-3 with no validity or bounds check at all. An unresolved offset or a
+        // shorter array than assumed turns each of these into a raw write past the end of a schema
+        // field - the same failure class as the Glow write that crashed the server from
+        // GameModifierXray, and just as invisible when it goes wrong.
+        var assignments = particle.ServerControlPointAssignments;
+        var controlPoints = particle.ServerControlPoints;
+        if (!assignments.IsValid || !controlPoints.IsValid || assignments.ElementCount < 4 || controlPoints.ElementCount < 2)
+        {
+            Core.Logger.LogWarning(
+                "[CSRoll] MasterZeus: particle control-point arrays unusable (assignmentsValid={AValid} count={ACount}, pointsValid={PValid} count={PCount}) - skipping endpoint setup, bolt will not stretch to the target.",
+                assignments.IsValid, assignments.IsValid ? assignments.ElementCount : -1,
+                controlPoints.IsValid, controlPoints.IsValid ? controlPoints.ElementCount : -1);
+        }
+        else
+        {
+            assignments[0] = 0;
+            controlPoints[0] = origin;
+            assignments[1] = 1;
+            controlPoints[1] = target;
+            assignments[2] = 255;
+            assignments[3] = 255;
+            particle.ServerControlPointsUpdated();
+            particle.ServerControlPointAssignmentsUpdated();
+        }
 
         particle.AcceptInput("Start", "", null, null, 0);
 

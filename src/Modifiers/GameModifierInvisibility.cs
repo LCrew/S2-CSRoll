@@ -97,7 +97,7 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
 
     protected void HidePlayer(IPlayer target)
     {
-        if (target.PlayerPawn is not { } pawn || !CachedHiddenSlots.Add(target.Slot))
+        if (target.PlayerPawn is not { IsValid: true } pawn || !CachedHiddenSlots.Add(target.Slot))
         {
             return;
         }
@@ -133,7 +133,7 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
                 continue;
             }
 
-            if (Core.PlayerManager.GetPlayer(hiddenSlot)?.PlayerPawn is { } pawn)
+            if (Core.PlayerManager.GetPlayer(hiddenSlot)?.PlayerPawn is { IsValid: true } pawn)
             {
                 viewer.ShouldBlockTransmitEntity((int)pawn.Index, effectiveBlock);
             }
@@ -168,7 +168,7 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
         // ShouldBlockTransmitEntity(id, false). The per-viewer block on that entity index was then
         // never lifted, and CS2 recycles entity indices. Checking the pawn first and leaving the slot
         // cached when it can't be resolved means a later call can still complete the unhide.
-        if (target.PlayerPawn is not { } pawn)
+        if (target.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -258,7 +258,7 @@ public abstract class GameModifierInvisibleBase : GameModifierBase
         var block = viewer.IsAlive && !CSRollUtils.HasXrayVision(viewer.Slot);
         foreach (var hiddenSlot in CachedHiddenSlots)
         {
-            if (Core.PlayerManager.GetPlayer(hiddenSlot)?.PlayerPawn is { } pawn)
+            if (Core.PlayerManager.GetPlayer(hiddenSlot)?.PlayerPawn is { IsValid: true } pawn)
             {
                 viewer.ShouldBlockTransmitEntity((int)pawn.Index, block);
             }

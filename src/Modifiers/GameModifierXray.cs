@@ -180,7 +180,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         foreach (var target in Core.PlayerManager.GetAlive())
         {
-            if (target.PlayerPawn is not { } pawn)
+            if (target.PlayerPawn is not { IsValid: true } pawn)
             {
                 continue;
             }
@@ -206,7 +206,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
     {
         foreach (var target in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (target.PlayerPawn is not { } pawn)
+            if (target.PlayerPawn is not { IsValid: true } pawn)
             {
                 continue;
             }
@@ -234,9 +234,18 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// </summary>
     private static bool SetSpottedBit(CCSPlayerPawn pawn, int viewerSlot, bool spotted)
     {
-        var mask = pawn.EntitySpottedState.SpottedByMask;
+        // EntitySpottedState is a nested schema subobject and SpottedByMask a fixed array inside it -
+        // both INativeHandle, both checked. This runs every tick for every alive player, so an
+        // unresolved offset here would be a raw write into engine memory 64 times a second.
+        var spottedState = pawn.EntitySpottedState;
+        if (!spottedState.IsValid)
+        {
+            return false;
+        }
+
+        var mask = spottedState.SpottedByMask;
         var word = viewerSlot / 32;
-        if (viewerSlot < 0 || word >= mask.ElementCount)
+        if (!mask.IsValid || viewerSlot < 0 || word >= mask.ElementCount)
         {
             return false;
         }
@@ -330,7 +339,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
             }
 
             var currentTarget = Core.PlayerManager.GetPlayer(targetSlot);
-            if (currentTarget is not { IsValid: true, IsAlive: true } || currentTarget.PlayerPawn is not { } pawn)
+            if (currentTarget is not { IsValid: true, IsAlive: true } || currentTarget.PlayerPawn is not { IsValid: true } pawn)
             {
                 return;
             }
@@ -544,7 +553,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
         // entity's own identity flags. Exact semantics undocumented; kept as an unexplained but
         // reproduced detail of a working reference rather than guessed at.
         Core.Logger.LogInformation("[CSRoll] XRAY prop: Identity.Flags raw write");
-        if (prop.Identity is { } identity)
+        if (prop.Identity is { IsValid: true } identity)
         {
             identity.Flags &= ~(uint)(1 << 2);
         }

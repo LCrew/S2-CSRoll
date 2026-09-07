@@ -278,7 +278,7 @@ public sealed class GameModifierJetpack : GameModifierBase
     /// </summary>
     private void ApplyThrust(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }

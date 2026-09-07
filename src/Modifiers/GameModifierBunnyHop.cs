@@ -202,7 +202,7 @@ public sealed class GameModifierBunnyHop : GameModifierBase
                 continue;
             }
 
-            if (player.PlayerPawn?.MovementServices is { } movementServices)
+            if (player.PlayerPawn?.MovementServices is { IsValid: true } movementServices)
             {
                 movementServices.Stamina = 0f;
                 movementServices.StaminaUpdated();
@@ -219,7 +219,7 @@ public sealed class GameModifierBunnyHop : GameModifierBase
             return;
         }
 
-        if (player.PlayerPawn is not { } pawn || pawn.GroundEntity.Value is null)
+        if (player.PlayerPawn is not { IsValid: true } pawn || pawn.GroundEntity.Value is null)
         {
             // Airborne (or no pawn) - nothing to relaunch; a real jump or existing arc runs untouched.
             return;

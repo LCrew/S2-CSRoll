@@ -110,7 +110,7 @@ public static partial class CSRollUtils
     public static List<string> StripWeaponTypes(IPlayer player, HashSet<CSWeaponType> typesToStrip)
     {
         var removed = new List<string>();
-        if (player.PlayerPawn?.WeaponServices is not { } weaponServices)
+        if (player.PlayerPawn?.WeaponServices is not { IsValid: true } weaponServices)
         {
             return removed;
         }
@@ -194,7 +194,16 @@ public static partial class CSRollUtils
     {
         try
         {
-            return weapon.AttributeManager.Item.ItemDefinitionIndex;
+            // AttributeManager (and Item within it) are nested schema subobjects. The try/catch below
+            // only ever caught managed exceptions; a write or read through an unresolved offset is
+            // memory access, not an exception, so the validity check is what actually protects this.
+            var attributeManager = weapon.AttributeManager;
+            if (!attributeManager.IsValid || !attributeManager.Item.IsValid)
+            {
+                return 0;
+            }
+
+            return attributeManager.Item.ItemDefinitionIndex;
         }
         catch (Exception)
         {
@@ -212,7 +221,7 @@ public static partial class CSRollUtils
     public static List<StrippedWeapon> StripWeaponTypesWithAmmo(IPlayer player, HashSet<CSWeaponType> typesToStrip)
     {
         var removed = new List<StrippedWeapon>();
-        if (player.PlayerPawn?.WeaponServices is not { } weaponServices)
+        if (player.PlayerPawn?.WeaponServices is not { IsValid: true } weaponServices)
         {
             return removed;
         }
@@ -262,7 +271,7 @@ public static partial class CSRollUtils
     /// </summary>
     public static void RestoreWeaponsWithAmmo(ISwiftlyCore core, IPlayer player, IReadOnlyList<StrippedWeapon> weapons)
     {
-        if (player.PlayerPawn?.ItemServices is not { } itemServices)
+        if (player.PlayerPawn?.ItemServices is not { IsValid: true } itemServices)
         {
             return;
         }
@@ -276,7 +285,7 @@ public static partial class CSRollUtils
         core.Scheduler.NextWorldUpdate(() =>
         {
             if (core.PlayerManager.GetPlayer(slot) is not { IsValid: true } restored ||
-                restored.PlayerPawn?.WeaponServices is not { } weaponServices)
+                restored.PlayerPawn?.WeaponServices is not { IsValid: true } weaponServices)
             {
                 return;
             }
@@ -314,7 +323,7 @@ public static partial class CSRollUtils
     /// <summary>Gives back a previously-stripped set of item names to a player (counterpart to StripWeaponTypes).</summary>
     public static void RestoreWeapons(IPlayer player, IEnumerable<string> itemNames)
     {
-        if (player.PlayerPawn?.ItemServices is not { } itemServices)
+        if (player.PlayerPawn?.ItemServices is not { IsValid: true } itemServices)
         {
             return;
         }
@@ -1173,7 +1182,7 @@ public static partial class CSRollUtils
     /// </summary>
     public static void TeleportPlayer(ISwiftlyCore core, IPlayer player, Vector position, QAngle? angle = null, Vector? velocity = null)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -1189,17 +1198,27 @@ public static partial class CSRollUtils
         var facingYaw = (angle ?? pawn.EyeAngles).Yaw;
         player.Teleport(position, new QAngle(0f, facingYaw, 0f), velocity ?? new Vector(0, 0, 0));
 
-        pawn.Collision.CollisionGroup = (byte)CollisionGroup.Pushaway;
-        pawn.Collision.CollisionGroupUpdated();
+        // Collision is a nested schema subobject, so this is "pawn address + field offset" - the
+        // same shape as the Glow write that crashed the server from GameModifierXray. Guarded rather
+        // than assumed; a teleport that cannot set the collision group is a cosmetic loss, a write
+        // through an unresolved offset is not.
+        if (pawn.Collision.IsValid)
+        {
+            pawn.Collision.CollisionGroup = (byte)CollisionGroup.Pushaway;
+            pawn.Collision.CollisionGroupUpdated();
+        }
 
         var slot = player.Slot;
         core.Scheduler.NextWorldUpdate(() =>
         {
             if (core.PlayerManager.GetPlayer(slot) is { IsValid: true } current &&
-                current.PlayerPawn is { } currentPawn)
+                current.PlayerPawn is { IsValid: true } currentPawn)
             {
-                currentPawn.Collision.CollisionGroup = (byte)CollisionGroup.Player;
-                currentPawn.Collision.CollisionGroupUpdated();
+                if (currentPawn.Collision.IsValid)
+                {
+                    currentPawn.Collision.CollisionGroup = (byte)CollisionGroup.Player;
+                    currentPawn.Collision.CollisionGroupUpdated();
+                }
             }
         });
     }
@@ -1223,7 +1242,7 @@ public static partial class CSRollUtils
     /// </summary>
     public static IPlayer? GetPlayerFromEntityHandle(ISwiftlyCore core, CHandle<CEntityInstance> handle)
     {
-        if (handle.Value is not { } entity)
+        if (handle.Value is not { IsValid: true } entity)
         {
             return null;
         }
@@ -1245,7 +1264,7 @@ public static partial class CSRollUtils
     /// <summary>Resolves a thrown grenade projectile's owning player, or null if it's already gone.</summary>
     public static IPlayer? GetThrowerPlayer(ISwiftlyCore core, CBaseCSGrenadeProjectile grenade)
     {
-        return grenade.Thrower.Value is { } pawn ? core.PlayerManager.GetPlayerFromPawn(pawn) : null;
+        return grenade.Thrower.Value is { IsValid: true } pawn ? core.PlayerManager.GetPlayerFromPawn(pawn) : null;
     }
 
     /// <summary>

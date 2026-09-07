@@ -70,7 +70,7 @@ public sealed class GameModifierDisarmingBullets : GameModifierBase
         }
 
         var victim = Core.PlayerManager.GetPlayerFromPawn(ctx.Params.Entity.As<CBasePlayerPawn>());
-        if (victim is not { IsValid: true, IsAlive: true } || victim.PlayerPawn is not { } pawn)
+        if (victim is not { IsValid: true, IsAlive: true } || victim.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -93,7 +93,7 @@ public sealed class GameModifierDisarmingBullets : GameModifierBase
             return;
         }
 
-        if (pawn.WeaponServices is not { } weaponServices || weaponServices.ActiveWeapon.Value is not { } weapon)
+        if (pawn.WeaponServices is not { IsValid: true } weaponServices || weaponServices.ActiveWeapon.Value is not { IsValid: true } weapon)
         {
             return;
         }

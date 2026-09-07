@@ -52,7 +52,7 @@ public sealed class GameModifierOnePerMag : GameModifierBase
     {
         foreach (var player in GetAssignedPlayers())
         {
-            if (player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is not { } weapon)
+            if (player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is not { IsValid: true } weapon)
             {
                 continue;
             }
@@ -113,7 +113,7 @@ public sealed class GameModifierNoRecoil : GameModifierBase
     {
         foreach (var player in Core.PlayerManager.GetAlive())
         {
-            if (!IsAssignedTo(player.Slot) || player.PlayerPawn?.AimPunchServices is not { } aimPunch)
+            if (!IsAssignedTo(player.Slot) || player.PlayerPawn?.AimPunchServices is not { IsValid: true } aimPunch)
             {
                 continue;
             }

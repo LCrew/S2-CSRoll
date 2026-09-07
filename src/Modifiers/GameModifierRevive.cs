@@ -81,7 +81,7 @@ public sealed class GameModifierRevive : GameModifierBase
     private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
     {
         var victim = Core.PlayerManager.GetPlayerFromPawn(ctx.Params.Entity.As<CBasePlayerPawn>());
-        if (victim is not { IsValid: true, IsAlive: true } || !IsAssignedTo(victim.Slot) || victim.PlayerPawn is not { } pawn)
+        if (victim is not { IsValid: true, IsAlive: true } || !IsAssignedTo(victim.Slot) || victim.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }

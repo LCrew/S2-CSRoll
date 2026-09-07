@@ -142,7 +142,7 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
 
     private void SpawnCluster(IPlayer? thrower, string designerName, Vector position)
     {
-        if (thrower is not { IsValid: true } || !IsAssignedTo(thrower.Slot) || thrower.PlayerPawn is not { } throwerPawn)
+        if (thrower is not { IsValid: true } || !IsAssignedTo(thrower.Slot) || thrower.PlayerPawn is not { IsValid: true } throwerPawn)
         {
             return;
         }

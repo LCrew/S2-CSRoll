@@ -72,7 +72,7 @@ public sealed class GameModifierRegeneration : GameModifierBase
 
         foreach (var player in Core.PlayerManager.GetAlive())
         {
-            if (!IsAssignedTo(player.Slot) || player.PlayerPawn is not { } pawn)
+            if (!IsAssignedTo(player.Slot) || player.PlayerPawn is not { IsValid: true } pawn)
             {
                 continue;
             }

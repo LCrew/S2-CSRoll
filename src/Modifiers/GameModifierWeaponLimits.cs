@@ -282,7 +282,7 @@ public sealed class GameModifierRandomLoadout : GameModifierRemoveWeapons
             itemServices.GiveItem(CSRollUtils.ResolveGrenadeName(grenadeName, team));
         }
 
-        if (hasArmor && player.PlayerPawn is { } pawn)
+        if (hasArmor && player.PlayerPawn is { IsValid: true } pawn)
         {
             pawn.ArmorValue = 100;
             pawn.ArmorValueUpdated();

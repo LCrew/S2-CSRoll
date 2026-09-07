@@ -218,7 +218,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         // show up" even though the flash was being armed correctly every single time.
         foreach (var player in GetAssignedPlayers())
         {
-            if (player is not { IsValid: true, IsAlive: true } || player.PlayerPawn is not { } pawn)
+            if (player is not { IsValid: true, IsAlive: true } || player.PlayerPawn is not { IsValid: true } pawn)
             {
                 continue;
             }
@@ -292,7 +292,7 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
 
     private static void ResetRenderState(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }

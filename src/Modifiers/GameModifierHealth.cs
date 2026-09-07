@@ -61,7 +61,7 @@ public abstract class GameModifierHealth : GameModifierBase
 
     private void ApplyHealth(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
@@ -77,7 +77,7 @@ public abstract class GameModifierHealth : GameModifierBase
 
     private void ResetHealth(IPlayer player)
     {
-        if (player.PlayerPawn is not { } pawn)
+        if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }

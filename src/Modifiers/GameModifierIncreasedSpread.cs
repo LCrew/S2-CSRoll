@@ -33,7 +33,7 @@ public sealed class GameModifierIncreasedSpread : GameModifierBase
 
         foreach (var player in GetAssignedPlayers())
         {
-            if (player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
+            if (player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { IsValid: true } weapon)
             {
                 var csWeapon = weapon.As<CCSWeaponBase>();
                 csWeapon.AccuracyPenalty = 0f;
@@ -47,7 +47,7 @@ public sealed class GameModifierIncreasedSpread : GameModifierBase
         var penalty = Runtime.Config.IncreasedSpread.AccuracyPenalty;
         foreach (var player in Core.PlayerManager.GetAlive())
         {
-            if (IsAssignedTo(player.Slot) && player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { } weapon)
+            if (IsAssignedTo(player.Slot) && player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { IsValid: true } weapon)
             {
                 var csWeapon = weapon.As<CCSWeaponBase>();
                 csWeapon.AccuracyPenalty = penalty;

@@ -52,7 +52,7 @@ public sealed class GameModifierBounty : GameModifierBase
             return HookResult.Continue;
         }
 
-        if (attackerController.InGameMoneyServices is not { } moneyServices)
+        if (attackerController.InGameMoneyServices is not { IsValid: true } moneyServices)
         {
             return HookResult.Continue;
         }

@@ -49,7 +49,7 @@ public sealed class GameModifierLongerFlashes : GameModifierBase
 
     private HookResult OnPlayerBlind(EventPlayerBlind @event)
     {
-        if (@event.UserIdPawn is not { } pawn || @event.AttackerPlayer is not { IsValid: true } attacker || !IsAssignedTo(attacker.Slot))
+        if (@event.UserIdPawn is not { IsValid: true } pawn || @event.AttackerPlayer is not { IsValid: true } attacker || !IsAssignedTo(attacker.Slot))
         {
             return HookResult.Continue;
         }

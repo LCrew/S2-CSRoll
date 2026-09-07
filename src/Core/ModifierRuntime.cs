@@ -402,7 +402,7 @@ public sealed class ModifierRuntime
             // is gone once dead/spectating - ObserverServices only ever shows up on IPlayer.Pawn (the
             // general CBasePlayerPawn, whichever concrete pawn - game or observer - is currently
             // active), confirmed via SwiftlyS2's own IPlayer.cs doc comments distinguishing the two.
-            if (player.Pawn?.ObserverServices?.ObserverTarget.Value is not { } targetEntity)
+            if (player.Pawn?.ObserverServices?.ObserverTarget.Value is not { IsValid: true } targetEntity)
             {
                 continue;
             }

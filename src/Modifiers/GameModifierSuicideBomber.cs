@@ -67,7 +67,7 @@ public sealed class GameModifierSuicideBomber : GameModifierBase
     private HookResult OnPlayerDeath(EventPlayerDeath @event)
     {
         var victim = @event.UserIdPlayer;
-        if (victim is not { IsValid: true } || !IsAssignedTo(victim.Slot) || @event.UserIdPawn is not { } pawn || pawn.AbsOrigin is not { } position)
+        if (victim is not { IsValid: true } || !IsAssignedTo(victim.Slot) || @event.UserIdPawn is not { IsValid: true } pawn || pawn.AbsOrigin is not { } position)
         {
             return HookResult.Continue;
         }
@@ -95,7 +95,7 @@ public sealed class GameModifierSuicideBomber : GameModifierBase
     private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
     {
         if ((ctx.Params.Info.DamageType & DamageTypes_t.DMG_BLAST) == 0 ||
-            ctx.Params.Info.Inflictor.Value is not { } inflictor || !_kamikazeGrenadeIndices.Contains((uint)inflictor.Index))
+            ctx.Params.Info.Inflictor.Value is not { IsValid: true } inflictor || !_kamikazeGrenadeIndices.Contains((uint)inflictor.Index))
         {
             return;
         }
