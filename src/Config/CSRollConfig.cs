@@ -800,7 +800,7 @@ public class XrayConfig
     /// outlines through walls. That is the standard server-side way to do this in CS2, and unlike
     /// the prop chain it does not risk the process.
     /// </summary>
-    public bool RadarSpotting { get; set; } = true;
+    public bool RadarSpotting { get; set; } = false;
 
     /// <summary>
     /// Whether the glow-chain props get bit 2 of CEntityIdentity.m_flags cleared just after spawn.
@@ -836,5 +836,5 @@ public class XrayConfig
     /// If GlowTeam turns out not to be honoured on a given build, the visible symptom is enemies
     /// glowing for everyone rather than a crash. Turn this off if you see that.
     /// </summary>
-    public bool GlowRealPawn { get; set; } = true;
+    public bool GlowRealPawn { get; set; } = false;
 }

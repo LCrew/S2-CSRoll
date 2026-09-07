@@ -145,6 +145,47 @@ public abstract class GameModifierXrayBase : GameModifierBase
         Core.Logger.LogInformation(
             "[CSRoll] XRAY: {Count} viewer(s) granted x-ray. RadarSpotting={Radar}, GlowRealPawn={PawnGlow}, GlowProps={Glow}.",
             CachedXrayEnabledSlots.Count, Runtime.Config.Xray.RadarSpotting, Runtime.Config.Xray.GlowRealPawn, Runtime.Config.Xray.GlowProps);
+
+        LogSchemaResolution();
+    }
+
+    /// <summary>
+    /// Prints the addresses the schema fields this modifier writes actually resolve to, once per
+    /// activation, for the first live pawn.
+    ///
+    /// This exists because the crash hunt reached a point where every managed guard was in place and
+    /// the server still died reading 0xFFFFFFFFFFFFFFFF. That address is what an UNRESOLVED schema
+    /// field looks like, and it means the question is no longer "which of my calls is wrong" but
+    /// "do these fields resolve at all against the CS2 build this server is running". An address of
+    /// 0 or -1 here says SwiftlyS2's schema data disagrees with the game binary, which no amount of
+    /// plugin code can fix - the fix would be a SwiftlyS2 update.
+    /// </summary>
+    private void LogSchemaResolution()
+    {
+        foreach (var player in Core.PlayerManager.GetAlive())
+        {
+            if (player.PlayerPawn is not { } pawn || !CSRollUtils.IsUsableHandle(pawn))
+            {
+                continue;
+            }
+
+            var spotted = pawn.EntitySpottedState;
+            var glow = pawn.Glow;
+
+            Core.Logger.LogInformation(
+                "[CSRoll] XRAY schema check on slot {Slot}: pawn=0x{Pawn:X} EntitySpottedState=0x{Spotted:X} (usable={SpottedOk}) SpottedByMask=0x{Mask:X} (usable={MaskOk}, count={Count}) Glow=0x{Glow:X} (usable={GlowOk})",
+                player.Slot,
+                pawn.Address,
+                spotted.Address, CSRollUtils.IsUsableHandle(spotted),
+                CSRollUtils.IsUsableHandle(spotted) ? spotted.SpottedByMask.Address : IntPtr.Zero,
+                CSRollUtils.IsUsableHandle(spotted) && CSRollUtils.IsUsableHandle(spotted.SpottedByMask),
+                CSRollUtils.IsUsableHandle(spotted) && CSRollUtils.IsUsableHandle(spotted.SpottedByMask) ? spotted.SpottedByMask.ElementCount : -1,
+                glow.Address, CSRollUtils.IsUsableHandle(glow));
+
+            return;
+        }
+
+        Core.Logger.LogInformation("[CSRoll] XRAY schema check: no live pawn to probe yet.");
     }
 
     protected virtual bool CheckEnableXray(IPlayer viewer) => false;
@@ -244,7 +285,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
     private static void ApplyPawnGlow(CCSPlayerPawn pawn, IPlayer target, Team audienceTeam)
     {
         var glow = pawn.Glow;
-        if (!glow.IsValid)
+        if (!CSRollUtils.IsUsableHandle(glow))
         {
             return;
         }
@@ -273,13 +314,13 @@ public abstract class GameModifierXrayBase : GameModifierBase
     {
         foreach (var target in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (target.PlayerPawn is not { IsValid: true } pawn)
+            if (target.PlayerPawn is not { } pawn || !CSRollUtils.IsUsableHandle(pawn))
             {
                 continue;
             }
 
             var glow = pawn.Glow;
-            if (!glow.IsValid || glow.GlowType == 0)
+            if (!CSRollUtils.IsUsableHandle(glow) || glow.GlowType == 0)
             {
                 continue;
             }
@@ -314,7 +355,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         foreach (var target in Core.PlayerManager.GetAlive())
         {
-            if (target.PlayerPawn is not { IsValid: true } pawn)
+            if (target.PlayerPawn is not { } pawn || !CSRollUtils.IsUsableHandle(pawn))
             {
                 continue;
             }
@@ -340,7 +381,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
     {
         foreach (var target in Core.PlayerManager.GetAllValidPlayers())
         {
-            if (target.PlayerPawn is not { IsValid: true } pawn)
+            if (target.PlayerPawn is not { } pawn || !CSRollUtils.IsUsableHandle(pawn))
             {
                 continue;
             }
@@ -366,15 +407,18 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// </summary>
     private static bool SetSpottedBit(CCSPlayerPawn pawn, int viewerSlot, bool spotted)
     {
+        // IsUsableHandle, not IsValid. An unresolved schema field still reports IsValid true - it
+        // just carries an all-ones address - which is exactly how this path faulted at
+        // 0xFFFFFFFFFFFFFFFF while every IsValid guard around it passed. See CSRollUtils.
         var spottedState = pawn.EntitySpottedState;
-        if (!spottedState.IsValid)
+        if (!CSRollUtils.IsUsableHandle(spottedState))
         {
             return false;
         }
 
         var mask = spottedState.SpottedByMask;
         var word = viewerSlot / 32;
-        if (!mask.IsValid || viewerSlot < 0 || word >= mask.ElementCount)
+        if (!CSRollUtils.IsUsableHandle(mask) || viewerSlot < 0 || word >= mask.ElementCount)
         {
             return false;
         }
@@ -431,7 +475,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         foreach (var target in Core.PlayerManager.GetAlive())
         {
-            if (target.PlayerPawn is not { IsValid: true } pawn)
+            if (target.PlayerPawn is not { } pawn || !CSRollUtils.IsUsableHandle(pawn))
             {
                 continue;
             }

@@ -52,6 +52,27 @@ public static partial class CSRollUtils
     public static bool HasXrayVision(int slot) => _xrayVisionSlots.Contains(slot);
 
     /// <summary>
+    /// Sentinel returned by a schema lookup that did not resolve. All-ones is what an unresolved
+    /// field offset looks like once it has been folded into a base address, and it is what the live
+    /// crashes have been faulting on: EXCEPTION_ACCESS_VIOLATION_READ at 0xFFFFFFFFFFFFFFFF.
+    /// </summary>
+    private static readonly IntPtr UnresolvedHandleAddress = new(-1);
+
+    /// <summary>
+    /// Whether a SwiftlyS2 native handle is genuinely safe to read or write through.
+    ///
+    /// IsValid on its own is NOT sufficient, which is the correction this whole crash hunt turned
+    /// on. It only reports that the wrapper has an address at all - and an unresolved schema field
+    /// still has one, it is just all-ones. So IsValid returns true, every guard added on the
+    /// strength of it passes, and the very next read faults at 0xFFFFFFFFFFFFFFFF. Address has to
+    /// be sanity-checked as well: a real entity or schema subobject never lives at 0 or at -1.
+    /// </summary>
+    public static bool IsUsableHandle(SwiftlyS2.Shared.Natives.INativeHandle? handle) =>
+        handle is { IsValid: true } &&
+        handle.Address != IntPtr.Zero &&
+        handle.Address != UnresolvedHandleAddress;
+
+    /// <summary>
     /// Bug fix: _xrayVisionSlots is a static field, independent of the plugin instance lifecycle - if
     /// the assembly stays resident across an Unload()/Load() (hot reload), stale x-ray-vision slot
     /// flags from the previous session could leak into the new one and wrongly exempt whichever new
