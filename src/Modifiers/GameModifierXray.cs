@@ -100,6 +100,20 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// </summary>
     private int _traceTicksRemaining;
 
+    /// <summary>
+    /// Which mechanism this activation is allowed to run. Cycles 1 -> 2 -> 3 across activations.
+    ///
+    /// Every crash so far has had at least two mechanisms live at once, so radar spotting and pawn
+    /// glow have never been told apart. Rather than ask for another round of config juggling, the
+    /// modifier isolates them itself: the first activation after a plugin load runs RADAR ONLY, and
+    /// only if that survives does the next activation try PAWN GLOW ONLY, then both.
+    ///
+    /// A crash resets the server and therefore this counter, which is exactly the behaviour wanted -
+    /// it means the first thing tested after any crash is always radar alone. If radar alone
+    /// crashes, radar is the culprit and nothing else needs eliminating.
+    /// </summary>
+    private static int _isolationPhase;
+
     /// <summary>Separates the field WRITE from the network-state notifier that follows it. Both cross into the engine and only one of them can be the one that faults.</summary>
     private void Trace(string step)
     {
@@ -124,6 +138,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
     protected override void OnEnabled()
     {
         _traceTicksRemaining = 3;
+        _isolationPhase++;
         Core.Event.OnTick += OnTick;
         SetupXray();
     }
@@ -167,8 +182,24 @@ public abstract class GameModifierXrayBase : GameModifierBase
             "[CSRoll] XRAY: {Count} viewer(s) granted x-ray. RadarSpotting={Radar}, GlowRealPawn={PawnGlow}, GlowProps={Glow}.",
             CachedXrayEnabledSlots.Count, Runtime.Config.Xray.RadarSpotting, Runtime.Config.Xray.GlowRealPawn, Runtime.Config.Xray.GlowProps);
 
+        Core.Logger.LogWarning(
+            "[CSRoll] XRAY ISOLATION phase {Phase}: this activation runs {What}. If the server dies now, that is what killed it.",
+            _isolationPhase, DescribeIsolationPhase());
+
         LogSchemaResolution();
     }
+
+    /// <summary>Human-readable name of what the current isolation phase permits.</summary>
+    private string DescribeIsolationPhase() => (_isolationPhase % 3) switch
+    {
+        1 => "RADAR SPOTTING ONLY",
+        2 => "PAWN GLOW ONLY",
+        _ => "RADAR + PAWN GLOW TOGETHER",
+    };
+
+    private bool RadarAllowedThisActivation => (_isolationPhase % 3) is 1 or 0;
+
+    private bool PawnGlowAllowedThisActivation => (_isolationPhase % 3) is 2 or 0;
 
     /// <summary>
     /// Prints the addresses the schema fields this modifier writes actually resolve to, once per
@@ -252,7 +283,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// </summary>
     private void RefreshPawnGlow()
     {
-        if (!Runtime.Config.Xray.GlowRealPawn)
+        if (!Runtime.Config.Xray.GlowRealPawn || !PawnGlowAllowedThisActivation)
         {
             return;
         }
@@ -271,7 +302,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
                 continue;
             }
 
-            Trace($"pawnglow: applying to slot {target.Slot}");
+            Trace($"pawnglow: applying to slot {target.Slot} (bot={target.IsFakeClient}, connected={target.ConnectedTime}s)");
             ApplyPawnGlow(pawn, target, audienceTeam);
             Trace($"pawnglow: applied to slot {target.Slot}");
         }
@@ -399,7 +430,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// </summary>
     private void RefreshRadarSpotting()
     {
-        if (!Runtime.Config.Xray.RadarSpotting)
+        if (!Runtime.Config.Xray.RadarSpotting || !RadarAllowedThisActivation)
         {
             return;
         }
@@ -416,7 +447,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
             {
                 if (viewerSlot != target.Slot)
                 {
-                    Trace($"radar: set bit viewer={viewerSlot} on slot {target.Slot}");
+                    Trace($"radar: set bit viewer={viewerSlot} on slot {target.Slot} (bot={target.IsFakeClient}, connected={target.ConnectedTime}s)");
                     changed |= SetSpottedBit(pawn, viewerSlot, spotted: true);
                     Trace($"radar: bit set viewer={viewerSlot} changed={changed}");
                 }
