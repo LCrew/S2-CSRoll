@@ -89,6 +89,26 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// <summary>Slots whose prop build failed, so the per-tick loop does not retry it 64 times a second forever.</summary>
     private readonly HashSet<int> _glowPropBuildFailed = [];
 
+    /// <summary>
+    /// Ticks still to trace in full detail after activation.
+    ///
+    /// The schema probe in SetupXray comes back clean - every field resolves to a sane address with
+    /// the right element count - and it runs BEFORE the first tick, which is where the server dies.
+    /// So the fault is a specific call in the tick path, not a bad offset, and the only way to name
+    /// it is to log every sub-step of the first few ticks and then go quiet. At 64 ticks a second
+    /// this cannot stay on, hence the countdown.
+    /// </summary>
+    private int _traceTicksRemaining;
+
+    /// <summary>Separates the field WRITE from the network-state notifier that follows it. Both cross into the engine and only one of them can be the one that faults.</summary>
+    private void Trace(string step)
+    {
+        if (_traceTicksRemaining > 0)
+        {
+            Core.Logger.LogInformation("[CSRoll] XRAY tick trace: {Step}", step);
+        }
+    }
+
     protected override void OnRegistered()
     {
         Core.Event.OnClientConnected += OnClientConnected;
@@ -103,6 +123,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
     protected override void OnEnabled()
     {
+        _traceTicksRemaining = 3;
         Core.Event.OnTick += OnTick;
         SetupXray();
     }
@@ -197,9 +218,18 @@ public abstract class GameModifierXrayBase : GameModifierBase
             return;
         }
 
+        Trace("tick begin");
         RefreshRadarSpotting();
+        Trace("radar done");
         RefreshPawnGlow();
+        Trace("pawn glow done");
         RefreshGlowProps();
+        Trace("tick end");
+
+        if (_traceTicksRemaining > 0)
+        {
+            _traceTicksRemaining--;
+        }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -234,12 +264,16 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         foreach (var target in Core.PlayerManager.GetAlive())
         {
-            if (CachedXrayEnabledSlots.Contains(target.Slot) || target.PlayerPawn is not { IsValid: true } pawn)
+            if (CachedXrayEnabledSlots.Contains(target.Slot) ||
+                target.PlayerPawn is not { } pawn ||
+                !CSRollUtils.IsUsableHandle(pawn))
             {
                 continue;
             }
 
+            Trace($"pawnglow: applying to slot {target.Slot}");
             ApplyPawnGlow(pawn, target, audienceTeam);
+            Trace($"pawnglow: applied to slot {target.Slot}");
         }
     }
 
@@ -254,7 +288,12 @@ public abstract class GameModifierXrayBase : GameModifierBase
 
         foreach (var slot in CachedXrayEnabledSlots)
         {
-            if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true, Controller: { IsValid: true } controller })
+            // Controller is the one handle on this path the schema probe never checked, and
+            // IsValid alone would not reject an all-ones address on it either.
+            Trace($"pawnglow: reading Controller for holder slot {slot}");
+            if (Core.PlayerManager.GetPlayer(slot) is not { IsValid: true } holder ||
+                holder.Controller is not { } controller ||
+                !CSRollUtils.IsUsableHandle(controller))
             {
                 continue;
             }
@@ -282,14 +321,16 @@ public abstract class GameModifierXrayBase : GameModifierBase
     /// the equality check keeps it to a network update only on the frames something actually
     /// changed.
     /// </summary>
-    private static void ApplyPawnGlow(CCSPlayerPawn pawn, IPlayer target, Team audienceTeam)
+    private void ApplyPawnGlow(CCSPlayerPawn pawn, IPlayer target, Team audienceTeam)
     {
+        TracePawnGlowStep("pawnglow: resolving Glow handle");
         var glow = pawn.Glow;
         if (!CSRollUtils.IsUsableHandle(glow))
         {
             return;
         }
 
+        TracePawnGlowStep("pawnglow: reading current glow state");
         var color = target.Controller is { IsValid: true, Team: Team.T } ? TerroristGlowColor : CounterTerroristGlowColor;
 
         if (glow.GlowType == GlowTypeOutline && glow.GlowTeam == (int)audienceTeam && glow.GlowRange == GlowRangeUnits)
@@ -297,6 +338,7 @@ public abstract class GameModifierXrayBase : GameModifierBase
             return;
         }
 
+        TracePawnGlowStep("pawnglow: writing glow fields");
         glow.GlowColorOverride = color;
         glow.GlowColorOverrideUpdated();
         glow.GlowRange = GlowRangeUnits;
@@ -306,8 +348,13 @@ public abstract class GameModifierXrayBase : GameModifierBase
         glow.GlowTeam = (int)audienceTeam;
         glow.GlowTeamUpdated();
         glow.GlowType = GlowTypeOutline;
+        TracePawnGlowStep("pawnglow: GlowUpdated notifier");
         pawn.GlowUpdated();
+        TracePawnGlowStep("pawnglow: GlowUpdated ok");
     }
+
+    /// <summary>Trace hook usable from the static glow writer above.</summary>
+    private void TracePawnGlowStep(string step) => Trace(step);
 
     /// <summary>Turns the pawn outlines back off. Players do not glow in normal play, so "restore" means "off" rather than a saved value.</summary>
     private void ClearPawnGlow()
@@ -365,13 +412,21 @@ public abstract class GameModifierXrayBase : GameModifierBase
             {
                 if (viewerSlot != target.Slot)
                 {
+                    Trace($"radar: set bit viewer={viewerSlot} on slot {target.Slot}");
                     changed |= SetSpottedBit(pawn, viewerSlot, spotted: true);
+                    Trace($"radar: bit set viewer={viewerSlot} changed={changed}");
                 }
             }
 
             if (changed)
             {
+                // Separated from the write above deliberately. The write lands at an address the
+                // schema probe already verified; this is a native notifier that has to work out the
+                // field's network path for itself, and is the more likely of the two to be where an
+                // all-ones dereference comes from.
+                Trace($"radar: SpottedByMaskUpdated on slot {target.Slot}");
                 pawn.EntitySpottedState.SpottedByMaskUpdated();
+                Trace($"radar: SpottedByMaskUpdated ok on slot {target.Slot}");
             }
         }
     }
