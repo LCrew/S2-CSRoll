@@ -4,8 +4,9 @@
 
 .DESCRIPTION
     1. Copies hud\panorama into <CS2>\content\csgo_addons\<Addon>\panorama - the addon's source tree.
-    2. Compiles every .xml, .css, .svg and .png there with resourcecompiler.exe, which ships with the
-       Counter-Strike 2 Workshop Tools.
+    2. Compiles every .xml, .css and .svg there with resourcecompiler.exe, which ships with the
+       Counter-Strike 2 Workshop Tools. PNGs have no compiler of their own: they are built as child
+       resources of the stylesheet, which references them.
     3. Checks that every compiled file (.vxml_c, .vcss_c, .vsvg_c, _png.vtex_c) landed in
        <CS2>\game\csgo_addons\<Addon>\panorama. resourcecompiler can report success and write nothing,
        and an addon published without them looks fine everywhere and draws nothing in game.
@@ -59,8 +60,11 @@ Write-Host "`n[1/3] Copying hud\panorama -> $contentDir" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $contentDir | Out-Null
 Copy-Item -Path (Join-Path $source '*') -Destination $contentDir -Recurse -Force
 
-$sources = Get-ChildItem -Path $contentDir -Recurse -File -Include *.xml, *.css, *.svg, *.png
+# Images first, the stylesheet that references them last.
+$sources = @(Get-ChildItem -Path $contentDir -Recurse -File -Include *.svg) +
+           @(Get-ChildItem -Path $contentDir -Recurse -File -Include *.xml, *.css)
 if (-not $sources) { throw "Nothing to compile under $contentDir" }
+$images  = @(Get-ChildItem -Path $contentDir -Recurse -File -Include *.png)
 
 Write-Host "`n[2/3] Compiling $($sources.Count) file(s)" -ForegroundColor Cyan
 foreach ($src in $sources) {
@@ -79,12 +83,15 @@ foreach ($src in $sources) {
 Write-Host "`n[3/3] Checking compiled output in $gameDir" -ForegroundColor Cyan
 # Panorama images compile with the source extension folded into the name: icon.png -> icon_png.vtex_c.
 $suffix  = @{ '.xml' = '.vxml_c'; '.css' = '.vcss_c'; '.svg' = '.vsvg_c'; '.png' = '_png.vtex_c' }
-$missing = @()
-foreach ($src in $sources) {
+$missing  = @()
+$noPng    = @()
+foreach ($src in ($sources + $images)) {
     $relative = $src.FullName.Substring($contentDir.Length + 1)
     $stem     = $relative.Substring(0, $relative.Length - $src.Extension.Length)
     $compiled = Join-Path $gameDir ($stem + $suffix[$src.Extension.ToLower()])
-    if (-not (Test-Path $compiled)) { $missing += $compiled }
+    if (-not (Test-Path $compiled)) {
+        if ($src.Extension -eq '.png') { $noPng += $compiled } else { $missing += $compiled }
+    }
 }
 if ($missing.Count -gt 0) {
     Write-Host "    Missing compiled files:" -ForegroundColor Red
@@ -93,7 +100,13 @@ if ($missing.Count -gt 0) {
     Get-ChildItem -Path $gameDir -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 20 | ForEach-Object { Write-Host "      $($_.FullName)" }
     throw "$($missing.Count) file(s) were not compiled - nothing to publish yet."
 }
-Write-Host "    all $($sources.Count) compiled files present"
+if ($noPng.Count -gt 0) {
+    # Not fatal: the PNG icon layer is a fallback for the SVG one. Report what did come out instead.
+    Write-Host "    WARNING: $($noPng.Count) PNG icon(s) not found as _png.vtex_c - only the SVG icon layer will work." -ForegroundColor Yellow
+    Write-Host "    Image files resourcecompiler produced:" -ForegroundColor Yellow
+    Get-ChildItem -Path (Join-Path $gameDir 'images') -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.vsvg_c' } | Select-Object -First 10 | ForEach-Object { Write-Host "      $($_.FullName)" }
+}
+Write-Host "    all $($sources.Count) required compiled files present"
 
 if ($Deploy) {
     Write-Host "`n[+] Copying compiled files to $overrides (local test only)" -ForegroundColor Cyan

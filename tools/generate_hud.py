@@ -206,9 +206,12 @@ def stylesheet(icon_names: list[str]) -> str:
 	background-position: 50% 50%;
 }}
 """)
+    # Source-file references, Panorama's documented form: compiling the stylesheet compiles each
+    # referenced image as a child resource and rewrites the path to the compiled one. resourcecompiler
+    # can't compile a PNG on its own ("Failed to find compiler"), only as a stylesheet's child.
     for name in icon_names:
-        w(f'.ico-{name} .CsrIcoSvg {{ background-image: url("s2r://panorama/images/custom_game/csroll/{name}.vsvg"); }}')
-        w(f'.ico-{name} .CsrIcoPng {{ background-image: url("s2r://panorama/images/custom_game/csroll_png/{name}_png.vtex"); }}')
+        w(f'.ico-{name} .CsrIcoSvg {{ background-image: url("file://{{images}}/custom_game/csroll/{name}.svg"); }}')
+        w(f'.ico-{name} .CsrIcoPng {{ background-image: url("file://{{images}}/custom_game/csroll_png/{name}.png"); }}')
     w("")
     for cat, colour in CATEGORIES.items():
         w(f".cat-{cat} .CsrIco {{ wash-color: {colour}; }}")
