@@ -690,7 +690,7 @@
 	width: 600px;
 	horizontal-align: center;
 	vertical-align: top;
-	margin-top: 546px;
+	margin-top: 542px;
 	opacity: 0;
 }
 
@@ -893,7 +893,7 @@
 .CsrBrandClip
 {
 	width: 100%;
-	height: 26px;
+	height: 30px;
 	overflow: clip clip;
 }
 
@@ -902,7 +902,7 @@
 {
 	flow-children: right;
 	width: 100%;
-	height: 22px;
+	height: 26px;
 	padding: 0px 16px;
 	border-top: 1px solid #ffffff14;
 	background-color: gradient( linear, 0% 0%, 0% 100%, from( #11151ad1 ), to( #0a0d11d9 ) );
@@ -940,9 +940,9 @@
 	vertical-align: center;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-weight: bold;
-	font-size: 11px;
+	font-size: 14px;
 	letter-spacing: 2px;
-	color: #ffffffb3;
+	color: #ffffffc2;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
@@ -1323,7 +1323,7 @@
 .CsrRoll.landed.win6 .CsrSlot { opacity: 0.343; }
 .CsrRoll.win6 .CsrCard.on { transform: translatey( -32.313px ); opacity: 0.491; }
 .CsrRoll.win6 .CsrCardText { opacity: 0; transform: translatey( 8px ); }
-.CsrRoll.landed.brand.win6 .CsrBrand { transform: translatey( 26px ); opacity: 0; }
+.CsrRoll.landed.brand.win6 .CsrBrand { transform: translatey( 30px ); opacity: 0; }
 .CsrRoll.win6 .CsrShineReel { transform: translatex( -137.083px ); }
 .CsrRoll.win7 .CsrTileFlash { opacity: 0.148; }
 .CsrRoll.win7 .CsrTile.won { transform: scale3d( 1.143, 1.143, 1 ); }
@@ -1331,7 +1331,7 @@
 .CsrRoll.landed.win7 .CsrSlot { opacity: 0.275; }
 .CsrRoll.win7 .CsrCard.on { transform: translatey( -26.625px ); opacity: 0.573; }
 .CsrRoll.win7 .CsrCardText { opacity: 0.13; transform: translatey( 6.958px ); }
-.CsrRoll.landed.brand.win7 .CsrBrand { transform: translatey( 21.903px ); opacity: 0.158; }
+.CsrRoll.landed.brand.win7 .CsrBrand { transform: translatey( 25.273px ); opacity: 0.158; }
 .CsrRoll.win7 .CsrShineReel { transform: translatex( -124.397px ); }
 .CsrRoll.win8 .CsrTileFlash { opacity: 0.111; }
 .CsrRoll.win8 .CsrTile.won { transform: scale3d( 1.13, 1.13, 1 ); }
@@ -1339,7 +1339,7 @@
 .CsrRoll.landed.win8 .CsrSlot { opacity: 0.216; }
 .CsrRoll.win8 .CsrCard.on { transform: translatey( -21.647px ); opacity: 0.655; }
 .CsrRoll.win8 .CsrCardText { opacity: 0.249; transform: translatey( 6.011px ); }
-.CsrRoll.landed.brand.win8 .CsrBrand { transform: translatey( 18.261px ); opacity: 0.298; }
+.CsrRoll.landed.brand.win8 .CsrBrand { transform: translatey( 21.07px ); opacity: 0.298; }
 .CsrRoll.win8 .CsrShineReel { transform: translatex( -109.09px ); }
 .CsrRoll.win9 .CsrTileFlash { opacity: 0.081; }
 .CsrRoll.win9 .CsrTile.won { transform: scale3d( 1.115, 1.115, 1 ); }
@@ -1347,7 +1347,7 @@
 .CsrRoll.landed.win9 .CsrSlot { opacity: 0.166; }
 .CsrRoll.win9 .CsrCard.on { transform: translatey( -17.332px ); opacity: 0.736; }
 .CsrRoll.win9 .CsrCardText { opacity: 0.356; transform: translatey( 5.153px ); }
-.CsrRoll.landed.brand.win9 .CsrBrand { transform: translatey( 15.046px ); opacity: 0.421; }
+.CsrRoll.landed.brand.win9 .CsrBrand { transform: translatey( 17.361px ); opacity: 0.421; }
 .CsrRoll.win9 .CsrShineReel { transform: translatex( -91.278px ); }
 .CsrRoll.win10 .CsrTileFlash { opacity: 0.057; }
 .CsrRoll.win10 .CsrTile.won { transform: scale3d( 1.098, 1.098, 1 ); }
@@ -1355,7 +1355,7 @@
 .CsrRoll.landed.win10 .CsrSlot { opacity: 0.125; }
 .CsrRoll.win10 .CsrCard.on { transform: translatey( -13.632px ); opacity: 0.818; }
 .CsrRoll.win10 .CsrCardText { opacity: 0.452; transform: translatey( 4.382px ); }
-.CsrRoll.landed.brand.win10 .CsrBrand { transform: translatey( 12.233px ); opacity: 0.529; }
+.CsrRoll.landed.brand.win10 .CsrBrand { transform: translatey( 14.115px ); opacity: 0.529; }
 .CsrRoll.win10 .CsrShineReel { transform: translatex( -71.097px ); }
 .CsrRoll.win11 .CsrTileFlash { opacity: 0.038; }
 .CsrRoll.win11 .CsrTile.won { transform: scale3d( 1.08, 1.08, 1 ); }
@@ -1363,7 +1363,7 @@
 .CsrRoll.landed.win11 .CsrSlot { opacity: 0.091; }
 .CsrRoll.win11 .CsrCard.on { transform: translatey( -10.5px ); opacity: 0.9; }
 .CsrRoll.win11 .CsrCardText { opacity: 0.539; transform: translatey( 3.691px ); }
-.CsrRoll.landed.brand.win11 .CsrBrand { transform: translatey( 9.795px ); opacity: 0.623; }
+.CsrRoll.landed.brand.win11 .CsrBrand { transform: translatey( 11.301px ); opacity: 0.623; }
 .CsrRoll.win11 .CsrShineReel { transform: translatex( -48.701px ); }
 .CsrRoll.win12 .CsrTileFlash { opacity: 0.024; }
 .CsrRoll.win12 .CsrTile.won { transform: scale3d( 1.062, 1.062, 1 ); }
@@ -1371,7 +1371,7 @@
 .CsrRoll.landed.win12 .CsrSlot { opacity: 0.064; }
 .CsrRoll.win12 .CsrCard.on { transform: translatey( -7.889px ); opacity: 0.982; }
 .CsrRoll.win12 .CsrCardText { opacity: 0.615; transform: translatey( 3.077px ); }
-.CsrRoll.landed.brand.win12 .CsrBrand { transform: translatey( 7.704px ); opacity: 0.704; }
+.CsrRoll.landed.brand.win12 .CsrBrand { transform: translatey( 8.889px ); opacity: 0.704; }
 .CsrRoll.win12 .CsrShineReel { transform: translatex( -24.259px ); }
 .CsrRoll.win13 .CsrTileFlash { opacity: 0.014; }
 .CsrRoll.win13 .CsrTile.won { transform: scale3d( 1.045, 1.045, 1 ); }
@@ -1379,7 +1379,7 @@
 .CsrRoll.landed.win13 .CsrSlot { opacity: 0.043; }
 .CsrRoll.win13 .CsrCard.on { transform: translatey( -5.751px ); opacity: 1; }
 .CsrRoll.win13 .CsrCardText { opacity: 0.683; transform: translatey( 2.536px ); }
-.CsrRoll.landed.brand.win13 .CsrBrand { transform: translatey( 5.934px ); opacity: 0.772; }
+.CsrRoll.landed.brand.win13 .CsrBrand { transform: translatey( 6.847px ); opacity: 0.772; }
 .CsrRoll.win13 .CsrShineReel { transform: translatex( 2.041px ); }
 .CsrRoll.win14 .CsrTileFlash { opacity: 0.007; }
 .CsrRoll.win14 .CsrTile.won { transform: scale3d( 1.03, 1.03, 1 ); }
@@ -1387,7 +1387,7 @@
 .CsrRoll.landed.win14 .CsrSlot { opacity: 0.027; }
 .CsrRoll.win14 .CsrCard.on { transform: translatey( -4.039px ); opacity: 1; }
 .CsrRoll.win14 .CsrCardText { opacity: 0.742; transform: translatey( 2.062px ); }
-.CsrRoll.landed.brand.win14 .CsrBrand { transform: translatey( 4.458px ); opacity: 0.829; }
+.CsrRoll.landed.brand.win14 .CsrBrand { transform: translatey( 5.144px ); opacity: 0.829; }
 .CsrRoll.win14 .CsrShineReel { transform: translatex( 30px ); }
 .CsrRoll.win15 .CsrTileFlash { opacity: 0.003; }
 .CsrRoll.win15 .CsrTile.won { transform: scale3d( 1.017, 1.017, 1 ); }
@@ -1395,7 +1395,7 @@
 .CsrRoll.landed.win15 .CsrSlot { opacity: 0.016; }
 .CsrRoll.win15 .CsrCard.on { transform: translatey( -2.706px ); opacity: 1; }
 .CsrRoll.win15 .CsrCardText { opacity: 0.794; transform: translatey( 1.651px ); }
-.CsrRoll.landed.brand.win15 .CsrBrand { transform: translatey( 3.25px ); opacity: 0.875; }
+.CsrRoll.landed.brand.win15 .CsrBrand { transform: translatey( 3.75px ); opacity: 0.875; }
 .CsrRoll.win15 .CsrShineReel { transform: translatex( 59.405px ); }
 .CsrRoll.win16 .CsrTileFlash { opacity: 0.001; }
 .CsrRoll.win16 .CsrTile.won { transform: scale3d( 1.008, 1.008, 1 ); }
@@ -1403,7 +1403,7 @@
 .CsrRoll.landed.win16 .CsrSlot { opacity: 0.008; }
 .CsrRoll.win16 .CsrCard.on { transform: translatey( -1.704px ); opacity: 1; }
 .CsrRoll.win16 .CsrCardText { opacity: 0.838; transform: translatey( 1.298px ); }
-.CsrRoll.landed.brand.win16 .CsrBrand { transform: translatey( 2.283px ); opacity: 0.912; }
+.CsrRoll.landed.brand.win16 .CsrBrand { transform: translatey( 2.634px ); opacity: 0.912; }
 .CsrRoll.win16 .CsrShineReel { transform: translatex( 90.032px ); }
 .CsrRoll.win17 .CsrTileFlash { opacity: 0; }
 .CsrRoll.win17 .CsrTile.won { transform: scale3d( 1.002, 1.002, 1 ); }
@@ -1411,36 +1411,36 @@
 .CsrRoll.landed.win17 .CsrSlot { opacity: 0.003; }
 .CsrRoll.win17 .CsrCard.on { transform: translatey( -0.986px ); opacity: 1; }
 .CsrRoll.win17 .CsrCardText { opacity: 0.875; transform: translatey( 1px ); }
-.CsrRoll.landed.brand.win17 .CsrBrand { transform: translatey( 1.529px ); opacity: 0.941; }
+.CsrRoll.landed.brand.win17 .CsrBrand { transform: translatey( 1.764px ); opacity: 0.941; }
 .CsrRoll.win17 .CsrShineReel { transform: translatex( 121.649px ); }
 .CsrRoll.landed.win18 .CsrTile { opacity: 0.351; saturation: 0.301; }
 .CsrRoll.landed.win18 .CsrSlot { opacity: 0.001; }
 .CsrRoll.win18 .CsrCard.on { transform: translatey( -0.505px ); opacity: 1; }
 .CsrRoll.win18 .CsrCardText { opacity: 0.906; transform: translatey( 0.751px ); }
-.CsrRoll.landed.brand.win18 .CsrBrand { transform: translatey( 0.963px ); opacity: 0.963; }
+.CsrRoll.landed.brand.win18 .CsrBrand { transform: translatey( 1.111px ); opacity: 0.963; }
 .CsrRoll.win18 .CsrShineReel { transform: translatex( 154.014px ); }
 .CsrRoll.landed.win19 .CsrTile { opacity: 0.35; saturation: 0.3; }
 .CsrRoll.landed.win19 .CsrSlot { opacity: 0; }
 .CsrRoll.win19 .CsrCard.on { transform: translatey( -0.213px ); opacity: 1; }
 .CsrRoll.win19 .CsrCardText { opacity: 0.932; transform: translatey( 0.548px ); }
-.CsrRoll.landed.brand.win19 .CsrBrand { transform: translatey( 0.557px ); opacity: 0.979; }
+.CsrRoll.landed.brand.win19 .CsrBrand { transform: translatey( 0.643px ); opacity: 0.979; }
 .CsrRoll.win19 .CsrShineReel { transform: translatex( 186.881px ); }
 .CsrRoll.win20 .CsrCard.on { transform: translatey( -0.063px ); opacity: 1; }
 .CsrRoll.win20 .CsrCardText { opacity: 0.952; transform: translatey( 0.385px ); }
-.CsrRoll.landed.brand.win20 .CsrBrand { transform: translatey( 0.285px ); opacity: 0.989; }
+.CsrRoll.landed.brand.win20 .CsrBrand { transform: translatey( 0.329px ); opacity: 0.989; }
 .CsrRoll.win20 .CsrShineReel { transform: translatex( 220px ); }
 .CsrRoll.win20 .CsrShineCard { transform: translatex( -160px ); }
 .CsrRoll.win21 .CsrCard.on { transform: translatey( -0.008px ); opacity: 1; }
 .CsrRoll.win21 .CsrCardText { opacity: 0.968; transform: translatey( 0.258px ); }
-.CsrRoll.landed.brand.win21 .CsrBrand { transform: translatey( 0.12px ); opacity: 0.995; }
+.CsrRoll.landed.brand.win21 .CsrBrand { transform: translatey( 0.139px ); opacity: 0.995; }
 .CsrRoll.win21 .CsrShineReel { transform: translatex( 253.119px ); }
 .CsrRoll.win21 .CsrShineCard { transform: translatex( -158.702px ); }
 .CsrRoll.win22 .CsrCardText { opacity: 0.98; transform: translatey( 0.162px ); }
-.CsrRoll.landed.brand.win22 .CsrBrand { transform: translatey( 0.036px ); opacity: 0.999; }
+.CsrRoll.landed.brand.win22 .CsrBrand { transform: translatey( 0.041px ); opacity: 0.999; }
 .CsrRoll.win22 .CsrShineReel { transform: translatex( 285.986px ); }
 .CsrRoll.win22 .CsrShineCard { transform: translatex( -154.817px ); }
 .CsrRoll.win23 .CsrCardText { opacity: 0.988; transform: translatey( 0.094px ); }
-.CsrRoll.landed.brand.win23 .CsrBrand { transform: translatey( 0.004px ); opacity: 1; }
+.CsrRoll.landed.brand.win23 .CsrBrand { transform: translatey( 0.005px ); opacity: 1; }
 .CsrRoll.win23 .CsrShineReel { transform: translatex( 318.351px ); }
 .CsrRoll.win23 .CsrShineCard { transform: translatex( -148.372px ); }
 .CsrRoll.win24 .CsrCardText { opacity: 0.994; transform: translatey( 0.048px ); }

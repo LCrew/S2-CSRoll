@@ -44,7 +44,7 @@ TILE_GAP = 12       # px
 REEL_WIDTH = 600    # px
 REEL_PAD = 8        # px of plate above and below the tiles
 REEL_TOP = 572      # px @1080p - the block ends at 736, clear of CS2's status label (~762) and the gauges
-BRAND_HEIGHT = 22   # px - the caption bar above the reel
+BRAND_HEIGHT = 26   # px - the caption bar above the reel
 BRAND_GAP = 4       # px between it and the reel
 ROLL_TOP = REEL_TOP - BRAND_HEIGHT - BRAND_GAP   # the block starts with the bar's slot, so the reel stays put
 CARD_GAP = 4        # px between the reel and the caption card
@@ -921,9 +921,9 @@ def stylesheet(icon_names: list[str]) -> str:
 {{
 	vertical-align: center;
 	font-family: {FONT_BOLD};
-	font-size: 11px;
+	font-size: 14px;
 	letter-spacing: 2px;
-	color: #ffffffb3;
+	color: #ffffffc2;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }}
