@@ -786,24 +786,26 @@ public class SpinRevealConfig
 public class CustomHudConfig
 {
     /// <summary>
-    /// Master switch. Off by default: the HUD needs the CSRoll HUD Workshop addon on every client
-    /// (delivered with AddonsManager), and until that is published there is nothing for clients to
-    /// draw. While off, no HUD entity is created and everything stays on center-HTML.
+    /// Master switch. Drawing the HUD needs the CSRoll HUD Workshop addon on the client (delivered with
+    /// AddonsManager); players without it stay on center-HTML, and in OptIn mode never even see the
+    /// prompt, so leaving this on is harmless before the addon is set up. Off: no HUD entity is
+    /// created and everyone is on center-HTML.
     /// </summary>
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; } = true;
 
     /// <summary>The layout the HUD entity loads, relative to the game's panorama tree.</summary>
     public string LayoutPath { get; set; } = "panorama/layout/custom_game/csroll_hud.xml";
 
     /// <summary>
+    /// "Everyone" (default, opt-out): every player gets the custom HUD unless they switch back with
+    /// !hud; the choice is remembered per player. A layout cannot run scripts, so the server can't tell
+    /// who actually has the addon - a player without it would see no reveal at all, so everyone who
+    /// hasn't chosen is told once per map how to switch back.
     /// "OptIn": everyone starts on center-HTML. Players who have the addon see a "NEW HUD READY"
     /// prompt (players without it see nothing - their client cannot draw the layout at all) and switch
-    /// with !hud; the choice is remembered per player. A layout cannot run scripts, so it cannot tell
-    /// the server it loaded - letting players who can see it switch is the only reliable detection.
-    /// "Everyone": every player gets the custom HUD unless they switch back with !hud. Use it once
-    /// AddonsManager is confirmed to deliver the addon to everyone.
+    /// with !hud. The safer choice while AddonsManager isn't delivering the addon to everyone.
     /// </summary>
-    public string Mode { get; set; } = "OptIn";
+    public string Mode { get; set; } = "Everyone";
 
     /// <summary>How long the "NEW HUD READY" prompt stays up after each spawn, for players who haven't chosen yet.</summary>
     public float PromptSeconds { get; set; } = 15f;

@@ -66,6 +66,7 @@ public sealed class CustomHudService
         public readonly HashSet<(string Panel, string Class)> Flags = [];
         public float NextRefresh;
         public float PromptUntil;
+        public bool OptOutHintShown;
         public RollState? Roll;
     }
 
@@ -802,7 +803,16 @@ public sealed class CustomHudService
     {
         if (@event.UserIdPlayer is { IsValid: true, IsFakeClient: false } player && IsAddressable(player.Slot))
         {
-            State(player.Slot).PromptUntil = Now + Math.Max(0f, Cfg.PromptSeconds);
+            var state = State(player.Slot);
+            state.PromptUntil = Now + Math.Max(0f, Cfg.PromptSeconds);
+
+            // Opt-out can't tell who has the addon, and a player without it would see no reveal at all -
+            // so everyone who hasn't chosen is told once how to get the classic display back.
+            if (Live && EveryoneMode && !state.OptOutHintShown && _preferences.Get(player.SteamID) is null)
+            {
+                state.OptOutHintShown = true;
+                CSRollUtils.PrintTitleToChatColored(_core, player, "Modifiers now show on the new HUD. Can't see it? Type [green]!hud[default] for the classic display.");
+            }
         }
 
         return HookResult.Continue;

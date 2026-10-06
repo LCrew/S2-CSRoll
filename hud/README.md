@@ -78,12 +78,12 @@ Every republish makes every player download the addon again, so batch design cha
 
 1. Install [AddonsManager](https://github.com/SwiftlyS2-Plugins/AddonsManager) and add the Workshop ID
    to its config. It mounts the addon on the server and makes connecting players download it.
-2. In CSRoll's `config.jsonc`, under `Main`, add:
+2. The HUD is on by default. Its settings are in CSRoll's `config.jsonc`, under `Main`:
 
    ```jsonc
    "CustomHud": {
      "Enabled": true,
-     "Mode": "OptIn",            // "Everyone" once you're sure everyone gets the addon
+     "Mode": "Everyone",         // "OptIn" while AddonsManager isn't delivering the addon yet
      "PromptSeconds": 15,
      "RevealHoldSeconds": 4,
      "BrandText": "Powered by CSRoll", // the bar above the reel after a roll; "" hides it
@@ -92,15 +92,19 @@ Every republish makes every player download the addon again, so batch design cha
    }
    ```
 
-   then `!rollreload` (or change the map).
+   A config written by CSRoll 1.38 or older has no `CustomHud` block, so these defaults apply; add the
+   block to change them, then `!rollreload` (or change the map).
 
 ## Who sees what
 
-- **OptIn** (default): everyone starts on the centre text. For 15s after each spawn a *NEW HUD READY*
-  prompt appears - but only on screens that have the addon, since nobody else can draw the layout.
-  Typing `!hud` switches that player over; it's remembered per SteamID
-  (`hud-players.json` in the plugin's data folder). `!hud` again switches back.
-- **Everyone**: everyone is on the custom HUD unless they switch back with `!hud`.
+- **Everyone** (default, opt-out): everyone is on the custom HUD unless they switch back with `!hud`;
+  the choice is remembered per SteamID (`hud-players.json` in the plugin's data folder). The server
+  can't tell who has the addon, and a player without it would see no reveal at all, so everyone who
+  hasn't chosen gets a one-time chat line per map: *"Can't see it? Type !hud for the classic display."*
+- **OptIn**: everyone starts on the centre text. For 15s after each spawn a *NEW HUD READY* prompt
+  appears - but only on screens that have the addon, since nobody else can draw the layout. Typing
+  `!hud` switches that player over; `!hud` again switches back. Use it until AddonsManager is
+  delivering the addon.
 - Anyone watching another player - dead on T/CT, or on the **spectator team** - sees that player's
   list as *"Name's Modifiers"*. If spectator-team players see nothing at all, set
   `"ShowToSpectatorTeam": false` to put them back on the centre-text spectator panel.
