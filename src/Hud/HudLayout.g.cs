@@ -19,6 +19,7 @@ public static partial class HudLayout
     public const string CardCategory = "csr_card_cat";
     public const string CardName = "csr_card_name";
     public const string CardDescription = "csr_card_desc";
+    public const string BrandText = "csr_brand_text";
 
     public const int Rows = 6;
     public const int Gauges = 3;
@@ -125,9 +126,11 @@ public static partial class HudLayout
     public const string VarValue = "val";
     public const string VarCategory = "cat";
     public const string VarDescription = "desc";
+    public const string VarBrand = "brand";
 
     public const string On = "on";
     public const string Ready = "ready";
     public const string Won = "won";
     public const string Landed = "landed";
+    public const string Brand = "brand";
 }

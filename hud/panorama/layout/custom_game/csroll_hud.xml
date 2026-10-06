@@ -112,6 +112,13 @@
         </Panel>
       </Panel>
       <Panel id="csr_roll" class="CsrRoll" hittest="false">
+        <Panel class="CsrBrandClip">
+          <Panel class="CsrBrand">
+            <Panel class="CsrBrandRule CsrBrandRuleL" />
+            <Label id="csr_brand_text" class="CsrBrandText" text="{s:brand}" />
+            <Panel class="CsrBrandRule CsrBrandRuleR" />
+          </Panel>
+        </Panel>
         <Panel class="CsrReel">
           <Panel class="CsrSlot" />
           <Panel id="csr_track" class="CsrTrack">

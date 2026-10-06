@@ -268,6 +268,10 @@ public sealed class CustomHudService
         SetExclusive(slot, state, HudLayout.TileIcon(HudLayout.WinTile), "icon", HudLayout.IconClass(HudCatalog.Icon(primary)));
         SetExclusive(slot, state, HudLayout.Tile(HudLayout.WinTile), "cat", HudLayout.CategoryClass(HudCatalog.Category(primary)));
 
+        var brand = Cfg.BrandText?.Trim() ?? "";
+        SetText(slot, state, HudLayout.BrandText, HudLayout.VarBrand, brand.Length > 64 ? brand[..64] : brand);
+        SetFlag(slot, state, HudLayout.RollPanel, HudLayout.Brand, brand.Length > 0);
+
         // Same tick as `on`, so the first frame the player sees is the fade-in's first.
         SetReelPosition(slot, state, 0f);
         SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.InClass(0));

@@ -86,6 +86,7 @@ Every republish makes every player download the addon again, so batch design cha
      "Mode": "OptIn",            // "Everyone" once you're sure everyone gets the addon
      "PromptSeconds": 15,
      "RevealHoldSeconds": 4,
+     "BrandText": "Powered by CSRoll", // the bar above the reel after a roll; "" hides it
      "ShowToSpectatorTeam": true,
      "ListOffset": 0             // 0-4: move the list down if the radar/money overlaps it
    }

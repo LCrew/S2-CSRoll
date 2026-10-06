@@ -43,7 +43,10 @@ TILE = 64           # px
 TILE_GAP = 12       # px
 REEL_WIDTH = 600    # px
 REEL_PAD = 8        # px of plate above and below the tiles
-ROLL_TOP = 572      # px @1080p - the block ends at 736, clear of CS2's status label (~762) and the gauges
+REEL_TOP = 572      # px @1080p - the block ends at 736, clear of CS2's status label (~762) and the gauges
+BRAND_HEIGHT = 22   # px - the caption bar above the reel
+BRAND_GAP = 4       # px between it and the reel
+ROLL_TOP = REEL_TOP - BRAND_HEIGHT - BRAND_GAP   # the block starts with the bar's slot, so the reel stays put
 CARD_GAP = 4        # px between the reel and the caption card
 CARD_HEIGHT = 80    # px, fixed so the block's bottom edge is guaranteed
 NOTCH = 8           # px square, rotated 45deg and half-clipped by the plate into the marker triangles
@@ -175,6 +178,13 @@ def layout() -> str:
 {gauges}
       </Panel>
       <Panel id="csr_roll" class="CsrRoll" hittest="false">
+        <Panel class="CsrBrandClip">
+          <Panel class="CsrBrand">
+            <Panel class="CsrBrandRule CsrBrandRuleL" />
+            <Label id="csr_brand_text" class="CsrBrandText" text="{{s:brand}}" />
+            <Panel class="CsrBrandRule CsrBrandRuleR" />
+          </Panel>
+        </Panel>
         <Panel class="CsrReel">
           <Panel class="CsrSlot" />
           <Panel id="csr_track" class="CsrTrack">
@@ -282,6 +292,11 @@ def roll_frames() -> list[str]:
         if (t := span(n, 6, 22)) is not None:
             k = ease_out(t)
             rule(f"{f} .CsrCardText", [f"opacity: {num(k)};", f"transform: translatey( {num((1 - k) * 8)}px );"])
+        # The brand bar rises out of the reel's top edge, a beat after the card starts down.
+        if (t := span(n, 6, 18)) is not None:
+            k = ease_out(t)
+            rule(f".CsrRoll.landed.brand.win{n} .CsrBrand", [f"transform: translatey( {num((BRAND_HEIGHT + BRAND_GAP) * (1 - k))}px );", f"opacity: {num(k)};"])
+
         # Light sweeps left to right, over the reel first, then the card.
         for panel, start, frames in (("CsrShineReel", 2, 36), ("CsrShineCard", 20, 38)):
             if (t := span(n, start, frames)) is not None:
@@ -291,6 +306,8 @@ def roll_frames() -> list[str]:
     # After the card lands, the list (hidden during your own spin) comes in: the title first, then each
     # row slides in from the left, a few frames apart. Before its start a row is held invisible - one
     # grouped rule per row rather than one per frame.
+    lines.append(", ".join(f".CsrRoll.landed.brand.win{n} .CsrBrand" for n in range(6)) + " { opacity: 0; }")
+
     list_parts = [("CsrListHead", 20, 14, 0)] + [(f"CsrRow.row{i}", 24 + 4 * i, 16, 20) for i in range(ROWS)]
     for panel, start, frames, slide in list_parts:
         lines.append(", ".join(f".CsrList.win{n} .{panel}" for n in range(start)) + " { opacity: 0; }")
@@ -854,6 +871,63 @@ def stylesheet(icon_names: list[str]) -> str:
 	opacity: 0;
 }}
 
+/* ---------- brand bar: a caption that slides up out of the reel's top edge on landing ---------- */
+.CsrBrandClip
+{{
+	width: 100%;
+	height: {BRAND_HEIGHT + BRAND_GAP}px;
+	overflow: clip clip;
+}}
+
+/* Hidden until the roll lands, and only when the server has a caption for it (`brand`). */
+.CsrBrand
+{{
+	flow-children: right;
+	width: 100%;
+	height: {BRAND_HEIGHT}px;
+	padding: 0px 16px;
+	border-top: 1px solid #ffffff14;
+	background-color: {plate};
+	opacity: 0;
+}}
+
+.CsrRoll.landed.brand .CsrBrand
+{{
+	opacity: 1;
+}}
+
+/* Gold hairlines either side of the text, fading outward - they share the space, centring it. */
+.CsrBrandRule
+{{
+	width: fill-parent-flow( 1.0 );
+	height: 1px;
+	vertical-align: center;
+}}
+
+.CsrBrandRuleL
+{{
+	margin-right: 12px;
+	background-color: {fade([(0, f"{GOLD}00"), (1, f"{GOLD}99")])};
+}}
+
+.CsrBrandRuleR
+{{
+	margin-left: 12px;
+	background-color: {fade([(0, f"{GOLD}99"), (1, f"{GOLD}00")])};
+}}
+
+/* As written - no text-transform, so a case-sensitive invite code survives. */
+.CsrBrandText
+{{
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 11px;
+	letter-spacing: 2px;
+	color: #ffffffb3;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}}
+
 /* ---------- reveal card: compact centred caption under the winner ---------- */
 /* Clips the card as it slides down out of the reel's bottom edge. Taller than the card so its shadow
    keeps most of its fall-off. */
@@ -1025,6 +1099,7 @@ public static partial class HudLayout
     public const string CardCategory = "csr_card_cat";
     public const string CardName = "csr_card_name";
     public const string CardDescription = "csr_card_desc";
+    public const string BrandText = "csr_brand_text";
 
     public const int Rows = {ROWS};
     public const int Gauges = {GAUGES};
@@ -1084,11 +1159,13 @@ public static partial class HudLayout
     public const string VarValue = "val";
     public const string VarCategory = "cat";
     public const string VarDescription = "desc";
+    public const string VarBrand = "brand";
 
     public const string On = "on";
     public const string Ready = "ready";
     public const string Won = "won";
     public const string Landed = "landed";
+    public const string Brand = "brand";
 }}
 '''
 

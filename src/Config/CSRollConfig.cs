@@ -812,6 +812,13 @@ public class CustomHudConfig
     public float RevealHoldSeconds { get; set; } = 4f;
 
     /// <summary>
+    /// Caption on the small bar that slides up above the reel when a roll lands - a server name, a
+    /// Discord invite. Shown exactly as written (no forced capitals, so invite codes survive), cut
+    /// at 64 characters. Empty hides the bar.
+    /// </summary>
+    public string BrandText { get; set; } = "Powered by CSRoll";
+
+    /// <summary>
     /// Whether players on the Spectator team get the custom HUD (the list shows whoever they watch,
     /// as "Name's Modifiers"). Turn off if spectators see nothing - then they keep the center-HTML
     /// spectator panel. Dead players on T/CT always get it.
