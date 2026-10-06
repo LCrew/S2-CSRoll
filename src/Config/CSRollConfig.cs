@@ -124,6 +124,9 @@ public class CSRollConfig
     /// <summary>Tunables for the persistent center-HTML popup shown to spectators, listing whatever modifiers are active on whoever they're currently observing.</summary>
     public SpectatorHudConfig SpectatorHud { get; set; } = new();
 
+    /// <summary>The Panorama HUD (roll carousel, modifier list, gauges) for players with the CSRoll HUD Workshop addon - see hud/README.md.</summary>
+    public CustomHudConfig CustomHud { get; set; } = new();
+
     /// <summary>Tunables for the ChineseGrenades ("Chinese Grenades") modifier (randomized fuse timer range applied to HE/flashbang/smoke).</summary>
     public ChineseGrenadesConfig ChineseGrenades { get; set; } = new();
 
@@ -778,6 +781,38 @@ public class SpinRevealConfig
 
     /// <summary>Fade colour as "R,G,B,A" (0-255 each). The default is a low-alpha white flash rather than a heavy blackout.</summary>
     public string FadeColor { get; set; } = "255,255,255,64";
+}
+
+public class CustomHudConfig
+{
+    /// <summary>
+    /// Master switch. Off by default: the HUD needs the CSRoll HUD Workshop addon on every client
+    /// (delivered with AddonsManager), and until that is published there is nothing for clients to
+    /// draw. While off, no HUD entity is created and everything stays on center-HTML.
+    /// </summary>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>The layout the HUD entity loads, relative to the game's panorama tree.</summary>
+    public string LayoutPath { get; set; } = "panorama/layout/custom_game/csroll_hud.xml";
+
+    /// <summary>
+    /// "OptIn": everyone starts on center-HTML. Players who have the addon see a "NEW HUD READY"
+    /// prompt (players without it see nothing - their client cannot draw the layout at all) and switch
+    /// with !hud; the choice is remembered per player. A layout cannot run scripts, so it cannot tell
+    /// the server it loaded - letting players who can see it switch is the only reliable detection.
+    /// "Everyone": every player gets the custom HUD unless they switch back with !hud. Use it once
+    /// AddonsManager is confirmed to deliver the addon to everyone.
+    /// </summary>
+    public string Mode { get; set; } = "OptIn";
+
+    /// <summary>How long the "NEW HUD READY" prompt stays up after each spawn, for players who haven't chosen yet.</summary>
+    public float PromptSeconds { get; set; } = 15f;
+
+    /// <summary>How long the reveal card stays up after the carousel lands. The modifier list shows it from the moment it lands either way.</summary>
+    public float RevealHoldSeconds { get; set; } = 4f;
+
+    /// <summary>Vertical position of the modifier list under the radar: 0 (highest) to 4 (lowest), 40px apart at 1080p. Raise it if a large radar scale or the money display overlaps the list.</summary>
+    public int ListOffset { get; set; } = 0;
 }
 
 public class SpectatorHudConfig

@@ -2,6 +2,7 @@ using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -316,6 +317,7 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
         // was advanced to the next cycle when the roll started, so one interval comes back off here to
         // get THIS roll's landing moment, or the timer would jump forward a full interval mid-roll.
         var landingRemaining = Math.Max(0f, _nextSwapTime.GetValueOrDefault(slot, now) - Runtime.Config.ButterflyEffect.SwapIntervalSeconds - now);
+        PublishGauge(slot, flashed, landingRemaining);
         SetHud(slot, BuildStatusHtml(flashed, landingRemaining), HudPriority);
         CSRollUtils.PlaySoundToPlayer(player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume);
 
@@ -339,7 +341,16 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
             : "<none>";
 
         var remaining = Math.Max(0f, _nextSwapTime.GetValueOrDefault(slot, now) - now);
+        PublishGauge(slot, activeName, remaining);
         SetHud(slot, BuildStatusHtml(activeName, remaining), HudPriority);
+    }
+
+    /// <summary>The custom HUD's readout: what the carrier holds right now (flickering during a roll) and the countdown to the next one.</summary>
+    private void PublishGauge(int slot, string modifierName, float secondsRemaining)
+    {
+        var interval = Math.Max(0.01f, Runtime.Config.ButterflyEffect.SwapIntervalSeconds);
+        var shown = modifierName == "<none>" ? "None" : modifierName;
+        SetGauge(slot, new HudGauge("Butterfly Effect", $"{shown} · {secondsRemaining:0.0}s", 1f - Math.Clamp(secondsRemaining / interval, 0f, 1f)));
     }
 
     /// <summary>

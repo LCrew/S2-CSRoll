@@ -1144,16 +1144,21 @@ public static partial class CSRollUtils
     public static string GetModifierDescription(ISwiftlyCore core, GameModifierBase modifier)
     {
         var description = TryLocalize(core, $"{modifier.Name}.Description", out var value) ? value : modifier.Description;
+        return SubstituteTokens(modifier, description);
+    }
 
+    /// <summary>Fills each "{token}" in text with the modifier's live DynamicTextTokens value, if it has any.</summary>
+    private static string SubstituteTokens(GameModifierBase modifier, string text)
+    {
         if (modifier.DynamicTextTokens is { } tokens)
         {
             foreach (var (token, replacement) in tokens)
             {
-                description = description.Replace($"{{{token}}}", replacement);
+                text = text.Replace($"{{{token}}}", replacement);
             }
         }
 
-        return description;
+        return text;
     }
 
     /// <summary>
@@ -1166,6 +1171,18 @@ public static partial class CSRollUtils
     /// </summary>
     public static string GetModifierDisplayName(ISwiftlyCore core, GameModifierBase modifier) =>
         TryLocalize(core, $"{modifier.Name}.DisplayName", out var value) ? value : modifier.Name;
+
+    /// <summary>
+    /// The very short line under a modifier's name in the custom HUD's list (key: "{Name}.Short" in
+    /// translations/en.jsonc), falling back to the full description. Chat colour tags are stripped -
+    /// the HUD draws plain text.
+    /// </summary>
+    public static string GetModifierShortDescription(ISwiftlyCore core, GameModifierBase modifier) =>
+        StripChatColors(TryLocalize(core, $"{modifier.Name}.Short", out var value) ? SubstituteTokens(modifier, value) : GetModifierDescription(core, modifier));
+
+    /// <summary>Removes chat colour tags ("[green]", "[default]") from text meant for a surface that draws plain text, such as the custom HUD.</summary>
+    public static string StripChatColors(string text) =>
+        System.Text.RegularExpressions.Regex.Replace(text, @"\[[a-z]+\]", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public static bool IsWarmupActive(ISwiftlyCore core)
     {

@@ -2,6 +2,7 @@ using SwiftlyS2.Shared.Events;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -127,14 +128,21 @@ public sealed class GameModifierRegeneration : GameModifierBase
             return;
         }
 
-        // Stay off the center-HTML surface while the roll's own reveal owns it - see
-        // ModifierRuntime.IsModifierHudSuppressed.
+        _lastHtmlUpdateTime[slot] = now;
+
+        var stationary = Runtime.Config.Regeneration.StationaryRatePerSecond;
+        SetGauge(slot, new HudGauge(
+            "Regeneration",
+            $"{displayedRate:0} HP/s",
+            stationary > 0f ? displayedRate / stationary : 1f,
+            Ready: displayedRate >= stationary));
+
+        // The center-HTML block stays off the surface while the roll's own reveal owns it (see
+        // ModifierRuntime.IsModifierHudSuppressed); the gauge above has no such conflict.
         if (Runtime.IsModifierHudSuppressed)
         {
             return;
         }
-
-        _lastHtmlUpdateTime[slot] = now;
 
         var color = displayedRate >= Runtime.Config.Regeneration.StationaryRatePerSecond ? "gold" : "lime";
         var html = "<span color=\"gold\" class=\"fontWeight-Bold\">Regeneration</span><br/>" +

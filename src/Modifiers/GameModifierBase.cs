@@ -8,6 +8,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 using CSRoll.Services.Interfaces;
 
 namespace CSRoll.Modifiers;
@@ -201,8 +202,17 @@ public abstract class GameModifierBase
     /// <summary>Whether another modifier is currently drawing its own HUD block for this player - see ModifierRuntime.HasHudSection.</summary>
     protected bool HasHud(GameModifierBase other, int slot) => Runtime.HasHudSection(other, slot);
 
-    /// <summary>Retracts this modifier's HUD block for one player (e.g. while they're dead).</summary>
+    /// <summary>Retracts this modifier's HUD block for one player (e.g. while they're dead). Also retracts its custom HUD gauge.</summary>
     protected void ClearHud(int slot) => Runtime.ClearHudSection(this, slot);
+
+    /// <summary>
+    /// Publishes this modifier's live readout for the custom HUD's gauge strip - the structured twin of
+    /// SetHud's center-HTML block, for players who use the custom HUD. Publish it alongside SetHud, but
+    /// before any IsModifierHudSuppressed early-out: that gate exists so center-HTML blocks don't fight
+    /// the roll reveal, and the custom HUD has no such conflict - skipping it would leave the gauge
+    /// blank for the whole reveal.
+    /// </summary>
+    protected void SetGauge(int slot, HudGauge gauge) => Runtime.SetHudGauge(this, slot, gauge);
 
     /// <summary>
     /// Bug fix: true when `slot` is the ONLY slot this modifier is currently assigned to - i.e.

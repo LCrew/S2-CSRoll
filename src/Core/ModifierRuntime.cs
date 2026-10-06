@@ -6,6 +6,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Config;
+using CSRoll.Hud;
 using CSRoll.Modifiers;
 using CSRoll.Services.Interfaces;
 
@@ -137,6 +138,7 @@ public sealed class ModifierRuntime
         _modifierHudSuppressedUntil = 0f;
         _lastSpectatorHudUpdateTime.Clear();
         _lastModifierHudUpdateTime.Clear();
+        _hudGauges.Clear();
     }
 
     /// <summary>Extends the HUD blackout to at least <paramref name="seconds"/> from now - never shortens an existing one, so overlapping reveals can't cut each other short.</summary>
@@ -180,6 +182,15 @@ public sealed class ModifierRuntime
 
     /// <summary>Per-player convar overrides the server honours during that player's own simulation as well as on their client - see PlayerConVarOverrides. Shared by every modifier that needs one (BunnyHop, NoRecoil).</summary>
     public PlayerConVarOverrides ConVarOverrides { get; }
+
+    /// <summary>
+    /// The Panorama HUD, when the plugin has one installed. Every center-HTML surface below (the roll
+    /// spin and reveal, the composed modifier blocks, the spectator panel) checks UsesCustomHud per
+    /// player and stands aside for those who have switched to it, so nobody gets both at once.
+    /// </summary>
+    public CustomHudService? CustomHud { get; set; }
+
+    private bool UsesCustomHud(int slot) => CustomHud?.UsesCustomHud(slot) == true;
 
     public ModifierRuntime(ISwiftlyCore core, CSRollConfig config, ICvarRollbackService cvarService)
     {
@@ -355,6 +366,7 @@ public sealed class ModifierRuntime
         // Slots are recycled by the next player to join, so any HUD blocks published for this one
         // have to go with them or the newcomer inherits a stale panel.
         _hudSections.Remove(@event.PlayerId);
+        _hudGauges.Remove(@event.PlayerId);
         _lastModifierHudUpdateTime.Remove(@event.PlayerId);
 
         // Iterating a copy: an orphaned modifier is removed from _activeModifiers inside this loop.
@@ -417,6 +429,12 @@ public sealed class ModifierRuntime
 
             var slot = player.Slot;
             if (_lastSpectatorHudUpdateTime.TryGetValue(slot, out var lastUpdate) && now - lastUpdate < Config.SpectatorHud.RefreshIntervalSeconds)
+            {
+                continue;
+            }
+
+            // The custom HUD draws the watched player's modifiers into its own list instead.
+            if (UsesCustomHud(slot))
             {
                 continue;
             }
@@ -975,22 +993,64 @@ public sealed class ModifierRuntime
         sections.TryGetValue(owner, out var section) &&
         _core.Engine.GlobalVars.CurrentTime < section.ExpiresAt;
 
-    /// <summary>Retracts one modifier's block for one player - e.g. Vanish's own HUD while the player is dead.</summary>
+    /// <summary>Retracts one modifier's block for one player - e.g. Vanish's own HUD while the player is dead. Its custom HUD gauge goes with it.</summary>
     public void ClearHudSection(GameModifierBase owner, int slot)
     {
         if (_hudSections.TryGetValue(slot, out var sections) && sections.Remove(owner) && sections.Count == 0)
         {
             _hudSections.Remove(slot);
         }
+
+        if (_hudGauges.TryGetValue(slot, out var gauges) && gauges.Remove(owner) && gauges.Count == 0)
+        {
+            _hudGauges.Remove(slot);
+        }
     }
 
     /// <summary>Retracts every block a modifier owns, for every player. Called automatically from GameModifierBase.Deactivate so no modifier can leave a stale block on screen after it ends.</summary>
     public void ClearHudSections(GameModifierBase owner)
     {
-        foreach (var slot in _hudSections.Keys.ToList())
+        foreach (var slot in _hudSections.Keys.Union(_hudGauges.Keys).ToList())
         {
             ClearHudSection(owner, slot);
         }
+    }
+
+    /// <summary>A gauge not republished within this long is treated as gone - the same expiry idea as HudSectionTtlSeconds, so a modifier that stops publishing (its player died, it was revoked) can't leave a frozen bar behind.</summary>
+    private const float HudGaugeTtlSeconds = 0.75f;
+
+    private readonly Dictionary<int, Dictionary<GameModifierBase, (HudGauge Gauge, float ExpiresAt)>> _hudGauges = [];
+
+    /// <summary>Publishes (or replaces) one modifier's custom HUD gauge for one player. See GameModifierBase.SetGauge.</summary>
+    public void SetHudGauge(GameModifierBase owner, int slot, HudGauge gauge)
+    {
+        if (!_hudGauges.TryGetValue(slot, out var gauges))
+        {
+            gauges = [];
+            _hudGauges[slot] = gauges;
+        }
+
+        gauges[owner] = (gauge, _core.Engine.GlobalVars.CurrentTime + HudGaugeTtlSeconds);
+    }
+
+    /// <summary>
+    /// The live gauges for one player, in activation order so the strip doesn't reshuffle between
+    /// refreshes. Expired entries are skipped - and the map-clock guard used throughout this file
+    /// treats an expiry further out than the TTL as stale from a previous map.
+    /// </summary>
+    public IReadOnlyList<(GameModifierBase Owner, HudGauge Gauge)> GetHudGauges(int slot)
+    {
+        if (!_hudGauges.TryGetValue(slot, out var gauges) || gauges.Count == 0)
+        {
+            return [];
+        }
+
+        var now = _core.Engine.GlobalVars.CurrentTime;
+        return gauges
+            .Where(entry => now < entry.Value.ExpiresAt && now + HudGaugeTtlSeconds >= entry.Value.ExpiresAt)
+            .OrderBy(entry => _activeModifiers.IndexOf(entry.Key) is var index and >= 0 ? index : int.MaxValue)
+            .Select(entry => (entry.Key, entry.Value.Gauge))
+            .ToList();
     }
 
     /// <summary>
@@ -1045,6 +1105,12 @@ public sealed class ModifierRuntime
 
             var player = _core.PlayerManager.GetAllValidPlayers().FirstOrDefault(p => p.Slot == slot);
             if (player is not { IsValid: true })
+            {
+                continue;
+            }
+
+            // Their gauges are on the custom HUD's strip instead - see GameModifierBase.SetGauge.
+            if (UsesCustomHud(slot))
             {
                 continue;
             }
@@ -1573,6 +1639,16 @@ public sealed class ModifierRuntime
 
         if (Config.ShowCentreMsg)
         {
+            // Custom HUD players get the carousel; the broadcast below skips them. The commit still
+            // happens once, from the broadcast chain's own Reveal, which runs on the same schedule.
+            foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+            {
+                if (UsesCustomHud(player.Slot))
+                {
+                    CustomHud!.PlayRoll(player.Slot, modifiers, onLanded: null);
+                }
+            }
+
             PlaySpinThenRevealAll(
                 () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal),
                 Reveal,
@@ -1636,7 +1712,14 @@ public sealed class ModifierRuntime
                 }
             }
 
-            if (Config.ShowCentreMsg)
+            if (Config.ShowCentreMsg && UsesCustomHud(slot))
+            {
+                // The carousel lands on the same moment the center-HTML spin would, and commits
+                // through the same Reveal callback, so activation timing doesn't depend on which HUD
+                // a player uses.
+                CustomHud!.PlayRoll(slot, modifiers, Reveal);
+            }
+            else if (Config.ShowCentreMsg)
             {
                 PlaySpinThenReveal(
                     slot,
@@ -1795,7 +1878,7 @@ public sealed class ModifierRuntime
             // Re-armed at the exact moment the finished reveal goes up, so modifier HUDs
             // return precisely when it disappears rather than on the up-front estimate.
             SuppressModifierHudFor(RevealHoldMs() / 1000f);
-            CSRollUtils.ShowMessageCentreAll(_core, buildFinalHtml(), RevealHoldMs());
+            ShowCentreToClassicHud(buildFinalHtml(), RevealHoldMs());
             onRevealed();
             return;
         }
@@ -1819,7 +1902,7 @@ public sealed class ModifierRuntime
                 // Re-armed at the exact moment the finished reveal goes up, so modifier HUDs
                 // return precisely when it disappears rather than on the up-front estimate.
                 SuppressModifierHudFor(RevealHoldMs() / 1000f);
-                CSRollUtils.ShowMessageCentreAll(_core, buildFinalHtml(), RevealHoldMs());
+                ShowCentreToClassicHud(buildFinalHtml(), RevealHoldMs());
             }
 
             return;
@@ -1834,8 +1917,8 @@ public sealed class ModifierRuntime
 
         var randomName = CSRollUtils.GetModifierDisplayName(_core, _registeredModifiers[Random.Shared.Next(_registeredModifiers.Count)]);
         var interval = GetSpinFrameIntervalSeconds(frameIndex, totalFrames);
-        CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
-        CSRollUtils.PlaySoundToAll(Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume);
+        ShowCentreToClassicHud(CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
+        PlaySoundToClassicHud(Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume);
 
         _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrameAll(frameIndex + 1, totalFrames, buildFinalHtml, onRevealed, buildDescriptionFrame));
     }
@@ -1848,13 +1931,37 @@ public sealed class ModifierRuntime
             // Re-armed at the exact moment the finished reveal goes up, so modifier HUDs
             // return precisely when it disappears rather than on the up-front estimate.
             SuppressModifierHudFor(RevealHoldMs() / 1000f);
-            CSRollUtils.ShowMessageCentreAll(_core, buildFinalHtml(), RevealHoldMs());
+            ShowCentreToClassicHud(buildFinalHtml(), RevealHoldMs());
             return;
         }
 
         var interval = Config.SpinReveal.DescriptionScrambleDurationSeconds / totalFrames;
-        CSRollUtils.ShowMessageCentreAll(_core, buildDescriptionFrame((float)frameIndex / totalFrames), (int)(interval * 1000) + Config.SpinReveal.DescriptionHoldMs);
+        ShowCentreToClassicHud(buildDescriptionFrame((float)frameIndex / totalFrames), (int)(interval * 1000) + Config.SpinReveal.DescriptionHoldMs);
 
         _core.Scheduler.DelayBySeconds(interval, () => PlayDescriptionScrambleFrameAll(frameIndex + 1, totalFrames, buildDescriptionFrame, buildFinalHtml));
+    }
+
+    /// <summary>The broadcast roll's center-HTML, sent only to players still on the classic HUD - custom HUD players are watching their carousel.</summary>
+    private void ShowCentreToClassicHud(string html, int durationMs)
+    {
+        foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+        {
+            if (!UsesCustomHud(player.Slot))
+            {
+                player.SendCenterHTML(html, durationMs);
+            }
+        }
+    }
+
+    /// <summary>The broadcast roll's tick, for classic HUD players only - the carousel times its own ticks to its tiles.</summary>
+    private void PlaySoundToClassicHud(string soundName, float volume)
+    {
+        foreach (var player in _core.PlayerManager.GetAllValidPlayers())
+        {
+            if (!UsesCustomHud(player.Slot))
+            {
+                CSRollUtils.PlaySoundToPlayer(player, soundName, volume);
+            }
+        }
     }
 }

@@ -8,6 +8,7 @@ using SwiftlyS2.Shared;
 
 using CSRoll.Config;
 using CSRoll.Core;
+using CSRoll.Hud;
 using CSRoll.Services.Impl;
 using CSRoll.Services.Interfaces;
 
@@ -18,10 +19,11 @@ public partial class CSRoll : BasePlugin
 {
     // Single source of truth for the version - also referenced in the PluginMetadata attribute
     // above and logged on every load, so the running build is always identifiable in the console.
-    private const string PluginVersion = "1.38.1";
+    private const string PluginVersion = "1.39.0";
 
     private IServiceProvider _serviceProvider = null!;
     private ICvarRollbackService _cvarService = null!;
+    private CustomHudService? _customHud;
     private bool _isLoaded;
     private IDisposable? _configChangeSubscription;
 
@@ -73,6 +75,12 @@ public partial class CSRoll : BasePlugin
         Runtime = new ModifierRuntime(Core, Config, _cvarService);
         Runtime.Initialise(BuildModifierFactories());
 
+        // Installed even while CustomHud.Enabled is false: it does nothing until the config turns it
+        // on, and that way a config reload can switch the HUD on without a plugin reload.
+        _customHud = new CustomHudService(Core, Runtime);
+        Runtime.CustomHud = _customHud;
+        _customHud.Install();
+
         InitializeCommands();
         InitializeGameEvents();
 
@@ -84,6 +92,13 @@ public partial class CSRoll : BasePlugin
         _isLoaded = false;
         UninitializeCommands();
         UninitializeGameEvents();
+        _customHud?.Uninstall();
+        if (Runtime is not null)
+        {
+            Runtime.CustomHud = null;
+        }
+
+        _customHud = null;
         Runtime?.Unregister();
         _cvarService?.Uninstall();
         CSRollUtils.ClearXrayVision();

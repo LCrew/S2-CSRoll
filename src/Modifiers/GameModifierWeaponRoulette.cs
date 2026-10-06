@@ -5,6 +5,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -365,6 +366,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             _currentWeaponName[player.Slot] = spin.FinalWeaponName;
 
             var remaining = Math.Max(0f, _nextRerollTime - now);
+            PublishGauge(player.Slot, spin.FinalWeaponName, remaining);
             SetHud(player.Slot, BuildStatusHtml(spin.FinalWeaponName, remaining));
 
             if (Runtime.DebugMode)
@@ -403,6 +405,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         // the timer would visibly jump forward by a full interval the instant the roll started,
         // instead of counting smoothly down to zero as the new weapon lands.
         var landingRemaining = Math.Max(0f, _nextRerollTime - Runtime.Config.WeaponRoulette.RerollIntervalSeconds - now);
+        PublishGauge(player.Slot, randomName, landingRemaining);
         SetHud(player.Slot, BuildStatusHtml(randomName, landingRemaining));
         CSRollUtils.PlaySoundToPlayer(player, Runtime.Config.SpinReveal.TickSoundEventName, Runtime.Config.SpinReveal.TickSoundVolume);
 
@@ -422,15 +425,17 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         // spin frames in AdvanceSpin: the spin is a short one-off tied to real gameplay timing (the
         // weapon actually changes when it lands), and half-suppressing it would leave the animation
         // visibly truncated. This idle HUD is the one that would genuinely fight the reveal.
+        _lastHtmlUpdateTime[player.Slot] = now;
+
+        var weaponName = _currentWeaponName.GetValueOrDefault(player.Slot, "-");
+        var remaining = Math.Max(0f, _nextRerollTime - now);
+        PublishGauge(player.Slot, weaponName, remaining);
+
         if (Runtime.IsModifierHudSuppressed)
         {
             return;
         }
 
-        _lastHtmlUpdateTime[player.Slot] = now;
-
-        var weaponName = _currentWeaponName.GetValueOrDefault(player.Slot, "-");
-        var remaining = Math.Max(0f, _nextRerollTime - now);
         SetHud(player.Slot, BuildStatusHtml(weaponName, remaining));
     }
 
@@ -456,6 +461,14 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
                CSRollUtils.BuildFixedWidthField(friendlyName, NameFieldWidth) +
                $"<span class=\"{CSRollUtils.MonoFontClass}\">&nbsp;</span>" +
                $"<span color=\"orange\" class=\"fontWeight-Bold {CSRollUtils.MonoFontClass}\">{timer}</span>";
+    }
+
+    /// <summary>The custom HUD's readout: the weapon (flickering through names during a roll, like the center-HTML block) and the countdown to the next reroll.</summary>
+    private void PublishGauge(int slot, string weaponName, float secondsRemaining)
+    {
+        var friendlyName = weaponName == "-" ? "No weapon yet" : CSRollUtils.GetFriendlyWeaponName(weaponName);
+        var interval = Math.Max(0.01f, Runtime.Config.WeaponRoulette.RerollIntervalSeconds);
+        SetGauge(slot, new HudGauge("Weapon Roulette", $"{friendlyName} · {secondsRemaining:0.0}s", 1f - Math.Clamp(secondsRemaining / interval, 0f, 1f)));
     }
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)

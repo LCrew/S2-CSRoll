@@ -9,6 +9,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -321,6 +322,9 @@ public sealed class GameModifierJetpack : GameModifierBase
     /// <summary>Always shown while the modifier is active (not hidden at full/idle) - matching Flanker/ConditionalInvisibility/Vanish's persistent-HUD convention, so there's no ambiguity about whether it's rendering.</summary>
     private void UpdateFuelGauge(IPlayer player, float fuel, float maxFuel)
     {
+        var ratio = maxFuel > 0f ? fuel / maxFuel : 0f;
+        SetGauge(player.Slot, new HudGauge("Jetpack fuel", $"{ratio * 100f:0}%", ratio));
+
         var now = Core.Engine.GlobalVars.CurrentTime;
         var interval = Runtime.Config.Jetpack.GaugeUpdateIntervalSeconds;
         if (_nextGaugeUpdateTime.TryGetValue(player.Slot, out var nextUpdate) && now < nextUpdate)
