@@ -13,42 +13,42 @@
       <Panel id="csr_list" class="CsrList" hittest="false">
         <Label id="csr_list_title" class="CsrListTitle" text="{s:title}" />
         <Panel id="csr_row0" class="CsrRow">
-          <Panel id="csr_row0_ico" class="CsrIco CsrRowIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_row0_ico" class="CsrIco CsrRowIco" />
           <Panel class="CsrRowText">
             <Label id="csr_row0_name" class="CsrRowName" text="{s:name}" />
             <Label id="csr_row0_short" class="CsrRowShort" text="{s:short}" />
           </Panel>
         </Panel>
         <Panel id="csr_row1" class="CsrRow">
-          <Panel id="csr_row1_ico" class="CsrIco CsrRowIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_row1_ico" class="CsrIco CsrRowIco" />
           <Panel class="CsrRowText">
             <Label id="csr_row1_name" class="CsrRowName" text="{s:name}" />
             <Label id="csr_row1_short" class="CsrRowShort" text="{s:short}" />
           </Panel>
         </Panel>
         <Panel id="csr_row2" class="CsrRow">
-          <Panel id="csr_row2_ico" class="CsrIco CsrRowIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_row2_ico" class="CsrIco CsrRowIco" />
           <Panel class="CsrRowText">
             <Label id="csr_row2_name" class="CsrRowName" text="{s:name}" />
             <Label id="csr_row2_short" class="CsrRowShort" text="{s:short}" />
           </Panel>
         </Panel>
         <Panel id="csr_row3" class="CsrRow">
-          <Panel id="csr_row3_ico" class="CsrIco CsrRowIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_row3_ico" class="CsrIco CsrRowIco" />
           <Panel class="CsrRowText">
             <Label id="csr_row3_name" class="CsrRowName" text="{s:name}" />
             <Label id="csr_row3_short" class="CsrRowShort" text="{s:short}" />
           </Panel>
         </Panel>
         <Panel id="csr_row4" class="CsrRow">
-          <Panel id="csr_row4_ico" class="CsrIco CsrRowIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_row4_ico" class="CsrIco CsrRowIco" />
           <Panel class="CsrRowText">
             <Label id="csr_row4_name" class="CsrRowName" text="{s:name}" />
             <Label id="csr_row4_short" class="CsrRowShort" text="{s:short}" />
           </Panel>
         </Panel>
         <Panel id="csr_row5" class="CsrRow">
-          <Panel id="csr_row5_ico" class="CsrIco CsrRowIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_row5_ico" class="CsrIco CsrRowIco" />
           <Panel class="CsrRowText">
             <Label id="csr_row5_name" class="CsrRowName" text="{s:name}" />
             <Label id="csr_row5_short" class="CsrRowShort" text="{s:short}" />
@@ -58,7 +58,7 @@
       <Panel id="csr_gauges" class="CsrGauges" hittest="false">
         <Panel id="csr_g0" class="CsrGauge">
           <Panel class="CsrGaugeTop">
-            <Panel id="csr_g0_ico" class="CsrIco CsrGaugeIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+            <Panel id="csr_g0_ico" class="CsrIco CsrGaugeIco" />
             <Label id="csr_g0_label" class="CsrGaugeLabel" text="{s:label}" />
             <Label id="csr_g0_val" class="CsrGaugeVal" text="{s:val}" />
           </Panel>
@@ -66,7 +66,7 @@
         </Panel>
         <Panel id="csr_g1" class="CsrGauge">
           <Panel class="CsrGaugeTop">
-            <Panel id="csr_g1_ico" class="CsrIco CsrGaugeIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+            <Panel id="csr_g1_ico" class="CsrIco CsrGaugeIco" />
             <Label id="csr_g1_label" class="CsrGaugeLabel" text="{s:label}" />
             <Label id="csr_g1_val" class="CsrGaugeVal" text="{s:val}" />
           </Panel>
@@ -74,7 +74,7 @@
         </Panel>
         <Panel id="csr_g2" class="CsrGauge">
           <Panel class="CsrGaugeTop">
-            <Panel id="csr_g2_ico" class="CsrIco CsrGaugeIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+            <Panel id="csr_g2_ico" class="CsrIco CsrGaugeIco" />
             <Label id="csr_g2_label" class="CsrGaugeLabel" text="{s:label}" />
             <Label id="csr_g2_val" class="CsrGaugeVal" text="{s:val}" />
           </Panel>
@@ -83,42 +83,48 @@
       </Panel>
       <Panel id="csr_roll" class="CsrRoll" hittest="false">
         <Panel class="CsrReel">
+          <Panel class="CsrSlot" />
           <Panel id="csr_strip" class="CsrStrip">
-            <Panel id="csr_t0" class="CsrTile"><Panel id="csr_t0_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t1" class="CsrTile"><Panel id="csr_t1_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t2" class="CsrTile"><Panel id="csr_t2_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t3" class="CsrTile"><Panel id="csr_t3_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t4" class="CsrTile"><Panel id="csr_t4_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t5" class="CsrTile"><Panel id="csr_t5_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t6" class="CsrTile"><Panel id="csr_t6_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t7" class="CsrTile"><Panel id="csr_t7_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t8" class="CsrTile"><Panel id="csr_t8_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t9" class="CsrTile"><Panel id="csr_t9_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t10" class="CsrTile"><Panel id="csr_t10_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t11" class="CsrTile"><Panel id="csr_t11_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t12" class="CsrTile"><Panel id="csr_t12_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t13" class="CsrTile"><Panel id="csr_t13_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t14" class="CsrTile"><Panel id="csr_t14_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t15" class="CsrTile"><Panel id="csr_t15_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t16" class="CsrTile"><Panel id="csr_t16_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t17" class="CsrTile"><Panel id="csr_t17_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t18" class="CsrTile"><Panel id="csr_t18_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t19" class="CsrTile"><Panel id="csr_t19_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t20" class="CsrTile"><Panel id="csr_t20_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t21" class="CsrTile"><Panel id="csr_t21_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t22" class="CsrTile"><Panel id="csr_t22_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t23" class="CsrTile"><Panel id="csr_t23_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t24" class="CsrTile"><Panel id="csr_t24_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t25" class="CsrTile"><Panel id="csr_t25_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t26" class="CsrTile"><Panel id="csr_t26_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t27" class="CsrTile"><Panel id="csr_t27_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t28" class="CsrTile"><Panel id="csr_t28_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
-            <Panel id="csr_t29" class="CsrTile"><Panel id="csr_t29_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>
+            <Panel id="csr_t0" class="CsrTile"><Panel id="csr_t0_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t1" class="CsrTile"><Panel id="csr_t1_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t2" class="CsrTile"><Panel id="csr_t2_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t3" class="CsrTile"><Panel id="csr_t3_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t4" class="CsrTile"><Panel id="csr_t4_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t5" class="CsrTile"><Panel id="csr_t5_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t6" class="CsrTile"><Panel id="csr_t6_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t7" class="CsrTile"><Panel id="csr_t7_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t8" class="CsrTile"><Panel id="csr_t8_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t9" class="CsrTile"><Panel id="csr_t9_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t10" class="CsrTile"><Panel id="csr_t10_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t11" class="CsrTile"><Panel id="csr_t11_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t12" class="CsrTile"><Panel id="csr_t12_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t13" class="CsrTile"><Panel id="csr_t13_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t14" class="CsrTile"><Panel id="csr_t14_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t15" class="CsrTile"><Panel id="csr_t15_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t16" class="CsrTile"><Panel id="csr_t16_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t17" class="CsrTile"><Panel id="csr_t17_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t18" class="CsrTile"><Panel id="csr_t18_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t19" class="CsrTile"><Panel id="csr_t19_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t20" class="CsrTile"><Panel id="csr_t20_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t21" class="CsrTile"><Panel id="csr_t21_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t22" class="CsrTile"><Panel id="csr_t22_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t23" class="CsrTile"><Panel id="csr_t23_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t24" class="CsrTile"><Panel id="csr_t24_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t25" class="CsrTile"><Panel id="csr_t25_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t26" class="CsrTile"><Panel id="csr_t26_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t27" class="CsrTile"><Panel id="csr_t27_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t28" class="CsrTile"><Panel id="csr_t28_ico" class="CsrIco CsrTileIco" /></Panel>
+            <Panel id="csr_t29" class="CsrTile"><Panel id="csr_t29_ico" class="CsrIco CsrTileIco" /></Panel>
           </Panel>
-          <Panel class="CsrMarker" />
+          <Panel class="CsrShade CsrShadeL" />
+          <Panel class="CsrShade CsrShadeR" />
+          <Panel class="CsrRail CsrRailTop" />
+          <Panel class="CsrRail CsrRailBottom" />
+          <Panel class="CsrNotch CsrNotchTop" />
+          <Panel class="CsrNotch CsrNotchBottom" />
         </Panel>
         <Panel id="csr_card" class="CsrCard">
-          <Panel id="csr_card_ico" class="CsrIco CsrCardIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_card_ico" class="CsrIco CsrCardIco" />
           <Panel class="CsrCardText">
             <Label id="csr_card_cat" class="CsrCardCat" text="{s:cat}" />
             <Label id="csr_card_name" class="CsrCardName" text="{s:name}" />

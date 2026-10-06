@@ -25,114 +25,158 @@
 }
 
 /* ---------- icons: a picture class plus a category tint ---------- */
-/* Two stacked layers per icon, SVG and PNG: whichever CS2 loads as a background shows, and if both do
-   they overlap exactly. */
-.CsrIcoSvg,
-.CsrIcoPng
+/* PNG icons, stretched to the panel. Three sizes, each about twice the size it's drawn at. */
+.CsrIco
 {
-	width: 100%;
-	height: 100%;
-	background-size: contains;
+	background-size: 100% 100%;
 	background-repeat: no-repeat;
-	background-position: 50% 50%;
+	background-position: 0% 0%;
 }
 
-.ico-AtomicExplosions .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/AtomicExplosions.svg"); }
-.ico-AtomicExplosions .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/AtomicExplosions.png"); }
-.ico-BoomerangBullets .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/BoomerangBullets.svg"); }
-.ico-BoomerangBullets .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/BoomerangBullets.png"); }
-.ico-Bounty .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Bounty.svg"); }
-.ico-Bounty .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Bounty.png"); }
-.ico-BunnyHop .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/BunnyHop.svg"); }
-.ico-BunnyHop .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/BunnyHop.png"); }
-.ico-Butterfingers .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Butterfingers.svg"); }
-.ico-Butterfingers .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Butterfingers.png"); }
-.ico-ButterflyEffect .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/ButterflyEffect.svg"); }
-.ico-ButterflyEffect .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/ButterflyEffect.png"); }
-.ico-ChineseGrenades .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/ChineseGrenades.svg"); }
-.ico-ChineseGrenades .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/ChineseGrenades.png"); }
-.ico-ClusterGrenades .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/ClusterGrenades.svg"); }
-.ico-ClusterGrenades .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/ClusterGrenades.png"); }
-.ico-ConditionalInvisibility .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/ConditionalInvisibility.svg"); }
-.ico-ConditionalInvisibility .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/ConditionalInvisibility.png"); }
-.ico-DisarmingBullets .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/DisarmingBullets.svg"); }
-.ico-DisarmingBullets .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/DisarmingBullets.png"); }
-.ico-Drunk .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Drunk.svg"); }
-.ico-Drunk .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Drunk.png"); }
-.ico-Flanker .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Flanker.svg"); }
-.ico-Flanker .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Flanker.png"); }
-.ico-FlashingBullets .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/FlashingBullets.svg"); }
-.ico-FlashingBullets .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/FlashingBullets.png"); }
-.ico-HardHead .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/HardHead.svg"); }
-.ico-HardHead .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/HardHead.png"); }
-.ico-HeavyBoots .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/HeavyBoots.svg"); }
-.ico-HeavyBoots .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/HeavyBoots.png"); }
-.ico-IncreasedSpread .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/IncreasedSpread.svg"); }
-.ico-IncreasedSpread .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/IncreasedSpread.png"); }
-.ico-InfiniteAmmo .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/InfiniteAmmo.svg"); }
-.ico-InfiniteAmmo .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/InfiniteAmmo.png"); }
-.ico-InfiniteRoll .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/InfiniteRoll.svg"); }
-.ico-InfiniteRoll .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/InfiniteRoll.png"); }
-.ico-Jetpack .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Jetpack.svg"); }
-.ico-Jetpack .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Jetpack.png"); }
-.ico-Juggernaut .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Juggernaut.svg"); }
-.ico-Juggernaut .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Juggernaut.png"); }
-.ico-LongerFlashes .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/LongerFlashes.svg"); }
-.ico-LongerFlashes .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/LongerFlashes.png"); }
-.ico-MasterZeus .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/MasterZeus.svg"); }
-.ico-MasterZeus .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/MasterZeus.png"); }
-.ico-Mimic .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Mimic.svg"); }
-.ico-Mimic .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Mimic.png"); }
-.ico-MoreDamage .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/MoreDamage.svg"); }
-.ico-MoreDamage .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/MoreDamage.png"); }
-.ico-NoRecoil .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/NoRecoil.svg"); }
-.ico-NoRecoil .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/NoRecoil.png"); }
-.ico-OnePerReload .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/OnePerReload.svg"); }
-.ico-OnePerReload .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/OnePerReload.png"); }
-.ico-PlantAnywhere .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/PlantAnywhere.svg"); }
-.ico-PlantAnywhere .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/PlantAnywhere.png"); }
-.ico-PoisonousSmoke .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/PoisonousSmoke.svg"); }
-.ico-PoisonousSmoke .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/PoisonousSmoke.png"); }
-.ico-RandomHealth .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/RandomHealth.svg"); }
-.ico-RandomHealth .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/RandomHealth.png"); }
-.ico-RandomLoadout .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/RandomLoadout.svg"); }
-.ico-RandomLoadout .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/RandomLoadout.png"); }
-.ico-Recall .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Recall.svg"); }
-.ico-Recall .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Recall.png"); }
-.ico-Regeneration .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Regeneration.svg"); }
-.ico-Regeneration .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Regeneration.png"); }
-.ico-Revive .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Revive.svg"); }
-.ico-Revive .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Revive.png"); }
-.ico-Saint .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Saint.svg"); }
-.ico-Saint .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Saint.png"); }
-.ico-SmallPlayers .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/SmallPlayers.svg"); }
-.ico-SmallPlayers .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/SmallPlayers.png"); }
-.ico-SmokeImmunity .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/SmokeImmunity.svg"); }
-.ico-SmokeImmunity .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/SmokeImmunity.png"); }
-.ico-Speedhack .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Speedhack.svg"); }
-.ico-Speedhack .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Speedhack.png"); }
-.ico-SteelBody .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/SteelBody.svg"); }
-.ico-SteelBody .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/SteelBody.png"); }
-.ico-SuicideBomber .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/SuicideBomber.svg"); }
-.ico-SuicideBomber .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/SuicideBomber.png"); }
-.ico-SwapOnDeath .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/SwapOnDeath.svg"); }
-.ico-SwapOnDeath .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/SwapOnDeath.png"); }
-.ico-SwapOnHit .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/SwapOnHit.svg"); }
-.ico-SwapOnHit .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/SwapOnHit.png"); }
-.ico-TeleportOnHit .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/TeleportOnHit.svg"); }
-.ico-TeleportOnHit .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/TeleportOnHit.png"); }
-.ico-TeleportOnReload .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/TeleportOnReload.svg"); }
-.ico-TeleportOnReload .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/TeleportOnReload.png"); }
-.ico-Vampire .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Vampire.svg"); }
-.ico-Vampire .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Vampire.png"); }
-.ico-Vanish .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Vanish.svg"); }
-.ico-Vanish .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Vanish.png"); }
-.ico-WalkingGrenadier .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/WalkingGrenadier.svg"); }
-.ico-WalkingGrenadier .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/WalkingGrenadier.png"); }
-.ico-Wallhack .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/Wallhack.svg"); }
-.ico-Wallhack .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/Wallhack.png"); }
-.ico-WeaponRoulette .CsrIcoSvg { background-image: url("file://{images}/custom_game/csroll/WeaponRoulette.svg"); }
-.ico-WeaponRoulette .CsrIcoPng { background-image: url("file://{images}/custom_game/csroll_png/WeaponRoulette.png"); }
+.CsrGaugeIco.ico-AtomicExplosions { background-image: url("file://{images}/custom_game/csroll_png/x32/AtomicExplosions.png"); }
+.CsrRowIco.ico-AtomicExplosions, .CsrTileIco.ico-AtomicExplosions { background-image: url("file://{images}/custom_game/csroll_png/x64/AtomicExplosions.png"); }
+.CsrCardIco.ico-AtomicExplosions { background-image: url("file://{images}/custom_game/csroll_png/x160/AtomicExplosions.png"); }
+.CsrGaugeIco.ico-BoomerangBullets { background-image: url("file://{images}/custom_game/csroll_png/x32/BoomerangBullets.png"); }
+.CsrRowIco.ico-BoomerangBullets, .CsrTileIco.ico-BoomerangBullets { background-image: url("file://{images}/custom_game/csroll_png/x64/BoomerangBullets.png"); }
+.CsrCardIco.ico-BoomerangBullets { background-image: url("file://{images}/custom_game/csroll_png/x160/BoomerangBullets.png"); }
+.CsrGaugeIco.ico-Bounty { background-image: url("file://{images}/custom_game/csroll_png/x32/Bounty.png"); }
+.CsrRowIco.ico-Bounty, .CsrTileIco.ico-Bounty { background-image: url("file://{images}/custom_game/csroll_png/x64/Bounty.png"); }
+.CsrCardIco.ico-Bounty { background-image: url("file://{images}/custom_game/csroll_png/x160/Bounty.png"); }
+.CsrGaugeIco.ico-BunnyHop { background-image: url("file://{images}/custom_game/csroll_png/x32/BunnyHop.png"); }
+.CsrRowIco.ico-BunnyHop, .CsrTileIco.ico-BunnyHop { background-image: url("file://{images}/custom_game/csroll_png/x64/BunnyHop.png"); }
+.CsrCardIco.ico-BunnyHop { background-image: url("file://{images}/custom_game/csroll_png/x160/BunnyHop.png"); }
+.CsrGaugeIco.ico-Butterfingers { background-image: url("file://{images}/custom_game/csroll_png/x32/Butterfingers.png"); }
+.CsrRowIco.ico-Butterfingers, .CsrTileIco.ico-Butterfingers { background-image: url("file://{images}/custom_game/csroll_png/x64/Butterfingers.png"); }
+.CsrCardIco.ico-Butterfingers { background-image: url("file://{images}/custom_game/csroll_png/x160/Butterfingers.png"); }
+.CsrGaugeIco.ico-ButterflyEffect { background-image: url("file://{images}/custom_game/csroll_png/x32/ButterflyEffect.png"); }
+.CsrRowIco.ico-ButterflyEffect, .CsrTileIco.ico-ButterflyEffect { background-image: url("file://{images}/custom_game/csroll_png/x64/ButterflyEffect.png"); }
+.CsrCardIco.ico-ButterflyEffect { background-image: url("file://{images}/custom_game/csroll_png/x160/ButterflyEffect.png"); }
+.CsrGaugeIco.ico-ChineseGrenades { background-image: url("file://{images}/custom_game/csroll_png/x32/ChineseGrenades.png"); }
+.CsrRowIco.ico-ChineseGrenades, .CsrTileIco.ico-ChineseGrenades { background-image: url("file://{images}/custom_game/csroll_png/x64/ChineseGrenades.png"); }
+.CsrCardIco.ico-ChineseGrenades { background-image: url("file://{images}/custom_game/csroll_png/x160/ChineseGrenades.png"); }
+.CsrGaugeIco.ico-ClusterGrenades { background-image: url("file://{images}/custom_game/csroll_png/x32/ClusterGrenades.png"); }
+.CsrRowIco.ico-ClusterGrenades, .CsrTileIco.ico-ClusterGrenades { background-image: url("file://{images}/custom_game/csroll_png/x64/ClusterGrenades.png"); }
+.CsrCardIco.ico-ClusterGrenades { background-image: url("file://{images}/custom_game/csroll_png/x160/ClusterGrenades.png"); }
+.CsrGaugeIco.ico-ConditionalInvisibility { background-image: url("file://{images}/custom_game/csroll_png/x32/ConditionalInvisibility.png"); }
+.CsrRowIco.ico-ConditionalInvisibility, .CsrTileIco.ico-ConditionalInvisibility { background-image: url("file://{images}/custom_game/csroll_png/x64/ConditionalInvisibility.png"); }
+.CsrCardIco.ico-ConditionalInvisibility { background-image: url("file://{images}/custom_game/csroll_png/x160/ConditionalInvisibility.png"); }
+.CsrGaugeIco.ico-DisarmingBullets { background-image: url("file://{images}/custom_game/csroll_png/x32/DisarmingBullets.png"); }
+.CsrRowIco.ico-DisarmingBullets, .CsrTileIco.ico-DisarmingBullets { background-image: url("file://{images}/custom_game/csroll_png/x64/DisarmingBullets.png"); }
+.CsrCardIco.ico-DisarmingBullets { background-image: url("file://{images}/custom_game/csroll_png/x160/DisarmingBullets.png"); }
+.CsrGaugeIco.ico-Drunk { background-image: url("file://{images}/custom_game/csroll_png/x32/Drunk.png"); }
+.CsrRowIco.ico-Drunk, .CsrTileIco.ico-Drunk { background-image: url("file://{images}/custom_game/csroll_png/x64/Drunk.png"); }
+.CsrCardIco.ico-Drunk { background-image: url("file://{images}/custom_game/csroll_png/x160/Drunk.png"); }
+.CsrGaugeIco.ico-Flanker { background-image: url("file://{images}/custom_game/csroll_png/x32/Flanker.png"); }
+.CsrRowIco.ico-Flanker, .CsrTileIco.ico-Flanker { background-image: url("file://{images}/custom_game/csroll_png/x64/Flanker.png"); }
+.CsrCardIco.ico-Flanker { background-image: url("file://{images}/custom_game/csroll_png/x160/Flanker.png"); }
+.CsrGaugeIco.ico-FlashingBullets { background-image: url("file://{images}/custom_game/csroll_png/x32/FlashingBullets.png"); }
+.CsrRowIco.ico-FlashingBullets, .CsrTileIco.ico-FlashingBullets { background-image: url("file://{images}/custom_game/csroll_png/x64/FlashingBullets.png"); }
+.CsrCardIco.ico-FlashingBullets { background-image: url("file://{images}/custom_game/csroll_png/x160/FlashingBullets.png"); }
+.CsrGaugeIco.ico-HardHead { background-image: url("file://{images}/custom_game/csroll_png/x32/HardHead.png"); }
+.CsrRowIco.ico-HardHead, .CsrTileIco.ico-HardHead { background-image: url("file://{images}/custom_game/csroll_png/x64/HardHead.png"); }
+.CsrCardIco.ico-HardHead { background-image: url("file://{images}/custom_game/csroll_png/x160/HardHead.png"); }
+.CsrGaugeIco.ico-HeavyBoots { background-image: url("file://{images}/custom_game/csroll_png/x32/HeavyBoots.png"); }
+.CsrRowIco.ico-HeavyBoots, .CsrTileIco.ico-HeavyBoots { background-image: url("file://{images}/custom_game/csroll_png/x64/HeavyBoots.png"); }
+.CsrCardIco.ico-HeavyBoots { background-image: url("file://{images}/custom_game/csroll_png/x160/HeavyBoots.png"); }
+.CsrGaugeIco.ico-IncreasedSpread { background-image: url("file://{images}/custom_game/csroll_png/x32/IncreasedSpread.png"); }
+.CsrRowIco.ico-IncreasedSpread, .CsrTileIco.ico-IncreasedSpread { background-image: url("file://{images}/custom_game/csroll_png/x64/IncreasedSpread.png"); }
+.CsrCardIco.ico-IncreasedSpread { background-image: url("file://{images}/custom_game/csroll_png/x160/IncreasedSpread.png"); }
+.CsrGaugeIco.ico-InfiniteAmmo { background-image: url("file://{images}/custom_game/csroll_png/x32/InfiniteAmmo.png"); }
+.CsrRowIco.ico-InfiniteAmmo, .CsrTileIco.ico-InfiniteAmmo { background-image: url("file://{images}/custom_game/csroll_png/x64/InfiniteAmmo.png"); }
+.CsrCardIco.ico-InfiniteAmmo { background-image: url("file://{images}/custom_game/csroll_png/x160/InfiniteAmmo.png"); }
+.CsrGaugeIco.ico-InfiniteRoll { background-image: url("file://{images}/custom_game/csroll_png/x32/InfiniteRoll.png"); }
+.CsrRowIco.ico-InfiniteRoll, .CsrTileIco.ico-InfiniteRoll { background-image: url("file://{images}/custom_game/csroll_png/x64/InfiniteRoll.png"); }
+.CsrCardIco.ico-InfiniteRoll { background-image: url("file://{images}/custom_game/csroll_png/x160/InfiniteRoll.png"); }
+.CsrGaugeIco.ico-Jetpack { background-image: url("file://{images}/custom_game/csroll_png/x32/Jetpack.png"); }
+.CsrRowIco.ico-Jetpack, .CsrTileIco.ico-Jetpack { background-image: url("file://{images}/custom_game/csroll_png/x64/Jetpack.png"); }
+.CsrCardIco.ico-Jetpack { background-image: url("file://{images}/custom_game/csroll_png/x160/Jetpack.png"); }
+.CsrGaugeIco.ico-Juggernaut { background-image: url("file://{images}/custom_game/csroll_png/x32/Juggernaut.png"); }
+.CsrRowIco.ico-Juggernaut, .CsrTileIco.ico-Juggernaut { background-image: url("file://{images}/custom_game/csroll_png/x64/Juggernaut.png"); }
+.CsrCardIco.ico-Juggernaut { background-image: url("file://{images}/custom_game/csroll_png/x160/Juggernaut.png"); }
+.CsrGaugeIco.ico-LongerFlashes { background-image: url("file://{images}/custom_game/csroll_png/x32/LongerFlashes.png"); }
+.CsrRowIco.ico-LongerFlashes, .CsrTileIco.ico-LongerFlashes { background-image: url("file://{images}/custom_game/csroll_png/x64/LongerFlashes.png"); }
+.CsrCardIco.ico-LongerFlashes { background-image: url("file://{images}/custom_game/csroll_png/x160/LongerFlashes.png"); }
+.CsrGaugeIco.ico-MasterZeus { background-image: url("file://{images}/custom_game/csroll_png/x32/MasterZeus.png"); }
+.CsrRowIco.ico-MasterZeus, .CsrTileIco.ico-MasterZeus { background-image: url("file://{images}/custom_game/csroll_png/x64/MasterZeus.png"); }
+.CsrCardIco.ico-MasterZeus { background-image: url("file://{images}/custom_game/csroll_png/x160/MasterZeus.png"); }
+.CsrGaugeIco.ico-Mimic { background-image: url("file://{images}/custom_game/csroll_png/x32/Mimic.png"); }
+.CsrRowIco.ico-Mimic, .CsrTileIco.ico-Mimic { background-image: url("file://{images}/custom_game/csroll_png/x64/Mimic.png"); }
+.CsrCardIco.ico-Mimic { background-image: url("file://{images}/custom_game/csroll_png/x160/Mimic.png"); }
+.CsrGaugeIco.ico-MoreDamage { background-image: url("file://{images}/custom_game/csroll_png/x32/MoreDamage.png"); }
+.CsrRowIco.ico-MoreDamage, .CsrTileIco.ico-MoreDamage { background-image: url("file://{images}/custom_game/csroll_png/x64/MoreDamage.png"); }
+.CsrCardIco.ico-MoreDamage { background-image: url("file://{images}/custom_game/csroll_png/x160/MoreDamage.png"); }
+.CsrGaugeIco.ico-NoRecoil { background-image: url("file://{images}/custom_game/csroll_png/x32/NoRecoil.png"); }
+.CsrRowIco.ico-NoRecoil, .CsrTileIco.ico-NoRecoil { background-image: url("file://{images}/custom_game/csroll_png/x64/NoRecoil.png"); }
+.CsrCardIco.ico-NoRecoil { background-image: url("file://{images}/custom_game/csroll_png/x160/NoRecoil.png"); }
+.CsrGaugeIco.ico-OnePerReload { background-image: url("file://{images}/custom_game/csroll_png/x32/OnePerReload.png"); }
+.CsrRowIco.ico-OnePerReload, .CsrTileIco.ico-OnePerReload { background-image: url("file://{images}/custom_game/csroll_png/x64/OnePerReload.png"); }
+.CsrCardIco.ico-OnePerReload { background-image: url("file://{images}/custom_game/csroll_png/x160/OnePerReload.png"); }
+.CsrGaugeIco.ico-PlantAnywhere { background-image: url("file://{images}/custom_game/csroll_png/x32/PlantAnywhere.png"); }
+.CsrRowIco.ico-PlantAnywhere, .CsrTileIco.ico-PlantAnywhere { background-image: url("file://{images}/custom_game/csroll_png/x64/PlantAnywhere.png"); }
+.CsrCardIco.ico-PlantAnywhere { background-image: url("file://{images}/custom_game/csroll_png/x160/PlantAnywhere.png"); }
+.CsrGaugeIco.ico-PoisonousSmoke { background-image: url("file://{images}/custom_game/csroll_png/x32/PoisonousSmoke.png"); }
+.CsrRowIco.ico-PoisonousSmoke, .CsrTileIco.ico-PoisonousSmoke { background-image: url("file://{images}/custom_game/csroll_png/x64/PoisonousSmoke.png"); }
+.CsrCardIco.ico-PoisonousSmoke { background-image: url("file://{images}/custom_game/csroll_png/x160/PoisonousSmoke.png"); }
+.CsrGaugeIco.ico-RandomHealth { background-image: url("file://{images}/custom_game/csroll_png/x32/RandomHealth.png"); }
+.CsrRowIco.ico-RandomHealth, .CsrTileIco.ico-RandomHealth { background-image: url("file://{images}/custom_game/csroll_png/x64/RandomHealth.png"); }
+.CsrCardIco.ico-RandomHealth { background-image: url("file://{images}/custom_game/csroll_png/x160/RandomHealth.png"); }
+.CsrGaugeIco.ico-RandomLoadout { background-image: url("file://{images}/custom_game/csroll_png/x32/RandomLoadout.png"); }
+.CsrRowIco.ico-RandomLoadout, .CsrTileIco.ico-RandomLoadout { background-image: url("file://{images}/custom_game/csroll_png/x64/RandomLoadout.png"); }
+.CsrCardIco.ico-RandomLoadout { background-image: url("file://{images}/custom_game/csroll_png/x160/RandomLoadout.png"); }
+.CsrGaugeIco.ico-Recall { background-image: url("file://{images}/custom_game/csroll_png/x32/Recall.png"); }
+.CsrRowIco.ico-Recall, .CsrTileIco.ico-Recall { background-image: url("file://{images}/custom_game/csroll_png/x64/Recall.png"); }
+.CsrCardIco.ico-Recall { background-image: url("file://{images}/custom_game/csroll_png/x160/Recall.png"); }
+.CsrGaugeIco.ico-Regeneration { background-image: url("file://{images}/custom_game/csroll_png/x32/Regeneration.png"); }
+.CsrRowIco.ico-Regeneration, .CsrTileIco.ico-Regeneration { background-image: url("file://{images}/custom_game/csroll_png/x64/Regeneration.png"); }
+.CsrCardIco.ico-Regeneration { background-image: url("file://{images}/custom_game/csroll_png/x160/Regeneration.png"); }
+.CsrGaugeIco.ico-Revive { background-image: url("file://{images}/custom_game/csroll_png/x32/Revive.png"); }
+.CsrRowIco.ico-Revive, .CsrTileIco.ico-Revive { background-image: url("file://{images}/custom_game/csroll_png/x64/Revive.png"); }
+.CsrCardIco.ico-Revive { background-image: url("file://{images}/custom_game/csroll_png/x160/Revive.png"); }
+.CsrGaugeIco.ico-Saint { background-image: url("file://{images}/custom_game/csroll_png/x32/Saint.png"); }
+.CsrRowIco.ico-Saint, .CsrTileIco.ico-Saint { background-image: url("file://{images}/custom_game/csroll_png/x64/Saint.png"); }
+.CsrCardIco.ico-Saint { background-image: url("file://{images}/custom_game/csroll_png/x160/Saint.png"); }
+.CsrGaugeIco.ico-SmallPlayers { background-image: url("file://{images}/custom_game/csroll_png/x32/SmallPlayers.png"); }
+.CsrRowIco.ico-SmallPlayers, .CsrTileIco.ico-SmallPlayers { background-image: url("file://{images}/custom_game/csroll_png/x64/SmallPlayers.png"); }
+.CsrCardIco.ico-SmallPlayers { background-image: url("file://{images}/custom_game/csroll_png/x160/SmallPlayers.png"); }
+.CsrGaugeIco.ico-SmokeImmunity { background-image: url("file://{images}/custom_game/csroll_png/x32/SmokeImmunity.png"); }
+.CsrRowIco.ico-SmokeImmunity, .CsrTileIco.ico-SmokeImmunity { background-image: url("file://{images}/custom_game/csroll_png/x64/SmokeImmunity.png"); }
+.CsrCardIco.ico-SmokeImmunity { background-image: url("file://{images}/custom_game/csroll_png/x160/SmokeImmunity.png"); }
+.CsrGaugeIco.ico-Speedhack { background-image: url("file://{images}/custom_game/csroll_png/x32/Speedhack.png"); }
+.CsrRowIco.ico-Speedhack, .CsrTileIco.ico-Speedhack { background-image: url("file://{images}/custom_game/csroll_png/x64/Speedhack.png"); }
+.CsrCardIco.ico-Speedhack { background-image: url("file://{images}/custom_game/csroll_png/x160/Speedhack.png"); }
+.CsrGaugeIco.ico-SteelBody { background-image: url("file://{images}/custom_game/csroll_png/x32/SteelBody.png"); }
+.CsrRowIco.ico-SteelBody, .CsrTileIco.ico-SteelBody { background-image: url("file://{images}/custom_game/csroll_png/x64/SteelBody.png"); }
+.CsrCardIco.ico-SteelBody { background-image: url("file://{images}/custom_game/csroll_png/x160/SteelBody.png"); }
+.CsrGaugeIco.ico-SuicideBomber { background-image: url("file://{images}/custom_game/csroll_png/x32/SuicideBomber.png"); }
+.CsrRowIco.ico-SuicideBomber, .CsrTileIco.ico-SuicideBomber { background-image: url("file://{images}/custom_game/csroll_png/x64/SuicideBomber.png"); }
+.CsrCardIco.ico-SuicideBomber { background-image: url("file://{images}/custom_game/csroll_png/x160/SuicideBomber.png"); }
+.CsrGaugeIco.ico-SwapOnDeath { background-image: url("file://{images}/custom_game/csroll_png/x32/SwapOnDeath.png"); }
+.CsrRowIco.ico-SwapOnDeath, .CsrTileIco.ico-SwapOnDeath { background-image: url("file://{images}/custom_game/csroll_png/x64/SwapOnDeath.png"); }
+.CsrCardIco.ico-SwapOnDeath { background-image: url("file://{images}/custom_game/csroll_png/x160/SwapOnDeath.png"); }
+.CsrGaugeIco.ico-SwapOnHit { background-image: url("file://{images}/custom_game/csroll_png/x32/SwapOnHit.png"); }
+.CsrRowIco.ico-SwapOnHit, .CsrTileIco.ico-SwapOnHit { background-image: url("file://{images}/custom_game/csroll_png/x64/SwapOnHit.png"); }
+.CsrCardIco.ico-SwapOnHit { background-image: url("file://{images}/custom_game/csroll_png/x160/SwapOnHit.png"); }
+.CsrGaugeIco.ico-TeleportOnHit { background-image: url("file://{images}/custom_game/csroll_png/x32/TeleportOnHit.png"); }
+.CsrRowIco.ico-TeleportOnHit, .CsrTileIco.ico-TeleportOnHit { background-image: url("file://{images}/custom_game/csroll_png/x64/TeleportOnHit.png"); }
+.CsrCardIco.ico-TeleportOnHit { background-image: url("file://{images}/custom_game/csroll_png/x160/TeleportOnHit.png"); }
+.CsrGaugeIco.ico-TeleportOnReload { background-image: url("file://{images}/custom_game/csroll_png/x32/TeleportOnReload.png"); }
+.CsrRowIco.ico-TeleportOnReload, .CsrTileIco.ico-TeleportOnReload { background-image: url("file://{images}/custom_game/csroll_png/x64/TeleportOnReload.png"); }
+.CsrCardIco.ico-TeleportOnReload { background-image: url("file://{images}/custom_game/csroll_png/x160/TeleportOnReload.png"); }
+.CsrGaugeIco.ico-Vampire { background-image: url("file://{images}/custom_game/csroll_png/x32/Vampire.png"); }
+.CsrRowIco.ico-Vampire, .CsrTileIco.ico-Vampire { background-image: url("file://{images}/custom_game/csroll_png/x64/Vampire.png"); }
+.CsrCardIco.ico-Vampire { background-image: url("file://{images}/custom_game/csroll_png/x160/Vampire.png"); }
+.CsrGaugeIco.ico-Vanish { background-image: url("file://{images}/custom_game/csroll_png/x32/Vanish.png"); }
+.CsrRowIco.ico-Vanish, .CsrTileIco.ico-Vanish { background-image: url("file://{images}/custom_game/csroll_png/x64/Vanish.png"); }
+.CsrCardIco.ico-Vanish { background-image: url("file://{images}/custom_game/csroll_png/x160/Vanish.png"); }
+.CsrGaugeIco.ico-WalkingGrenadier { background-image: url("file://{images}/custom_game/csroll_png/x32/WalkingGrenadier.png"); }
+.CsrRowIco.ico-WalkingGrenadier, .CsrTileIco.ico-WalkingGrenadier { background-image: url("file://{images}/custom_game/csroll_png/x64/WalkingGrenadier.png"); }
+.CsrCardIco.ico-WalkingGrenadier { background-image: url("file://{images}/custom_game/csroll_png/x160/WalkingGrenadier.png"); }
+.CsrGaugeIco.ico-Wallhack { background-image: url("file://{images}/custom_game/csroll_png/x32/Wallhack.png"); }
+.CsrRowIco.ico-Wallhack, .CsrTileIco.ico-Wallhack { background-image: url("file://{images}/custom_game/csroll_png/x64/Wallhack.png"); }
+.CsrCardIco.ico-Wallhack { background-image: url("file://{images}/custom_game/csroll_png/x160/Wallhack.png"); }
+.CsrGaugeIco.ico-WeaponRoulette { background-image: url("file://{images}/custom_game/csroll_png/x32/WeaponRoulette.png"); }
+.CsrRowIco.ico-WeaponRoulette, .CsrTileIco.ico-WeaponRoulette { background-image: url("file://{images}/custom_game/csroll_png/x64/WeaponRoulette.png"); }
+.CsrCardIco.ico-WeaponRoulette { background-image: url("file://{images}/custom_game/csroll_png/x160/WeaponRoulette.png"); }
 
 .cat-move .CsrIco { wash-color: #4fd1c5; }
 .cat-weap .CsrIco { wash-color: #f6ad55; }
@@ -437,14 +481,11 @@
 .CsrRoll
 {
 	flow-children: down;
-	width: 780px;
+	width: 600px;
 	horizontal-align: center;
 	vertical-align: top;
-	margin-top: 640px;
+	margin-top: 572px;
 	opacity: 0;
-	transition-property: opacity;
-	transition-duration: 0.35s;
-	transition-timing-function: ease-out;
 }
 
 .CsrRoll.on
@@ -452,13 +493,24 @@
 	opacity: 1;
 }
 
+/* The plate: a crisp dark translucent rectangle, like CS2's own status boxes. Its children overlay in
+   paint order - slot, strip, shades, rails, notches. */
 .CsrReel
 {
 	width: 600px;
-	height: 84px;
-	horizontal-align: center;
+	height: 80px;
 	overflow: clip clip;
-	background-color: gradient( linear, 0% 0%, 100% 0%, from( #0a0d1100 ), color-stop( 0.20, #0a0d11c7 ), color-stop( 0.80, #0a0d11c7 ), to( #0a0d1100 ) );
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #11151ad1 ), to( #0a0d11d9 ) );
+	box-shadow: #00000066 0px 6px 18px 0px;
+}
+
+/* Lit centre slot, painted BEHIND the strip: it tints the centre tile but never covers its icon. */
+.CsrSlot
+{
+	width: 76px;
+	height: 100%;
+	horizontal-align: center;
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #f3c74f29 ), color-stop( 0.22, #f3c74f0a ), color-stop( 0.78, #f3c74f0a ), to( #f3c74f29 ) );
 }
 
 /* Moved by the server one position class (p0..pN) per tick - see POS_QUANTUM. */
@@ -468,25 +520,20 @@
 	width: 2280px;
 	height: 64px;
 	margin-left: 40px;
-	margin-top: 10px;
+	margin-top: 8px;
 }
 
+/* An item card: neutral top, category wash at the bottom, 1px top highlight, 2px category bar.
+   Panorama draws borders inside the box, so they never change STEP. */
 .CsrTile
 {
 	width: 64px;
 	height: 64px;
 	margin-right: 12px;
-	background-color: #ffffff0d;
-	border-bottom: 3px solid #ffffff40;
-	transition-property: transform, background-color;
-	transition-duration: 0.35s;
-	transition-timing-function: ease-out;
-}
-
-.CsrTile.won
-{
-	transform: scale3d( 1.12, 1.12, 1.0 );
-	background-color: #ffffff26;
+	border-radius: 2px;
+	border-top: 1px solid #ffffff1a;
+	border-bottom: 2px solid #ffffff40;
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0f ), to( #ffffff05 ) );
 }
 
 .CsrTileIco
@@ -497,41 +544,122 @@
 	vertical-align: center;
 }
 
-.CsrMarker
+/* Winner: full ring + glow + solid fill (category values below). No scale - with no transition it
+   would pop, and it softens the bitmap. */
+.CsrTile.won
 {
-	width: 3px;
-	height: 100%;
-	horizontal-align: center;
-	background-color: #f3c74f;
-	box-shadow: #f3c74fb3 0px 0px 12px 0px;
+	border: 2px solid #ffffff;
+	background-color: #ffffff26;
+	box-shadow: #ffffff40 0px 0px 12px 0px;
 }
 
+/* Three classes, so it beats the two-class .cat-* .CsrIco tint above. */
+.CsrTile.won .CsrIco
+{
+	wash-color: #ffffff;
+}
+
+/* Edge vignette, IN FRONT of the strip: outer tiles fade into the plate. */
+.CsrShade
+{
+	width: 168px;
+	height: 100%;
+}
+
+.CsrShadeL
+{
+	horizontal-align: left;
+	background-color: gradient( linear, 0% 0%, 100% 0%, from( #0a0d11f5 ), color-stop( 0.45, #0a0d1199 ), to( #0a0d1100 ) );
+}
+
+.CsrShadeR
+{
+	horizontal-align: right;
+	background-color: gradient( linear, 0% 0%, 100% 0%, from( #0a0d1100 ), color-stop( 0.55, #0a0d1199 ), to( #0a0d11f5 ) );
+}
+
+/* Hairline rails, brightening toward the centre with a gold glint at the notch. */
+.CsrRail
+{
+	width: 100%;
+	height: 1px;
+	background-color: gradient( linear, 0% 0%, 100% 0%, from( #ffffff14 ), color-stop( 0.40, #ffffff33 ), color-stop( 0.47, #ffffff40 ), color-stop( 0.50, #f3c74f ), color-stop( 0.53, #ffffff40 ), color-stop( 0.60, #ffffff33 ), to( #ffffff14 ) );
+}
+
+.CsrRailTop
+{
+	vertical-align: top;
+}
+
+.CsrRailBottom
+{
+	vertical-align: bottom;
+}
+
+/* The marker: a square rotated 45deg and centred on the plate's top / bottom edge. The reel's clip
+   halves it into a gold triangle pointing at the slot, stopping short of the tile. */
+.CsrNotch
+{
+	width: 8px;
+	height: 8px;
+	horizontal-align: center;
+	vertical-align: top;
+	background-color: #f3c74f;
+	transform: rotatez( 45deg );
+}
+
+.CsrNotchTop
+{
+	margin-top: -4px;
+}
+
+.CsrNotchBottom
+{
+	margin-top: 76px;
+}
+
+/* `landed` on csr_roll: the rest of the reel steps back. */
+.CsrRoll.landed .CsrTile
+{
+	opacity: 0.35;
+	saturation: 0.3;
+}
+
+.CsrRoll.landed .CsrTile.won
+{
+	opacity: 1;
+	saturation: 1;
+}
+
+.CsrRoll.landed .CsrSlot
+{
+	opacity: 0;
+}
+
+/* ---------- reveal card: compact centred caption under the winner ---------- */
 .CsrCard
 {
 	flow-children: right;
 	width: 100%;
-	margin-top: 14px;
-	padding: 14px 70px;
-	background-color: gradient( linear, 0% 0%, 100% 0%, from( #0a0d1100 ), color-stop( 0.22, #0a0d11c7 ), color-stop( 0.78, #0a0d11c7 ), to( #0a0d1100 ) );
+	height: 80px;
+	margin-top: 4px;
+	padding: 0px 20px;
+	border-top: 2px solid #f3c74f;
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #11151ad1 ), to( #0a0d11d9 ) );
+	box-shadow: #00000066 0px 6px 18px 0px;
 	opacity: 0;
-	transform: translatey( 10px );
-	transition-property: opacity, transform;
-	transition-duration: 0.4s;
-	transition-timing-function: ease-out;
 }
 
 .CsrCard.on
 {
 	opacity: 1;
-	transform: translatey( 0px );
 }
 
+/* The winner tile above already shows the icon. The panel stays so the server's ico-* write still
+   lands somewhere; it just takes no space. */
 .CsrCardIco
 {
-	width: 84px;
-	height: 84px;
-	vertical-align: center;
-	margin-right: 20px;
+	visibility: collapse;
 }
 
 .CsrCardText
@@ -543,33 +671,47 @@
 
 .CsrCardCat
 {
+	width: 100%;
+	text-align: center;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-weight: bold;
-	font-size: 14px;
-	letter-spacing: 4px;
+	font-size: 12px;
+	line-height: 14px;
+	letter-spacing: 3px;
 	text-transform: uppercase;
 	color: #f3c74f;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .CsrCardName
 {
+	width: 100%;
+	margin-top: 2px;
+	text-align: center;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-weight: bold;
-	font-size: 40px;
+	font-size: 28px;
+	line-height: 30px;
+	letter-spacing: 1px;
 	text-transform: uppercase;
 	color: #ffffff;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	width: 100%;
 }
 
 .CsrCardDesc
 {
+	width: 100%;
+	margin-top: 2px;
+	text-align: center;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-weight: normal;
-	font-size: 18px;
-	color: #ffffffcc;
-	width: 100%;
+	font-size: 16px;
+	line-height: 19px;
+	color: #ffffffc2;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .CsrStrip.p0 { transform: translate3d( -0px, 0px, 0px ); }
@@ -1011,17 +1153,29 @@
 .CsrStrip.p436 { transform: translate3d( -1744px, 0px, 0px ); }
 .CsrStrip.p437 { transform: translate3d( -1748px, 0px, 0px ); }
 
-.CsrTile.cat-move { border-bottom-color: #4fd1c5; }
+.CsrTile.cat-move { border-bottom-color: #4fd1c5; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #4fd1c538 ) ); }
+.CsrTile.won.cat-move { border-color: #4fd1c5; background-color: gradient( linear, 0% 0%, 0% 100%, from( #4fd1c533 ), to( #4fd1c573 ) ); box-shadow: #4fd1c580 0px 0px 12px 0px; }
+.CsrCard.cat-move { border-top-color: #4fd1c5; background-color: gradient( linear, 0% 0%, 0% 100%, from( #122527d1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
 .CsrCard.cat-move .CsrCardCat { color: #4fd1c5; }
-.CsrTile.cat-weap { border-bottom-color: #f6ad55; }
+.CsrTile.cat-weap { border-bottom-color: #f6ad55; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #f6ad5538 ) ); }
+.CsrTile.won.cat-weap { border-color: #f6ad55; background-color: gradient( linear, 0% 0%, 0% 100%, from( #f6ad5533 ), to( #f6ad5573 ) ); box-shadow: #f6ad5580 0px 0px 12px 0px; }
+.CsrCard.cat-weap { border-top-color: #f6ad55; background-color: gradient( linear, 0% 0%, 0% 100%, from( #262019d1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
 .CsrCard.cat-weap .CsrCardCat { color: #f6ad55; }
-.CsrTile.cat-util { border-bottom-color: #a3e635; }
+.CsrTile.cat-util { border-bottom-color: #a3e635; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #a3e63538 ) ); }
+.CsrTile.won.cat-util { border-color: #a3e635; background-color: gradient( linear, 0% 0%, 0% 100%, from( #a3e63533 ), to( #a3e63573 ) ); box-shadow: #a3e63580 0px 0px 12px 0px; }
+.CsrCard.cat-util { border-top-color: #a3e635; background-color: gradient( linear, 0% 0%, 0% 100%, from( #1c2715d1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
 .CsrCard.cat-util .CsrCardCat { color: #a3e635; }
-.CsrTile.cat-surv { border-bottom-color: #f56565; }
+.CsrTile.cat-surv { border-bottom-color: #f56565; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #f5656538 ) ); }
+.CsrTile.won.cat-surv { border-color: #f56565; background-color: gradient( linear, 0% 0%, 0% 100%, from( #f5656533 ), to( #f5656573 ) ); box-shadow: #f5656580 0px 0px 12px 0px; }
+.CsrCard.cat-surv { border-top-color: #f56565; background-color: gradient( linear, 0% 0%, 0% 100%, from( #26181bd1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
 .CsrCard.cat-surv .CsrCardCat { color: #f56565; }
-.CsrTile.cat-stealth { border-bottom-color: #b794f4; }
+.CsrTile.cat-stealth { border-bottom-color: #b794f4; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #b794f438 ) ); }
+.CsrTile.won.cat-stealth { border-color: #b794f4; background-color: gradient( linear, 0% 0%, 0% 100%, from( #b794f433 ), to( #b794f473 ) ); box-shadow: #b794f480 0px 0px 12px 0px; }
+.CsrCard.cat-stealth { border-top-color: #b794f4; background-color: gradient( linear, 0% 0%, 0% 100%, from( #1f1d2cd1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
 .CsrCard.cat-stealth .CsrCardCat { color: #b794f4; }
-.CsrTile.cat-chaos { border-bottom-color: #ed64a6; }
+.CsrTile.cat-chaos { border-bottom-color: #ed64a6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #ed64a638 ) ); }
+.CsrTile.won.cat-chaos { border-color: #ed64a6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ed64a633 ), to( #ed64a673 ) ); box-shadow: #ed64a680 0px 0px 12px 0px; }
+.CsrCard.cat-chaos { border-top-color: #ed64a6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #251723d1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
 .CsrCard.cat-chaos .CsrCardCat { color: #ed64a6; }
 
 .CsrPrompt

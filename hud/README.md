@@ -15,19 +15,23 @@ centre text.
 ## What's in here
 
 ```
-hud/panorama/layout/custom_game/csroll_hud.xml     GENERATED - the layout
-hud/panorama/styles/custom_game/csroll_hud.css     GENERATED - its stylesheet
-hud/panorama/images/custom_game/csroll/*.svg       one icon per modifier (white, 64x64), plus InfiniteRoll
-hud/panorama/images/custom_game/csroll_png/*.png   the same icons as 128x128 PNGs (tools/rasterize_icons.py)
-src/Hud/HudLayout.g.cs                             GENERATED - the ids and classes the plugin drives
-tools/generate_hud.py                              writes all three generated files from one spec
+hud/icons/*.svg                                            icon sources, one per modifier (white, 64x64) + InfiniteRoll
+hud/panorama/images/custom_game/csroll_png/x32|x64|x160/   GENERATED - the PNGs the HUD draws (tools/rasterize_icons.py)
+hud/panorama/layout/custom_game/csroll_hud.xml             GENERATED - the layout
+hud/panorama/styles/custom_game/csroll_hud.css             GENERATED - its stylesheet
+src/Hud/HudLayout.g.cs                                     GENERATED - the ids and classes the plugin drives
+tools/generate_hud.py                                      writes the layout, stylesheet and C# contract from one spec
 ```
 
-Never edit the generated files. Change `tools/generate_hud.py` and run:
+Never edit the generated files. Change `tools/generate_hud.py` (or an SVG in `hud/icons`) and run:
 
 ```bash
+python3 tools/rasterize_icons.py   # only after icon changes
 python3 tools/generate_hud.py
 ```
+
+The HUD draws PNGs, not the SVGs: Panorama rasterizes an SVG background at the size written inside the
+file, and these carry none, so in game they came out as stretched blobs.
 
 A wrong panel id or CSS class fails silently in game, so the layout, stylesheet and C# contract are
 written by one script that can't disagree with itself.
@@ -63,7 +67,7 @@ written by one script that can't disagree with itself.
    The script copies the sources into the addon, compiles them, and stops with a list if any compiled
    file is missing.
 2. Open the **Counter-Strike 2 Workshop Manager** > *New* (or your existing item) > select `csroll_hud`.
-3. **Check the contents preview before submitting**: it must list `vxml_c`, `vcss_c` and `vsvg_c`
+3. **Check the contents preview before submitting**: it must list `vxml_c`, `vcss_c` and `vtex_c`
    files. If any is 0, step 3 of the setup didn't take.
 4. Title, description, preview image, visibility **Public**, submit. Note the Workshop ID from the
    item's URL.
@@ -82,6 +86,7 @@ Every republish makes every player download the addon again, so batch design cha
      "Mode": "OptIn",            // "Everyone" once you're sure everyone gets the addon
      "PromptSeconds": 15,
      "RevealHoldSeconds": 4,
+     "ShowToSpectatorTeam": true,
      "ListOffset": 0             // 0-4: move the list down if the radar/money overlaps it
    }
    ```
@@ -95,8 +100,9 @@ Every republish makes every player download the addon again, so batch design cha
   Typing `!hud` switches that player over; it's remembered per SteamID
   (`hud-players.json` in the plugin's data folder). `!hud` again switches back.
 - **Everyone**: everyone is on the custom HUD unless they switch back with `!hud`.
-- Players on the **spectator team** stay on the centre text - CS2 sends them no HUD updates. Dead
-  players watching a teammate see that teammate's list as *"Name's Modifiers"*.
+- Anyone watching another player - dead on T/CT, or on the **spectator team** - sees that player's
+  list as *"Name's Modifiers"*. If spectator-team players see nothing at all, set
+  `"ShowToSpectatorTeam": false` to put them back on the centre-text spectator panel.
 
 ## Checking it works
 

@@ -21,7 +21,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-ICON_DIR = ROOT / "hud/panorama/images/custom_game/csroll"
+ICON_DIR = ROOT / "hud/icons"   # SVG sources - the HUD draws the PNGs made from them (tools/rasterize_icons.py)
 LAYOUT = ROOT / "hud/panorama/layout/custom_game/csroll_hud.xml"
 STYLE = ROOT / "hud/panorama/styles/custom_game/csroll_hud.css"
 CONTRACT = ROOT / "src/Hud/HudLayout.g.cs"
@@ -40,6 +40,12 @@ WIN_TILE = 26       # tile the spin lands on - the only per-player tile
 TILE = 64           # px
 TILE_GAP = 12       # px - keeps TILE + TILE_GAP a multiple of POS_QUANTUM
 REEL_WIDTH = 600    # px
+REEL_PAD = 8        # px of plate above and below the tiles
+ROLL_TOP = 572      # px @1080p - the block ends at 736, clear of CS2's status label (~762) and the gauges
+CARD_GAP = 4        # px between the reel and the caption card
+CARD_HEIGHT = 80    # px, fixed so the block's bottom edge is guaranteed
+NOTCH = 8           # px square, rotated 45deg and half-clipped by the plate into the marker triangles
+SHADE_W = 168       # px of edge fade on each side of the reel
 SPIN_SECONDS = 4.0
 # The reel is moved by the server, one position class per tick: a CSS animation started by a server
 # class write never ran in game. Positions are POS_QUANTUM px apart across the whole travel.
@@ -60,6 +66,7 @@ CATEGORIES = {
 }
 
 STEP = TILE + TILE_GAP
+REEL_HEIGHT = TILE + 2 * REEL_PAD
 STRIP_WIDTH = TILES * STEP
 STRIP_LEFT = REEL_WIDTH // 2 - (START_TILE * STEP + TILE // 2)
 TRAVEL = (WIN_TILE - START_TILE) * STEP
@@ -71,6 +78,14 @@ POS_STEPS = TRAVEL // POS_QUANTUM
 FONT_BOLD = "Stratum2, 'Arial Unicode MS';\n\tfont-weight: bold"
 FONT_BODY = "Stratum2, 'Arial Unicode MS';\n\tfont-weight: normal"
 SHADE = "#0a0d11"
+GOLD = "#f3c74f"
+
+
+def premix(accent: str, amount: float = 0.12) -> str:
+    """The accent mixed `amount` into SHADE, as #rrggbb - a gradient can't layer a tint over a base."""
+    a = [int(accent[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(SHADE[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(base + (top - base) * amount):02x}" for top, base in zip(a, b))
 
 
 def icons() -> list[str]:
@@ -86,7 +101,7 @@ def icons() -> list[str]:
 def layout() -> str:
     rows = "\n".join(
         f'''        <Panel id="csr_row{i}" class="CsrRow">
-          <Panel id="csr_row{i}_ico" class="CsrIco CsrRowIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_row{i}_ico" class="CsrIco CsrRowIco" />
           <Panel class="CsrRowText">
             <Label id="csr_row{i}_name" class="CsrRowName" text="{{s:name}}" />
             <Label id="csr_row{i}_short" class="CsrRowShort" text="{{s:short}}" />
@@ -96,7 +111,7 @@ def layout() -> str:
     gauges = "\n".join(
         f'''        <Panel id="csr_g{i}" class="CsrGauge">
           <Panel class="CsrGaugeTop">
-            <Panel id="csr_g{i}_ico" class="CsrIco CsrGaugeIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+            <Panel id="csr_g{i}_ico" class="CsrIco CsrGaugeIco" />
             <Label id="csr_g{i}_label" class="CsrGaugeLabel" text="{{s:label}}" />
             <Label id="csr_g{i}_val" class="CsrGaugeVal" text="{{s:val}}" />
           </Panel>
@@ -104,7 +119,7 @@ def layout() -> str:
         </Panel>''' for i in range(GAUGES))
 
     tiles = "\n".join(
-        f'''            <Panel id="csr_t{i}" class="CsrTile"><Panel id="csr_t{i}_ico" class="CsrIco CsrTileIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel></Panel>'''
+        f'''            <Panel id="csr_t{i}" class="CsrTile"><Panel id="csr_t{i}_ico" class="CsrIco CsrTileIco" /></Panel>'''
         for i in range(TILES))
 
     return f'''<!--
@@ -128,13 +143,19 @@ def layout() -> str:
       </Panel>
       <Panel id="csr_roll" class="CsrRoll" hittest="false">
         <Panel class="CsrReel">
+          <Panel class="CsrSlot" />
           <Panel id="csr_strip" class="CsrStrip">
 {tiles}
           </Panel>
-          <Panel class="CsrMarker" />
+          <Panel class="CsrShade CsrShadeL" />
+          <Panel class="CsrShade CsrShadeR" />
+          <Panel class="CsrRail CsrRailTop" />
+          <Panel class="CsrRail CsrRailBottom" />
+          <Panel class="CsrNotch CsrNotchTop" />
+          <Panel class="CsrNotch CsrNotchBottom" />
         </Panel>
         <Panel id="csr_card" class="CsrCard">
-          <Panel id="csr_card_ico" class="CsrIco CsrCardIco"><Panel class="CsrIcoSvg" /><Panel class="CsrIcoPng" /></Panel>
+          <Panel id="csr_card_ico" class="CsrIco CsrCardIco" />
           <Panel class="CsrCardText">
             <Label id="csr_card_cat" class="CsrCardCat" text="{{s:cat}}" />
             <Label id="csr_card_name" class="CsrCardName" text="{{s:name}}" />
@@ -155,12 +176,13 @@ def layout() -> str:
 # ---------------------------------------------------------------------------------------------------
 # Stylesheet
 # ---------------------------------------------------------------------------------------------------
-def fade(stops: list[tuple[float, str]]) -> str:
-    """Horizontal WebKit-form gradient from a list of (position, colour)."""
+def fade(stops: list[tuple[float, str]], vertical: bool = False) -> str:
+    """WebKit-form gradient from a list of (position, colour), left to right or top to bottom."""
     first, *middle, last = stops
     inner = ", ".join(f"color-stop( {p:.2f}, {c} )" for p, c in middle)
     inner = f", {inner}" if inner else ""
-    return f"gradient( linear, 0% 0%, 100% 0%, from( {first[1]} ){inner}, to( {last[1]} ) )"
+    end = "0% 100%" if vertical else "100% 0%"
+    return f"gradient( linear, 0% 0%, {end}, from( {first[1]} ){inner}, to( {last[1]} ) )"
 
 
 def stylesheet(icon_names: list[str]) -> str:
@@ -194,24 +216,21 @@ def stylesheet(icon_names: list[str]) -> str:
 }}
 
 /* ---------- icons: a picture class plus a category tint ---------- */
-/* Two stacked layers per icon, SVG and PNG: whichever CS2 loads as a background shows, and if both do
-   they overlap exactly. */
-.CsrIcoSvg,
-.CsrIcoPng
+/* PNG icons, stretched to the panel. Three sizes, each about twice the size it's drawn at. */
+.CsrIco
 {{
-	width: 100%;
-	height: 100%;
-	background-size: contains;
+	background-size: 100% 100%;
 	background-repeat: no-repeat;
-	background-position: 50% 50%;
+	background-position: 0% 0%;
 }}
 """)
     # Source-file references, Panorama's documented form: compiling the stylesheet compiles each
-    # referenced image as a child resource and rewrites the path to the compiled one. resourcecompiler
-    # can't compile a PNG on its own ("Failed to find compiler"), only as a stylesheet's child.
+    # referenced PNG as a child resource and rewrites the path - resourcecompiler can't compile a
+    # PNG on its own ("Failed to find compiler").
     for name in icon_names:
-        w(f'.ico-{name} .CsrIcoSvg {{ background-image: url("file://{{images}}/custom_game/csroll/{name}.svg"); }}')
-        w(f'.ico-{name} .CsrIcoPng {{ background-image: url("file://{{images}}/custom_game/csroll_png/{name}.png"); }}')
+        w(f'.CsrGaugeIco.ico-{name} {{ background-image: url("file://{{images}}/custom_game/csroll_png/x32/{name}.png"); }}')
+        w(f'.CsrRowIco.ico-{name}, .CsrTileIco.ico-{name} {{ background-image: url("file://{{images}}/custom_game/csroll_png/x64/{name}.png"); }}')
+        w(f'.CsrCardIco.ico-{name} {{ background-image: url("file://{{images}}/custom_game/csroll_png/x160/{name}.png"); }}')
     w("")
     for cat, colour in CATEGORIES.items():
         w(f".cat-{cat} .CsrIco {{ wash-color: {colour}; }}")
@@ -398,19 +417,23 @@ def stylesheet(icon_names: list[str]) -> str:
     w("")
 
     # ---------- roll ----------
-    reel_shade = fade([(0, f"{SHADE}00"), (0.2, f"{SHADE}c7"), (0.8, f"{SHADE}c7"), (1, f"{SHADE}00")])
-    card_shade = fade([(0, f"{SHADE}00"), (0.22, f"{SHADE}c7"), (0.78, f"{SHADE}c7"), (1, f"{SHADE}00")])
+    # No transitions: server class writes don't start them here, so every state is drawn to look right
+    # the moment it switches.
+    plate = fade([(0, f"#11151ad1"), (1, f"{SHADE}d9")], vertical=True)
+    slot = fade([(0, f"{GOLD}29"), (0.22, f"{GOLD}0a"), (0.78, f"{GOLD}0a"), (1, f"{GOLD}29")], vertical=True)
+    shade_l = fade([(0, f"{SHADE}f5"), (0.45, f"{SHADE}99"), (1, f"{SHADE}00")])
+    shade_r = fade([(0, f"{SHADE}00"), (0.55, f"{SHADE}99"), (1, f"{SHADE}f5")])
+    rail = fade([(0, "#ffffff14"), (0.40, "#ffffff33"), (0.47, "#ffffff40"), (0.50, GOLD),
+                 (0.53, "#ffffff40"), (0.60, "#ffffff33"), (1, "#ffffff14")])
+    tile = fade([(0, "#ffffff0f"), (1, "#ffffff05")], vertical=True)
     w(f""".CsrRoll
 {{
 	flow-children: down;
-	width: 780px;
+	width: {REEL_WIDTH}px;
 	horizontal-align: center;
 	vertical-align: top;
-	margin-top: 640px;
+	margin-top: {ROLL_TOP}px;
 	opacity: 0;
-	transition-property: opacity;
-	transition-duration: 0.35s;
-	transition-timing-function: ease-out;
 }}
 
 .CsrRoll.on
@@ -418,13 +441,24 @@ def stylesheet(icon_names: list[str]) -> str:
 	opacity: 1;
 }}
 
+/* The plate: a crisp dark translucent rectangle, like CS2's own status boxes. Its children overlay in
+   paint order - slot, strip, shades, rails, notches. */
 .CsrReel
 {{
 	width: {REEL_WIDTH}px;
-	height: {TILE + 20}px;
-	horizontal-align: center;
+	height: {REEL_HEIGHT}px;
 	overflow: clip clip;
-	background-color: {reel_shade};
+	background-color: {plate};
+	box-shadow: #00000066 0px 6px 18px 0px;
+}}
+
+/* Lit centre slot, painted BEHIND the strip: it tints the centre tile but never covers its icon. */
+.CsrSlot
+{{
+	width: {STEP}px;
+	height: 100%;
+	horizontal-align: center;
+	background-color: {slot};
 }}
 
 /* Moved by the server one position class (p0..pN) per tick - see POS_QUANTUM. */
@@ -434,25 +468,20 @@ def stylesheet(icon_names: list[str]) -> str:
 	width: {STRIP_WIDTH}px;
 	height: {TILE}px;
 	margin-left: {STRIP_LEFT}px;
-	margin-top: 10px;
+	margin-top: {REEL_PAD}px;
 }}
 
+/* An item card: neutral top, category wash at the bottom, 1px top highlight, 2px category bar.
+   Panorama draws borders inside the box, so they never change STEP. */
 .CsrTile
 {{
 	width: {TILE}px;
 	height: {TILE}px;
 	margin-right: {TILE_GAP}px;
-	background-color: #ffffff0d;
-	border-bottom: 3px solid #ffffff40;
-	transition-property: transform, background-color;
-	transition-duration: 0.35s;
-	transition-timing-function: ease-out;
-}}
-
-.CsrTile.won
-{{
-	transform: scale3d( 1.12, 1.12, 1.0 );
-	background-color: #ffffff26;
+	border-radius: 2px;
+	border-top: 1px solid #ffffff1a;
+	border-bottom: 2px solid #ffffff40;
+	background-color: {tile};
 }}
 
 .CsrTileIco
@@ -463,41 +492,122 @@ def stylesheet(icon_names: list[str]) -> str:
 	vertical-align: center;
 }}
 
-.CsrMarker
+/* Winner: full ring + glow + solid fill (category values below). No scale - with no transition it
+   would pop, and it softens the bitmap. */
+.CsrTile.won
 {{
-	width: 3px;
-	height: 100%;
-	horizontal-align: center;
-	background-color: #f3c74f;
-	box-shadow: #f3c74fb3 0px 0px 12px 0px;
+	border: 2px solid #ffffff;
+	background-color: #ffffff26;
+	box-shadow: #ffffff40 0px 0px 12px 0px;
 }}
 
+/* Three classes, so it beats the two-class .cat-* .CsrIco tint above. */
+.CsrTile.won .CsrIco
+{{
+	wash-color: #ffffff;
+}}
+
+/* Edge vignette, IN FRONT of the strip: outer tiles fade into the plate. */
+.CsrShade
+{{
+	width: {SHADE_W}px;
+	height: 100%;
+}}
+
+.CsrShadeL
+{{
+	horizontal-align: left;
+	background-color: {shade_l};
+}}
+
+.CsrShadeR
+{{
+	horizontal-align: right;
+	background-color: {shade_r};
+}}
+
+/* Hairline rails, brightening toward the centre with a gold glint at the notch. */
+.CsrRail
+{{
+	width: 100%;
+	height: 1px;
+	background-color: {rail};
+}}
+
+.CsrRailTop
+{{
+	vertical-align: top;
+}}
+
+.CsrRailBottom
+{{
+	vertical-align: bottom;
+}}
+
+/* The marker: a square rotated 45deg and centred on the plate's top / bottom edge. The reel's clip
+   halves it into a gold triangle pointing at the slot, stopping short of the tile. */
+.CsrNotch
+{{
+	width: {NOTCH}px;
+	height: {NOTCH}px;
+	horizontal-align: center;
+	vertical-align: top;
+	background-color: {GOLD};
+	transform: rotatez( 45deg );
+}}
+
+.CsrNotchTop
+{{
+	margin-top: -{NOTCH // 2}px;
+}}
+
+.CsrNotchBottom
+{{
+	margin-top: {REEL_HEIGHT - NOTCH // 2}px;
+}}
+
+/* `landed` on csr_roll: the rest of the reel steps back. */
+.CsrRoll.landed .CsrTile
+{{
+	opacity: 0.35;
+	saturation: 0.3;
+}}
+
+.CsrRoll.landed .CsrTile.won
+{{
+	opacity: 1;
+	saturation: 1;
+}}
+
+.CsrRoll.landed .CsrSlot
+{{
+	opacity: 0;
+}}
+
+/* ---------- reveal card: compact centred caption under the winner ---------- */
 .CsrCard
 {{
 	flow-children: right;
 	width: 100%;
-	margin-top: 14px;
-	padding: 14px 70px;
-	background-color: {card_shade};
+	height: {CARD_HEIGHT}px;
+	margin-top: {CARD_GAP}px;
+	padding: 0px 20px;
+	border-top: 2px solid {GOLD};
+	background-color: {plate};
+	box-shadow: #00000066 0px 6px 18px 0px;
 	opacity: 0;
-	transform: translatey( 10px );
-	transition-property: opacity, transform;
-	transition-duration: 0.4s;
-	transition-timing-function: ease-out;
 }}
 
 .CsrCard.on
 {{
 	opacity: 1;
-	transform: translatey( 0px );
 }}
 
+/* The winner tile above already shows the icon. The panel stays so the server's ico-* write still
+   lands somewhere; it just takes no space. */
 .CsrCardIco
 {{
-	width: 84px;
-	height: 84px;
-	vertical-align: center;
-	margin-right: 20px;
+	visibility: collapse;
 }}
 
 .CsrCardText
@@ -509,37 +619,56 @@ def stylesheet(icon_names: list[str]) -> str:
 
 .CsrCardCat
 {{
+	width: 100%;
+	text-align: center;
 	font-family: {FONT_BOLD};
-	font-size: 14px;
-	letter-spacing: 4px;
+	font-size: 12px;
+	line-height: 14px;
+	letter-spacing: 3px;
 	text-transform: uppercase;
-	color: #f3c74f;
+	color: {GOLD};
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }}
 
 .CsrCardName
 {{
+	width: 100%;
+	margin-top: 2px;
+	text-align: center;
 	font-family: {FONT_BOLD};
-	font-size: 40px;
+	font-size: 28px;
+	line-height: 30px;
+	letter-spacing: 1px;
 	text-transform: uppercase;
 	color: #ffffff;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	width: 100%;
 }}
 
 .CsrCardDesc
 {{
-	font-family: {FONT_BODY};
-	font-size: 18px;
-	color: #ffffffcc;
 	width: 100%;
+	margin-top: 2px;
+	text-align: center;
+	font-family: {FONT_BODY};
+	font-size: 16px;
+	line-height: 19px;
+	color: #ffffffc2;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }}
 """)
     for n in range(POS_STEPS + 1):
         w(f".CsrStrip.p{n} {{ transform: translate3d( -{n * POS_QUANTUM}px, 0px, 0px ); }}")
     w("")
     for cat, colour in CATEGORIES.items():
-        w(f".CsrTile.cat-{cat} {{ border-bottom-color: {colour}; }}")
+        wash = fade([(0, "#ffffff0d"), (0.5, "#ffffff08"), (1, f"{colour}38")], vertical=True)
+        won = fade([(0, f"{colour}33"), (1, f"{colour}73")], vertical=True)
+        card = fade([(0, f"{premix(colour)}d1"), (0.6, "#0d1015d5"), (1, f"{SHADE}d9")], vertical=True)
+        w(f".CsrTile.cat-{cat} {{ border-bottom-color: {colour}; background-color: {wash}; }}")
+        w(f".CsrTile.won.cat-{cat} {{ border-color: {colour}; background-color: {won}; box-shadow: {colour}80 0px 0px 12px 0px; }}")
+        w(f".CsrCard.cat-{cat} {{ border-top-color: {colour}; background-color: {card}; }}")
         w(f".CsrCard.cat-{cat} .CsrCardCat {{ color: {colour}; }}")
     w("")
 
@@ -664,6 +793,7 @@ public static partial class HudLayout
     public const string On = "on";
     public const string Ready = "ready";
     public const string Won = "won";
+    public const string Landed = "landed";
 }}
 '''
 

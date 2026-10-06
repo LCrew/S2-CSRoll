@@ -118,4 +118,5 @@ public static partial class HudLayout
     public const string On = "on";
     public const string Ready = "ready";
     public const string Won = "won";
+    public const string Landed = "landed";
 }

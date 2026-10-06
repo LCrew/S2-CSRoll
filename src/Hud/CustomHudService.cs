@@ -145,9 +145,13 @@ public sealed class CustomHudService
 
     /// <summary>
     /// Whether this player is on the custom HUD right now. Every center-HTML surface asks this and
-    /// stands aside when it is true, so nobody gets both. False for bots, for anyone on the spectator
-    /// team (CS2 sends them no HUD state), and for anyone who hasn't chosen it - unless Mode is
-    /// "Everyone", where only an explicit !hud opt-out says no.
+    /// stands aside when it is true, so nobody gets both. False for bots, for anyone still choosing a
+    /// team, for the spectator team when ShowToSpectatorTeam is off, and for anyone who hasn't chosen
+    /// the HUD - unless Mode is "Everyone", where only an explicit !hud opt-out says no.
+    ///
+    /// The spectator team used to be excluded outright on the first HUD attempt's finding that CS2
+    /// sends those clients no HUD state. That finding is unconfirmed, so it's a config switch now: if
+    /// spectators see nothing with it on, turning it off puts them back on the center-HTML panel.
     /// </summary>
     public bool UsesCustomHud(int slot)
     {
@@ -156,7 +160,13 @@ public sealed class CustomHudService
             return false;
         }
 
-        if (player.Controller is not { IsValid: true } controller || controller.Team is not (Team.T or Team.CT))
+        if (player.Controller is not { IsValid: true } controller)
+        {
+            return false;
+        }
+
+        var onTeam = controller.Team is Team.T or Team.CT;
+        if (!onTeam && !(controller.Team == Team.Spectator && Cfg.ShowToSpectatorTeam))
         {
             return false;
         }
@@ -248,6 +258,7 @@ public sealed class CustomHudService
 
         var primary = modifiers[0];
         SetFlag(slot, state, HudLayout.Tile(HudLayout.WinTile), HudLayout.Won, false);
+        SetFlag(slot, state, HudLayout.RollPanel, HudLayout.Landed, false);
         SetFlag(slot, state, HudLayout.Card, HudLayout.On, false);
         SetExclusive(slot, state, HudLayout.TileIcon(HudLayout.WinTile), "icon", HudLayout.IconClass(HudCatalog.Icon(primary)));
         SetExclusive(slot, state, HudLayout.Tile(HudLayout.WinTile), "cat", HudLayout.CategoryClass(HudCatalog.Category(primary)));
@@ -286,6 +297,7 @@ public sealed class CustomHudService
             roll.HideAt = now + Math.Max(0.5f, Cfg.RevealHoldSeconds);
             ShowCard(slot, state, roll);
             SetFlag(slot, state, HudLayout.Tile(HudLayout.WinTile), HudLayout.Won, true);
+            SetFlag(slot, state, HudLayout.RollPanel, HudLayout.Landed, true);
 
             var onLanded = roll.OnLanded;
             roll.OnLanded = null;

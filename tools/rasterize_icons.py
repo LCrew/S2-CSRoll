@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Renders every modifier SVG to a 128x128 white-on-transparent PNG, for the custom HUD's PNG icon layer.
+Renders every modifier SVG to white-on-transparent PNGs, the custom HUD's icons.
 
     python3 tools/rasterize_icons.py
 
-hud/panorama/images/custom_game/csroll/*.svg  ->  hud/panorama/images/custom_game/csroll_png/*.png
+hud/icons/*.svg  ->  hud/panorama/images/custom_game/csroll_png/x{32,64,160}/*.png
 
-The HUD draws each icon twice, stacked: once from the SVG, once from this PNG. Whichever of the two CS2
-loads as a CSS background shows; if both do, they overlap exactly. Once it's known which one works in
-game, the other can go.
+The HUD uses PNGs, not the SVGs: Panorama rasterizes an SVG background at the size written inside the
+file, and these carry none, so in game they came out as tiny textures stretched into blobs. Each PNG
+size is about twice the size it's drawn at (gauge 24px, list and reel 34-40px, card 84px), so the
+downscale stays clean.
 
 The icons are plain polygons (absolute M/L/Z path commands, fill-rule evenodd), so this rasterizes
 them exactly with Pillow - no SVG library needed. Each subpath is XORed into the mask, which is what
@@ -23,9 +24,9 @@ import sys
 from PIL import Image, ImageChops, ImageDraw
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SRC = ROOT / "hud/panorama/images/custom_game/csroll"
+SRC = ROOT / "hud/icons"
 DST = ROOT / "hud/panorama/images/custom_game/csroll_png"
-SIZE = 128
+SIZES = (32, 64, 160)
 OVERSAMPLE = 8
 VIEWBOX = 64.0
 
@@ -41,13 +42,13 @@ def subpaths(d: str) -> list[list[tuple[float, float]]]:
     return shapes
 
 
-def render(svg: pathlib.Path) -> Image.Image:
+def render(svg: pathlib.Path, size: int) -> Image.Image:
     text = svg.read_text(encoding="utf-8")
     d = re.search(r' d="([^"]+)"', text)
     if not d:
         raise ValueError("no path data")
 
-    big = SIZE * OVERSAMPLE
+    big = size * OVERSAMPLE
     scale = big / VIEWBOX
     mask = Image.new("L", (big, big), 0)
     for shape in subpaths(d.group(1)):
@@ -55,21 +56,23 @@ def render(svg: pathlib.Path) -> Image.Image:
         ImageDraw.Draw(layer).polygon([(x * scale, y * scale) for x, y in shape], fill=255)
         mask = ImageChops.logical_xor(mask.convert("1"), layer.convert("1")).convert("L")
 
-    alpha = mask.resize((SIZE, SIZE), Image.LANCZOS)
-    icon = Image.new("RGBA", (SIZE, SIZE), (255, 255, 255, 0))
+    alpha = mask.resize((size, size), Image.LANCZOS)
+    icon = Image.new("RGBA", (size, size), (255, 255, 255, 0))
     icon.putalpha(alpha)
     return icon
 
 
 def main() -> None:
-    DST.mkdir(parents=True, exist_ok=True)
     count = 0
-    for svg in sorted(SRC.glob("*.svg")):
-        try:
-            render(svg).save(DST / f"{svg.stem}.png", optimize=True)
-            count += 1
-        except Exception as ex:  # noqa: BLE001 - report every bad file, not just the first
-            sys.exit(f"{svg.name}: {ex}")
+    for size in SIZES:
+        out = DST / f"x{size}"
+        out.mkdir(parents=True, exist_ok=True)
+        for svg in sorted(SRC.glob("*.svg")):
+            try:
+                render(svg, size).save(out / f"{svg.stem}.png", optimize=True)
+                count += 1
+            except Exception as ex:  # noqa: BLE001 - report every bad file, not just the first
+                sys.exit(f"{svg.name}: {ex}")
     print(f"wrote {count} PNGs to {DST.relative_to(ROOT)}")
 
 

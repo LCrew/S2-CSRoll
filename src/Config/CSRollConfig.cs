@@ -811,6 +811,13 @@ public class CustomHudConfig
     /// <summary>How long the reveal card stays up after the carousel lands. The modifier list shows it from the moment it lands either way.</summary>
     public float RevealHoldSeconds { get; set; } = 4f;
 
+    /// <summary>
+    /// Whether players on the Spectator team get the custom HUD (the list shows whoever they watch,
+    /// as "Name's Modifiers"). Turn off if spectators see nothing - then they keep the center-HTML
+    /// spectator panel. Dead players on T/CT always get it.
+    /// </summary>
+    public bool ShowToSpectatorTeam { get; set; } = true;
+
     /// <summary>Vertical position of the modifier list under the radar: 0 (highest) to 4 (lowest), 40px apart at 1080p. Raise it if a large radar scale or the money display overlaps the list.</summary>
     public int ListOffset { get; set; } = 0;
 }
