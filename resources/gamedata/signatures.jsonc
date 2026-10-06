@@ -1,1 +1,15 @@
-{}
+{
+    // Used by GameModifierBunnyHop's movement unlocker - the conditional jump in
+    // CCSPlayer_MovementServices::FullWalkMove that clamps a grounded player's speed back down to
+    // their max speed. Bytes are Source2ZE/CS2Fixes's "ServerMovementUnlock" entry
+    // (github.com/Source2ZE/CS2Fixes/blob/main/gamedata/cs2fixes.jsonc), as updated 2026-09-29 for the
+    // 2026-09-22 CS2 update. That file tracks every CS2 update - re-check it if this ever fails to
+    // resolve ("Failed to load signature"). It also won't resolve while another plugin (CS2Fixes,
+    // SwiftlyS2-MoreFixes, ...) already has the same patch applied, since the patch rewrites the very
+    // bytes this matches - harmless, the clamp is already gone in that case.
+    "CSRollServerMovementUnlock": {
+        "lib": "server",
+        "windows": "0F 86 AF ? ? ? 0F 57 C0 0F 2E C2",
+        "linux": "76 ? F3 0F 51 C0 F3 0F 7E DB 49 8B 06"
+    }
+}

@@ -67,6 +67,24 @@ namespace CSRoll.Modifiers;
 /// multiplying CS2's normal air-accelerate value. The gauge is shown continuously while the modifier
 /// is active, matching Flanker/ConditionalInvisibility/Vanish's persistent-HUD
 /// convention.
+///
+/// Rework (thrust ramps up instead of snapping): thrust used to floor vertical speed at a fixed
+/// ThrustSpeed the instant jump was held, so pressing jump mid-fall turned a -600 u/s fall into a
+/// +140 u/s climb in a single tick - it read as jumping again, not as a jetpack. On top of that, the
+/// OnJumpLegacy/OnJumpModern.Post "big boost" also fired for jump presses in mid-air (the hooks fire
+/// for presses that don't take off - the reason BigBoostCooldownSeconds existed), and once its cooldown
+/// had passed it set vertical speed straight to JumpVelocityZ: a literal mid-air re-jump. Thrust is now
+/// an ACCELERATION added to the pawn's real velocity every tick, building from ThrustAccelerationStart
+/// to ThrustAccelerationMax over ThrustRampUpSeconds, so a press mid-fall first brakes the fall and
+/// only then climbs. The big boost is gone entirely, which disables jumping as a launch: the ground
+/// jump is CS2's own, untouched, and mid-air presses do nothing but thrust.
+///
+/// Tuning after live testing: the build-up and peak thrust were too strong (both lowered 20%), while
+/// softening a fall was too weak - and tapping jump to "fan" a fall down did close to nothing, because
+/// each tap restarted the ramp at its weakest and a quick tap could start and end between two server
+/// ticks. Two additions: FallBrakeAcceleration is extra lift that only acts while falling (and only
+/// up to stopping the fall, never into a climb), at full strength from the first tick; and every
+/// mid-air press thrusts for at least TapPuffSeconds, so each tap lands as a puff.
 /// </summary>
 public sealed class GameModifierJetpack : GameModifierBase
 {
@@ -76,7 +94,12 @@ public sealed class GameModifierJetpack : GameModifierBase
     private readonly Dictionary<int, bool> _isHoldingSpace = [];
     private readonly Dictionary<int, float> _refillDelayRemaining = [];
     private readonly Dictionary<int, float> _nextGaugeUpdateTime = [];
-    private readonly Dictionary<int, float> _lastBigBoostTime = [];
+
+    /// <summary>When the current unbroken stretch of thrust began, per player - drives the ramp-up. Absent while not thrusting.</summary>
+    private readonly Dictionary<int, float> _thrustStartTime = [];
+
+    /// <summary>A mid-air jump press keeps thrust going until this time even once released - see JetpackConfig.TapPuffSeconds.</summary>
+    private readonly Dictionary<int, float> _puffUntil = [];
 
     private float _lastTickTime = -1f;
     private Guid _spawnHookId;
@@ -84,7 +107,7 @@ public sealed class GameModifierJetpack : GameModifierBase
     public GameModifierJetpack()
     {
         Name = "Jetpack";
-        Description = "Jumping is much higher, no fall damage, and holding jump in the air fires a fuel-limited jetpack thrust with boosted air-strafe";
+        Description = "Hold jump in the air for a fuel-limited jetpack thrust that builds up gradually, with boosted air-strafe and no fall damage";
         SupportsRandomRounds = true;
         SupportsPerPlayerRandomization = true;
     }
@@ -101,8 +124,6 @@ public sealed class GameModifierJetpack : GameModifierBase
 
     protected override void OnEnabled()
     {
-        Core.GameHooks.Movement.OnJumpLegacy.Post += OnJumpLegacy;
-        Core.GameHooks.Movement.OnJumpModern.Post += OnJumpModern;
         Core.GameHooks.Movement.AirAccelerate.Pre += OnAirAccelerate;
         Core.GameHooks.Entities.TakeDamage.Pre += OnTakeDamage;
         Core.Event.OnClientKeyStateChanged += OnClientKeyStateChanged;
@@ -119,8 +140,6 @@ public sealed class GameModifierJetpack : GameModifierBase
 
     protected override void OnDisabled()
     {
-        Core.GameHooks.Movement.OnJumpLegacy.Post -= OnJumpLegacy;
-        Core.GameHooks.Movement.OnJumpModern.Post -= OnJumpModern;
         Core.GameHooks.Movement.AirAccelerate.Pre -= OnAirAccelerate;
         Core.GameHooks.Entities.TakeDamage.Pre -= OnTakeDamage;
         Core.Event.OnClientKeyStateChanged -= OnClientKeyStateChanged;
@@ -131,35 +150,8 @@ public sealed class GameModifierJetpack : GameModifierBase
         _isHoldingSpace.Clear();
         _refillDelayRemaining.Clear();
         _nextGaugeUpdateTime.Clear();
-        _lastBigBoostTime.Clear();
-    }
-
-    private void OnJumpLegacy(ref OnJumpLegacyMovementPostContext ctx) => BoostJumpVelocity(ctx.Params.Player, ctx.Params.MoveData, "legacy");
-
-    private void OnJumpModern(ref OnJumpModernMovementPostContext ctx) => BoostJumpVelocity(ctx.Params.Player, ctx.Params.MoveData, "modern");
-
-    private void BoostJumpVelocity(IPlayer? player, IMoveData moveData, string variant)
-    {
-        if (player is not { IsValid: true } || !IsAssignedTo(player.Slot))
-        {
-            return;
-        }
-
-        var now = Core.Engine.GlobalVars.CurrentTime;
-        if (_lastBigBoostTime.TryGetValue(player.Slot, out var lastBoostTime) &&
-            now - lastBoostTime < Runtime.Config.Jetpack.BigBoostCooldownSeconds)
-        {
-            return;
-        }
-
-        _lastBigBoostTime[player.Slot] = now;
-
-        moveData.Velocity = new Vector(moveData.Velocity.X, moveData.Velocity.Y, Runtime.Config.Jetpack.JumpVelocityZ);
-
-        if (Runtime.DebugMode)
-        {
-            Core.Logger.LogInformation("[CSRoll] Jetpack ({Slot}): {Variant} jump boosted, set VelocityZ={VelZ}", player.Slot, variant, Runtime.Config.Jetpack.JumpVelocityZ);
-        }
+        _thrustStartTime.Clear();
+        _puffUntil.Clear();
     }
 
     private void OnAirAccelerate(ref AirAccelerateMovementPreContext ctx)
@@ -196,6 +188,15 @@ public sealed class GameModifierJetpack : GameModifierBase
         }
 
         _isHoldingSpace[@event.PlayerId] = @event.Pressed;
+
+        // Only mid-air presses puff - a press on the ground is CS2's own jump, left untouched.
+        if (@event.Pressed &&
+            Core.PlayerManager.GetPlayer(@event.PlayerId) is { IsValid: true, IsAlive: true } player &&
+            player.PlayerPawn is { IsValid: true } pawn &&
+            pawn.GroundEntity.Value is null)
+        {
+            _puffUntil[@event.PlayerId] = Core.Engine.GlobalVars.CurrentTime + Runtime.Config.Jetpack.TapPuffSeconds;
+        }
     }
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
@@ -205,6 +206,8 @@ public sealed class GameModifierJetpack : GameModifierBase
             _fuel[player.Slot] = Runtime.Config.Jetpack.MaxFuel;
             _refillDelayRemaining[player.Slot] = 0f;
             _isHoldingSpace[player.Slot] = false;
+            _thrustStartTime.Remove(player.Slot);
+            _puffUntil.Remove(player.Slot);
         }
 
         return HookResult.Continue;
@@ -218,7 +221,9 @@ public sealed class GameModifierJetpack : GameModifierBase
     private void OnGameTick()
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
-        var deltaSeconds = _lastTickTime < 0f ? 0f : Math.Max(0f, now - _lastTickTime);
+        // Capped so a server hitch (or the first tick after a long pause) can't turn into one huge
+        // velocity kick - thrust is an acceleration now, so it scales with this directly.
+        var deltaSeconds = _lastTickTime < 0f ? 0f : Math.Clamp(now - _lastTickTime, 0f, 0.1f);
         _lastTickTime = now;
 
         foreach (var player in GetAssignedPlayers())
@@ -233,17 +238,25 @@ public sealed class GameModifierJetpack : GameModifierBase
             var fuel = _fuel.GetValueOrDefault(slot, maxFuel);
 
             var isAirborne = player.PlayerPawn?.GroundEntity.Value is null;
-            var isHoldingSpace = _isHoldingSpace.GetValueOrDefault(slot, false);
+            var isHoldingSpace = _isHoldingSpace.GetValueOrDefault(slot, false) || now < _puffUntil.GetValueOrDefault(slot, 0f);
             var isThrusting = isAirborne && isHoldingSpace && fuel > 0f;
 
             if (isThrusting)
             {
-                ApplyThrust(player);
+                if (!_thrustStartTime.TryGetValue(slot, out var thrustStart))
+                {
+                    thrustStart = now;
+                    _thrustStartTime[slot] = now;
+                }
+
+                ApplyThrust(player, now - thrustStart, deltaSeconds);
                 fuel = Math.Max(0f, fuel - (Runtime.Config.Jetpack.FuelDrainPerSecond * deltaSeconds));
                 _refillDelayRemaining[slot] = Runtime.Config.Jetpack.RefillDelaySeconds;
             }
             else
             {
+                _thrustStartTime.Remove(slot);
+
                 var delayRemaining = _refillDelayRemaining.GetValueOrDefault(slot, 0f);
                 if (delayRemaining > 0f)
                 {
@@ -268,29 +281,41 @@ public sealed class GameModifierJetpack : GameModifierBase
     }
 
     /// <summary>
-    /// Applies the actual lift: reads the pawn's real current velocity and, if its vertical component
-    /// is below ThrustSpeed, re-asserts it via IPlayer.Teleport(null, null, velocity) - a direct,
-    /// authoritative velocity overwrite on the entity itself, called every tick while thrusting,
-    /// rather than a value written into a transient per-movement-call struct that native physics
-    /// integration can silently overwrite before it ever takes visible effect. Never reduces an
-    /// already-higher upward velocity (e.g. right after the initial jump boost), and never floors
-    /// above MaxVerticalSpeed.
+    /// Applies the actual lift: adds this tick's share of the (ramping) thrust acceleration to the
+    /// pawn's real current velocity and re-asserts it via IPlayer.Teleport(null, null, velocity) - the
+    /// same authoritative overwrite the old fixed-speed floor used, called every tick while thrusting.
+    /// Gravity is still applied by the engine on top, so the net effect is (thrust - gravity): a fall
+    /// is braked first and only turns into a climb once thrust has outweighed it for long enough.
+    ///
+    /// While falling, FallBrakeAcceleration is added first and capped at zero vertical speed, so it
+    /// can stop a fall but never adds to a climb. Never pushes past MaxVerticalSpeed, and never slows
+    /// a climb that's already faster than that.
     /// </summary>
-    private void ApplyThrust(IPlayer player)
+    private void ApplyThrust(IPlayer player, float thrustingFor, float deltaSeconds)
     {
-        if (player.PlayerPawn is not { IsValid: true } pawn)
+        if (deltaSeconds <= 0f || player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
         }
 
+        var config = Runtime.Config.Jetpack;
         var velocity = pawn.AbsVelocity;
-        var thrustSpeed = Math.Min(Runtime.Config.Jetpack.ThrustSpeed, Runtime.Config.Jetpack.MaxVerticalSpeed);
-        if (velocity.Z >= thrustSpeed)
+        if (velocity.Z >= config.MaxVerticalSpeed)
         {
             return;
         }
 
-        player.Teleport(velocity: new Vector(velocity.X, velocity.Y, thrustSpeed));
+        var newZ = velocity.Z;
+        if (newZ < 0f)
+        {
+            newZ = Math.Min(newZ + (config.FallBrakeAcceleration * deltaSeconds), 0f);
+        }
+
+        var ramp = config.ThrustRampUpSeconds > 0f ? Math.Clamp(thrustingFor / config.ThrustRampUpSeconds, 0f, 1f) : 1f;
+        var acceleration = config.ThrustAccelerationStart + ((config.ThrustAccelerationMax - config.ThrustAccelerationStart) * ramp);
+        newZ = Math.Min(newZ + (acceleration * deltaSeconds), config.MaxVerticalSpeed);
+
+        player.Teleport(velocity: new Vector(velocity.X, velocity.Y, newZ));
     }
 
     /// <summary>Always shown while the modifier is active (not hidden at full/idle) - matching Flanker/ConditionalInvisibility/Vanish's persistent-HUD convention, so there's no ambiguity about whether it's rendering.</summary>
@@ -326,6 +351,7 @@ public sealed class GameModifierJetpack : GameModifierBase
         _isHoldingSpace.Remove(@event.PlayerId);
         _refillDelayRemaining.Remove(@event.PlayerId);
         _nextGaugeUpdateTime.Remove(@event.PlayerId);
-        _lastBigBoostTime.Remove(@event.PlayerId);
+        _thrustStartTime.Remove(@event.PlayerId);
+        _puffUntil.Remove(@event.PlayerId);
     }
 }

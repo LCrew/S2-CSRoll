@@ -43,13 +43,13 @@ Each round all players roll a random modifiers that apply for a round.
 | Teleport On Reload | Reloading teleports you to spawn |
 | Teleport On Hit | Getting hit teleports you to spawn |
 | One Per Reload | 1 bullet per reload |
-| No Recoil | No recoil |
+| No Recoil | No recoil, no spread |
 | Wallhack | Free cheats, for free - VAC SAFE |
 | Random Loadout | Random loadout |
 | Walking Grenadier | No guns - unlimited HE grenades |
 | Heavy Boots | Much slower - armor, helmet and bonus health |
 | Jetpack | Hold jump in the air to thrust |
-| Bunny Hop | Hold jump to auto bunny-hop |
+| Bunny Hop | Hold jump to auto bunny-hop - every hop is faster |
 | Infinite Ammo | All weapons go brrrrrr... |
 | Atomic Explosions | HE grenades deal much more damage |
 | Increased Spread | Your aim just got worse... |

@@ -10,22 +10,24 @@ using CSRoll.Core;
 namespace CSRoll.Modifiers;
 
 /// <summary>
-/// When a player's HE, molotov/incendiary, or smoke grenade detonates, spawns 2-3 mini grenades
-/// of the same type flung outward from the detonation point.
+/// When a player's HE, flashbang, molotov/incendiary, or smoke grenade detonates, spawns mini
+/// grenades of the same type flung outward from the detonation point. Flashbangs were added on
+/// request - their minis pop on their own fuse a moment after the original, so one flash turns into a
+/// short chain of them.
 ///
 /// Bug fix (this was the actual reason minis never exploded, just bounced forever, across two
 /// earlier attempts - manually setting IsLive/DetonateTime, then firing the documented
 /// "InitializeSpawnFromWorld" entity I/O input): manually building a grenade via
 /// CreateEntityByDesignerName + DispatchSpawn never reliably replicated whatever a real throw's
 /// internal setup does. SwiftlyS2 exposes purpose-built factory methods for exactly this -
-/// Core.Game.EmitHEGrenade/EmitMolotov/EmitSmokeGrenade(pos, angle, velocity, [team,] owner) -
+/// Core.Game.EmitHEGrenade/EmitFlashbang/EmitMolotov/EmitSmokeGrenade(pos, angle, velocity, [team,] owner) -
 /// which create a grenade the same way the engine's own throw code does, fuse and all. No manual
 /// entity setup needed at all now.
 ///
-/// Recursion guard - two different mechanisms since EventHegrenadeDetonate/EventSmokegrenadeDetonate
-/// carry an EntityID but EventMolotovDetonate does not:
-/// - HE/smoke: spawned mini entity indices (read straight off the Emit* return value) are tracked
-///   and skipped when they detonate themselves.
+/// Recursion guard - two different mechanisms since EventHegrenadeDetonate/EventFlashbangDetonate/
+/// EventSmokegrenadeDetonate carry an EntityID but EventMolotovDetonate does not:
+/// - HE/flashbang/smoke: spawned mini entity indices (read straight off the Emit* return value) are
+///   tracked and skipped when they detonate themselves.
 /// - Molotov/incendiary: clearing the mini's Thrower field right after creation (the original idea
 ///   here) did NOT stop the recursion in testing - EventMolotovDetonate.UserIdPlayer apparently
 ///   still resolves a valid player even once Thrower is cleared (likely via CBaseGrenade's separate
@@ -44,9 +46,20 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
 {
     private const float MolotovRecursionGuardSeconds = 1.5f;
 
+    /// <summary>
+    /// Upward share of each mini's toss, relative to ClusterSpeed. Raised from 0.3 for more spread: a
+    /// higher arc keeps a mini in the air longer, so it lands farther out before bouncing or (molotov)
+    /// bursting on impact - at 0.3 molotov minis burst within ~50 units of the original.
+    /// </summary>
+    private const float TossLoft = 0.5f;
+
+    /// <summary>Each mini's outward speed is ClusterSpeed scaled by a random factor in this +/- range, so they scatter to different distances instead of landing on one tidy ring.</summary>
+    private const float TossSpeedVariance = 0.25f;
+
     private readonly HashSet<uint> _clusterSpawnedEntityIndices = [];
     private readonly Dictionary<int, float> _lastMolotovClusterTime = [];
     private Guid _heHookId;
+    private Guid _flashbangHookId;
     private Guid _molotovHookId;
     private Guid _smokeHookId;
 
@@ -78,6 +91,7 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
     protected override void OnEnabled()
     {
         _heHookId = Core.GameEvent.HookPost<EventHegrenadeDetonate>(OnHegrenadeDetonate);
+        _flashbangHookId = Core.GameEvent.HookPost<EventFlashbangDetonate>(OnFlashbangDetonate);
         _molotovHookId = Core.GameEvent.HookPost<EventMolotovDetonate>(OnMolotovDetonate);
         _smokeHookId = Core.GameEvent.HookPost<EventSmokegrenadeDetonate>(OnSmokegrenadeDetonate);
     }
@@ -85,6 +99,7 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
     protected override void OnDisabled()
     {
         Core.GameEvent.Unhook(_heHookId);
+        Core.GameEvent.Unhook(_flashbangHookId);
         Core.GameEvent.Unhook(_molotovHookId);
         Core.GameEvent.Unhook(_smokeHookId);
         _clusterSpawnedEntityIndices.Clear();
@@ -105,6 +120,17 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
         }
 
         SpawnCluster(@event.UserIdPlayer, "hegrenade_projectile", new Vector(@event.X, @event.Y, @event.Z));
+        return HookResult.Continue;
+    }
+
+    private HookResult OnFlashbangDetonate(EventFlashbangDetonate @event)
+    {
+        if (_clusterSpawnedEntityIndices.Remove((uint)@event.EntityID))
+        {
+            return HookResult.Continue;
+        }
+
+        SpawnCluster(@event.UserIdPlayer, "flashbang_projectile", new Vector(@event.X, @event.Y, @event.Z));
         return HookResult.Continue;
     }
 
@@ -159,13 +185,18 @@ public sealed class GameModifierClusterGrenades : GameModifierBase
     {
         var angleRadians = Random.Shared.NextSingle() * MathF.Tau;
         var clusterSpeed = Runtime.Config.ClusterGrenades.ClusterSpeed;
-        var velocity = new Vector(MathF.Cos(angleRadians) * clusterSpeed, MathF.Sin(angleRadians) * clusterSpeed, clusterSpeed * 0.3f);
+        var outwardSpeed = clusterSpeed * (1f + (((Random.Shared.NextSingle() * 2f) - 1f) * TossSpeedVariance));
+        var velocity = new Vector(MathF.Cos(angleRadians) * outwardSpeed, MathF.Sin(angleRadians) * outwardSpeed, clusterSpeed * TossLoft);
         var angle = velocity.ToQAngles();
 
         switch (designerName)
         {
             case "hegrenade_projectile":
                 _clusterSpawnedEntityIndices.Add(Core.Game.EmitHEGrenade(position, angle, velocity, throwerPawn).Index);
+                break;
+
+            case "flashbang_projectile":
+                _clusterSpawnedEntityIndices.Add(Core.Game.EmitFlashbang(position, angle, velocity, throwerPawn).Index);
                 break;
 
             case "smokegrenade_projectile":

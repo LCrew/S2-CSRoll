@@ -33,7 +33,7 @@ public abstract class GameModifierVelocity : GameModifierBase
     /// on by default: Stamina is CS2's jump/land fatigue value (rises on jump and landing, reduces
     /// max speed until it decays), so clearing it removes the "jumping strips the speed bonus away"
     /// effect - desirable for Speedhack, but it would quietly buff HeavyBoots, whose whole point is
-    /// being slow. Same mechanism GameModifierBunnyHop already uses to defeat CS2's anti-bhop slowdown.
+    /// being slow. Same mechanism GameModifierBunnyHop used to defeat CS2's anti-bhop slowdown.
     /// </summary>
     protected virtual bool ShouldRemoveJumpStaminaPenalty() => false;
 
@@ -82,7 +82,7 @@ public abstract class GameModifierVelocity : GameModifierBase
 
                 // Jumping otherwise strips the speed bonus away: Stamina rises on every jump and
                 // landing and reduces max speed until it decays. Zeroed per tick so it can never
-                // accumulate - the same fix GameModifierBunnyHop already uses against the identical
+                // accumulate - the same fix GameModifierBunnyHop used to apply against the identical
                 // mechanic. Skipped while walking, so shift-walking keeps vanilla fatigue for the
                 // same reason the multiplier itself is skipped there.
                 if (removeStaminaPenalty && multiplier != 1.0f && pawn.MovementServices is { IsValid: true } movementServices)

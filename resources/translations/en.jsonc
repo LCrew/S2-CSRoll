@@ -117,7 +117,7 @@
   "OnePerReload.Description": "1 bullet per reload",
 
   "NoRecoil.DisplayName": "No Recoil",
-  "NoRecoil.Description": "No recoil",
+  "NoRecoil.Description": "No recoil, no spread",
 
   "Wallhack.DisplayName": "Wallhack",
   "Wallhack.Description": "Free cheats, for free - [red]VAC SAFE[default]",
@@ -139,7 +139,7 @@
   "Jetpack.Description": "Hold [green]jump[default] in the air to thrust",
 
   "BunnyHop.DisplayName": "Bunny Hop",
-  "BunnyHop.Description": "Hold [green]jump[default] to auto bunny-hop",
+  "BunnyHop.Description": "Hold [green]jump[default] to auto bunny-hop - every hop is faster",
 
   "InfiniteAmmo.DisplayName": "Infinite Ammo",
   "InfiniteAmmo.Description": "All weapons go brrrrrr...",

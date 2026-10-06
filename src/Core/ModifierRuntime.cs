@@ -178,11 +178,15 @@ public sealed class ModifierRuntime
     public IReadOnlyList<GameModifierBase> RegisteredModifiers => _registeredModifiers;
     public IReadOnlyList<GameModifierBase> ActiveModifiers => _activeModifiers;
 
+    /// <summary>Per-player convar overrides the server honours during that player's own simulation as well as on their client - see PlayerConVarOverrides. Shared by every modifier that needs one (BunnyHop, NoRecoil).</summary>
+    public PlayerConVarOverrides ConVarOverrides { get; }
+
     public ModifierRuntime(ISwiftlyCore core, CSRollConfig config, ICvarRollbackService cvarService)
     {
         _core = core;
         Config = config;
         _cvarService = cvarService;
+        ConVarOverrides = new PlayerConVarOverrides(core);
         MinRandomRounds = config.MinRandomRounds;
         MaxRandomRounds = config.MaxRandomRounds;
     }
@@ -311,6 +315,10 @@ public sealed class ModifierRuntime
         {
             modifier.Unregister();
         }
+
+        // After every OnDisabled has already removed (and replicated back) its own overrides - this
+        // only drops whatever a misbehaving modifier left behind, and the hooks with it.
+        ConVarOverrides.Clear();
 
         _lastActiveModifiers.Clear();
         _registeredModifiers.Clear();

@@ -267,8 +267,9 @@ public class SpeedhackConfig
     /// Zeroes CCSPlayer_MovementServices.Stamina every tick, so jumping doesn't strip the speed
     /// bonus away. Stamina is CS2's own jump/land fatigue value - it rises on every jump and landing
     /// and reduces max speed until it decays, which is why a boosted player visibly slows the moment
-    /// they leave the ground. GameModifierBunnyHop already zeroes it for exactly this reason; this
-    /// applies the same proven fix to Speedhack. Turn off to keep vanilla jump fatigue.
+    /// they leave the ground. GameModifierBunnyHop used to zero it for exactly this reason (it now
+    /// zeroes the stamina convars per player instead); this applies the same fix to Speedhack. Turn
+    /// off to keep vanilla jump fatigue.
     /// </summary>
     public bool RemoveJumpStaminaPenalty { get; set; } = true;
 }
@@ -312,16 +313,32 @@ public class HeavyBootsConfig
 
 public class JetpackConfig
 {
-    /// <summary>Upward velocity (units/sec) applied on the initial jump off the ground - CS2's own default is ~301.</summary>
-    public float JumpVelocityZ { get; set; } = 350f;
+    /// <summary>
+    /// Upward thrust, in units/sec², the moment thrust starts. Gravity (sv_gravity, 800 by default)
+    /// keeps pulling the other way, so only the part above it actually lifts - at 960 the climb starts
+    /// gently. Thrust then builds toward ThrustAccelerationMax. Lowered 20% from 1200 after live
+    /// testing found the build-up too strong.
+    /// </summary>
+    public float ThrustAccelerationStart { get; set; } = 960f;
 
-    /// <summary>Minimum seconds between initial-jump boosts, per player - stops spamming jump instead of holding it from re-triggering the big boost repeatedly and bypassing fuel entirely. Sustained lift while holding jump is unaffected; that's the separate, uncapped-duration thrust mechanic (ThrustSpeed).</summary>
-    public float BigBoostCooldownSeconds { get; set; } = 0.75f;
+    /// <summary>Upward thrust, in units/sec², once thrust has been held for ThrustRampUpSeconds. Lowered 20% from 2400 after live testing found it too high.</summary>
+    public float ThrustAccelerationMax { get; set; } = 1920f;
 
-    /// <summary>Vertical speed (units/sec) floored while holding jump in the air with fuel remaining - a gentle lift, not a sustained full jump.</summary>
-    public float ThrustSpeed { get; set; } = 140f;
+    /// <summary>
+    /// Extra upward acceleration (units/sec²) on top of the thrust, only while FALLING, and never
+    /// enough to turn the fall into a climb on its own. This is the "soften the fall" part: it applies
+    /// at full strength from the first tick of a press, so quick taps on jump fan a fall down to a soft
+    /// landing without making the jetpack climb any harder.
+    /// </summary>
+    public float FallBrakeAcceleration { get; set; } = 1500f;
 
-    /// <summary>Hard cap on upward velocity the thrust will ever floor to - keeps repeated thrust from stacking indefinitely on top of the initial jump boost.</summary>
+    /// <summary>Every jump press in mid-air thrusts for at least this long (seconds), even if released sooner, so rapid tapping registers as a series of puffs instead of being lost between server ticks.</summary>
+    public float TapPuffSeconds { get; set; } = 0.1f;
+
+    /// <summary>Seconds of continuous thrust to build from ThrustAccelerationStart up to ThrustAccelerationMax. Releasing jump starts the build-up over.</summary>
+    public float ThrustRampUpSeconds { get; set; } = 0.5f;
+
+    /// <summary>Thrust never pushes upward speed past this (units/sec). An already-faster climb is left alone rather than slowed down.</summary>
     public float MaxVerticalSpeed { get; set; } = 400f;
 
     /// <summary>Multiplier applied to CS2's normal air-accelerate value while airborne, for stronger in-flight steering during thrust.</summary>
@@ -345,8 +362,22 @@ public class JetpackConfig
 
 public class BunnyHopConfig
 {
-    /// <summary>Upward velocity (units/sec) applied on each auto-triggered jump while holding jump and grounded - CS2's own normal jump impulse is ~301, matched here since this is meant to feel like normal bhop, not a boosted jump.</summary>
-    public float JumpVelocityZ { get; set; } = 301f;
+    /// <summary>Horizontal speed (units/sec) added on every hop, along the direction the player is already moving. 0 turns the speed gain off and leaves plain auto-bhop. Lowered from 30 after live testing found speed built up too fast.</summary>
+    public float SpeedGainPerJump { get; set; } = 20f;
+
+    /// <summary>The speed gain stops adding once horizontal speed reaches this (units/sec). It never slows anyone down - speed gained by air-strafing past it is kept. Lowered from 1000 alongside SpeedGainPerJump.</summary>
+    public float MaxHopSpeed { get; set; } = 800f;
+
+    /// <summary>sv_airaccelerate for the BunnyHop player only (CS2's default is 12). Higher makes air-strafing turn sharper and gain speed faster.</summary>
+    public float AirAccelerate { get; set; } = 1000f;
+
+    /// <summary>
+    /// Applies the CS2Fixes "ServerMovementUnlock" patch while BunnyHop is active, removing CS2's
+    /// ground speed clamp so landing doesn't cut gained speed back to normal running speed. It is a
+    /// patch to the server binary, so it applies to EVERY player while BunnyHop is active (only
+    /// hold-to-hop and the speed gain are per-player). Friction still slows anyone who isn't hopping.
+    /// </summary>
+    public bool MovementUnlocker { get; set; } = true;
 }
 
 public class AtomicExplosionsConfig
@@ -358,13 +389,20 @@ public class AtomicExplosionsConfig
 public class IncreasedSpreadConfig
 {
     /// <summary>
-    /// Flat accuracy penalty forced onto the assigned player's currently held weapon every tick.
-    /// Bug fix: this defaulted to 15 - CCSWeaponBase.AccuracyPenalty normally only ranges roughly
-    /// 0-2 even during a full-auto spray, so forcing it to 15 every tick made bullets land
-    /// essentially at random regardless of aim, reported as far too strong. Lowered to a value that
-    /// still clearly and noticeably worsens accuracy without making the weapon unusable.
+    /// Inaccuracy forced onto the assigned player's held weapon every tick (CCSWeaponBase's
+    /// AccuracyPenalty), in the weapon's own units: roughly the tangent of the widest angle a bullet
+    /// can stray. For scale, a standing rifle sits around 0.005, a rifle fired while running around
+    /// 0.15, while jumping around 0.4. 0.15 is "always shooting like you're running": a bullet strays up
+    /// to ~8.5 degrees, still fine up close and a spray at range.
+    ///
+    /// Bug fix: renamed from AccuracyPenalty so stale values stop applying. The old doc assumed the
+    /// field "normally ranges 0-2", so the default went 15, then 2, then 1.15 - up to ~86, ~63 and ~49
+    /// degrees of stray. SwiftlyS2 only writes config.jsonc when it doesn't exist yet and never updates
+    /// it, so whichever of those was the default when a server's file was created was still in force
+    /// ("still shoots 80 degrees while standing still"). A new key name means the file's old value is
+    /// simply ignored and this default applies.
     /// </summary>
-    public float AccuracyPenalty { get; set; } = 1.15f;
+    public float Inaccuracy { get; set; } = 0.15f;
 }
 
 public class PoisonousSmokeConfig
@@ -419,7 +457,7 @@ public class ClusterGrenadesConfig
     /// <summary>Most mini grenades a detonation can split into (inclusive) - rolled fresh per detonation, so one HE could split into 2 while a smoke thrown moments later splits into 4.</summary>
     public int MaxClusterCount { get; set; } = 4;
 
-    /// <summary>Outward toss speed given to each spawned mini grenade.</summary>
+    /// <summary>Outward toss speed given to each spawned mini grenade (each mini varies +/-25% around it, and is lofted upward at half this speed).</summary>
     public float ClusterSpeed { get; set; } = 250f;
 }
 

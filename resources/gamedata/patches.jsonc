@@ -1,1 +1,10 @@
-{}
+{
+    // Turns the clamp's conditional jump (signatures.jsonc) into an unconditional one, so grounded
+    // speed is never clamped - CS2Fixes's current "ServerMovementUnlock" patch bytes. Server-wide by
+    // nature; GameModifierBunnyHop applies it in OnEnabled and reverts it in OnDisabled.
+    "CSRollServerMovementUnlock": {
+        "signature": "CSRollServerMovementUnlock",
+        "windows": "E9 B0 00 00 00 90",
+        "linux": "EB"
+    }
+}

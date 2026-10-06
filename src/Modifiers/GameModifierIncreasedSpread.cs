@@ -44,7 +44,7 @@ public sealed class GameModifierIncreasedSpread : GameModifierBase
 
     private void ApplyToAllPlayers()
     {
-        var penalty = Runtime.Config.IncreasedSpread.AccuracyPenalty;
+        var penalty = Runtime.Config.IncreasedSpread.Inaccuracy;
         foreach (var player in Core.PlayerManager.GetAlive())
         {
             if (IsAssignedTo(player.Slot) && player.PlayerPawn?.WeaponServices?.ActiveWeapon.Value is { IsValid: true } weapon)

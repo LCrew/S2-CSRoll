@@ -28,6 +28,12 @@ namespace CSRoll.Modifiers;
 /// own incompatibilities keep filtering out candidates that are about to become perfectly legal. The
 /// side effect is that the carrier has no extra modifier for the few seconds the roll is on screen,
 /// which reads correctly - the HUD says "Rolling" for exactly that window.
+///
+/// Bug fix: nothing checked whether the carrier was alive, so a dead player's modifier kept being
+/// thrown away and re-rolled for the rest of the round - rolls, sounds and chat announcements for
+/// someone who wasn't playing. The countdown now pauses at death (a roll already on screen is
+/// abandoned, so nothing lands on a corpse) and resumes with the time it had left if the carrier comes
+/// back mid-round (Revive, a respawn mode). Whatever they were holding when they died stays theirs.
 /// </summary>
 public sealed class GameModifierButterflyEffect : GameModifierBase
 {
@@ -64,6 +70,9 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
     private readonly Dictionary<int, GameModifierBase> _granted = [];
     private readonly Dictionary<int, float> _nextSwapTime = [];
     private readonly Dictionary<int, SpinState> _spins = [];
+
+    /// <summary>Seconds that were left on a carrier's countdown when they died - present exactly while they're dead, and handed back as a fresh deadline when they're alive again.</summary>
+    private readonly Dictionary<int, float> _pausedRemaining = [];
 
     public GameModifierButterflyEffect()
     {
@@ -139,6 +148,7 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
             ReleaseGrant(slot);
             _nextSwapTime.Remove(slot);
             _spins.Remove(slot);
+            _pausedRemaining.Remove(slot);
         }
     }
 
@@ -157,6 +167,7 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
         _granted.Clear();
         _nextSwapTime.Clear();
         _spins.Clear();
+        _pausedRemaining.Clear();
     }
 
     /// <summary>Removes the dictionary entry BEFORE revoking, so the OnSlotsRemoved that revoking may trigger on the granted modifier can't re-enter this and revoke it a second time.</summary>
@@ -176,6 +187,17 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
         foreach (var player in GetAssignedPlayers())
         {
             var slot = player.Slot;
+
+            if (!player.IsAlive)
+            {
+                PauseWhileDead(slot, now);
+                continue;
+            }
+
+            if (_pausedRemaining.Remove(slot, out var remaining))
+            {
+                _nextSwapTime[slot] = now + remaining;
+            }
 
             if (_spins.TryGetValue(slot, out var spin))
             {
@@ -197,6 +219,30 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
 
             PublishIdleHud(slot, now);
         }
+    }
+
+    /// <summary>
+    /// Freezes the countdown the first tick a carrier is seen dead. A roll already on screen is
+    /// abandoned rather than landed: its countdown was advanced a full interval when it started, so
+    /// the time saved is what was left until THAT roll would have landed - on coming back, the roll
+    /// simply starts over from the top and lands on the same schedule. The HUD block goes too, so a
+    /// spectating corpse isn't left looking at a frozen timer.
+    /// </summary>
+    private void PauseWhileDead(int slot, float now)
+    {
+        if (_pausedRemaining.ContainsKey(slot))
+        {
+            return;
+        }
+
+        var deadline = _nextSwapTime.GetValueOrDefault(slot, now);
+        if (_spins.Remove(slot))
+        {
+            deadline -= Runtime.Config.ButterflyEffect.SwapIntervalSeconds;
+        }
+
+        _pausedRemaining[slot] = Math.Max(0f, deadline - now);
+        ClearHud(slot);
     }
 
     private void StartSpin(IPlayer player, float now)
@@ -325,5 +371,6 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
         _granted.Remove(@event.PlayerId);
         _nextSwapTime.Remove(@event.PlayerId);
         _spins.Remove(@event.PlayerId);
+        _pausedRemaining.Remove(@event.PlayerId);
     }
 }
