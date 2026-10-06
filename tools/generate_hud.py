@@ -17,6 +17,7 @@ declared above their first use - an unparsable keyframe throws the whole stylesh
 """
 from __future__ import annotations
 
+import math
 import pathlib
 import sys
 
@@ -34,11 +35,11 @@ GAUGES = 3          # floating gauges above the bottom HUD
 FILL_STEPS = 100    # bar resolution: 1% per step, driven by clip from the server every tick (width resets when text updates)
 LIST_OFFSETS = [360, 400, 440, 480, 520]   # list top margins (px @1080p) - radar scale varies per player
 
-TILES = 30          # carousel tiles
+TILES = 60          # carousel tiles
 START_TILE = 3      # tile under the marker when the spin starts
-WIN_TILE = 26       # tile the spin lands on - the only per-player tile
+WIN_TILE = 55       # tile the spin lands on - the only per-player tile; 4 more sit right of it at rest
 TILE = 64           # px
-TILE_GAP = 12       # px - keeps TILE + TILE_GAP a multiple of POS_QUANTUM
+TILE_GAP = 12       # px
 REEL_WIDTH = 600    # px
 REEL_PAD = 8        # px of plate above and below the tiles
 ROLL_TOP = 572      # px @1080p - the block ends at 736, clear of CS2's status label (~762) and the gauges
@@ -46,12 +47,26 @@ CARD_GAP = 4        # px between the reel and the caption card
 CARD_HEIGHT = 80    # px, fixed so the block's bottom edge is guaranteed
 NOTCH = 8           # px square, rotated 45deg and half-clipped by the plate into the marker triangles
 SHADE_W = 168       # px of edge fade on each side of the reel
-SPIN_SECONDS = 4.0
-# The reel is moved by the server, one position class per tick: a CSS animation started by a server
-# class write never ran in game. Positions are POS_QUANTUM px apart across the whole travel.
-POS_QUANTUM = 4     # px
-# Ease-out the server also evaluates to time each tick sound to a tile crossing the marker.
-BEZIER = (0.08, 0.70, 0.12, 1.00)
+SHINE_W = 160       # px - the light sweep's travelling panel; the band inside it is SHINE_BAND wide
+SHINE_BAND = 56     # px
+SPIN_SECONDS = 6.0
+# Ease-out power the server moves the reel along, 1 - (1 - t)^SPIN_POWER, and times each tick sound by.
+# Its top speed is SPIN_POWER x the average - about 27px a tick, well under half a tile, so the reel
+# never strobes backwards at 64 updates a second. Higher powers stop it visibly before the landing.
+SPIN_POWER = 2.6
+
+# Everything that moves is moved by the server, one class per tick: a CSS animation started by a server
+# class write never ran in game. The reel's position is split in two so it can step in half pixels
+# without thousands of classes (the entity interns at most 1024 class names): the strip jumps whole
+# tiles (c0..cN) and a track around it slides the rest (h0..h151, half a pixel each).
+FINE_PER_PX = 2
+
+# Frame timelines on csr_roll, one class per server tick (64 a second): in0..N as the reel appears,
+# win0..N from the landing, out0..N as the whole reveal fades away.
+FPS = 64
+IN_FRAMES = 16      # 0.25s
+WIN_FRAMES = 64     # 1.0s
+OUT_FRAMES = 24     # 0.375s
 
 FALLBACK_ICON = "InfiniteRoll"
 
@@ -69,9 +84,10 @@ STEP = TILE + TILE_GAP
 REEL_HEIGHT = TILE + 2 * REEL_PAD
 STRIP_WIDTH = TILES * STEP
 STRIP_LEFT = REEL_WIDTH // 2 - (START_TILE * STEP + TILE // 2)
-TRAVEL = (WIN_TILE - START_TILE) * STEP
-assert TRAVEL % POS_QUANTUM == 0, "TILE + TILE_GAP must be a multiple of POS_QUANTUM"
-POS_STEPS = TRAVEL // POS_QUANTUM
+COARSE_STEPS = WIN_TILE - START_TILE
+TRAVEL = COARSE_STEPS * STEP
+FINE_STEPS = STEP * FINE_PER_PX
+assert WIN_TILE + 4 < TILES, "the reel needs tiles to the right of the winner at rest"
 
 # CS2's own font family, available once the layout includes csgostyles (below). Weight is a separate
 # property - "Stratum2 Bold" is not a family name, and an unknown family silently falls back.
@@ -118,8 +134,10 @@ def layout() -> str:
           <Panel class="CsrBar"><Panel id="csr_g{i}_fill" class="CsrFill" /></Panel>
         </Panel>''' for i in range(GAUGES))
 
+    # Only the winner gets the landing flash layer, painted over its icon.
     tiles = "\n".join(
-        f'''            <Panel id="csr_t{i}" class="CsrTile"><Panel id="csr_t{i}_ico" class="CsrIco CsrTileIco" /></Panel>'''
+        f'''              <Panel id="csr_t{i}" class="CsrTile"><Panel id="csr_t{i}_ico" class="CsrIco CsrTileIco" />'''
+        + ('<Panel class="CsrTileFlash" />' if i == WIN_TILE else "") + "</Panel>"
         for i in range(TILES))
 
     return f'''<!--
@@ -144,23 +162,29 @@ def layout() -> str:
       <Panel id="csr_roll" class="CsrRoll" hittest="false">
         <Panel class="CsrReel">
           <Panel class="CsrSlot" />
-          <Panel id="csr_strip" class="CsrStrip">
+          <Panel id="csr_track" class="CsrTrack">
+            <Panel id="csr_strip" class="CsrStrip">
 {tiles}
+            </Panel>
           </Panel>
           <Panel class="CsrShade CsrShadeL" />
           <Panel class="CsrShade CsrShadeR" />
+          <Panel class="CsrShine CsrShineReel"><Panel class="CsrShineBand" /></Panel>
           <Panel class="CsrRail CsrRailTop" />
           <Panel class="CsrRail CsrRailBottom" />
           <Panel class="CsrNotch CsrNotchTop" />
           <Panel class="CsrNotch CsrNotchBottom" />
         </Panel>
-        <Panel id="csr_card" class="CsrCard">
-          <Panel id="csr_card_ico" class="CsrIco CsrCardIco" />
-          <Panel class="CsrCardText">
-            <Label id="csr_card_cat" class="CsrCardCat" text="{{s:cat}}" />
-            <Label id="csr_card_name" class="CsrCardName" text="{{s:name}}" />
-            <Label id="csr_card_desc" class="CsrCardDesc" text="{{s:desc}}" />
+        <Panel class="CsrCardClip">
+          <Panel id="csr_card" class="CsrCard">
+            <Panel id="csr_card_ico" class="CsrIco CsrCardIco" />
+            <Panel class="CsrCardText">
+              <Label id="csr_card_cat" class="CsrCardCat" text="{{s:cat}}" />
+              <Label id="csr_card_name" class="CsrCardName" text="{{s:name}}" />
+              <Label id="csr_card_desc" class="CsrCardDesc" text="{{s:desc}}" />
+            </Panel>
           </Panel>
+          <Panel class="CsrShine CsrShineCard"><Panel class="CsrShineBand" /></Panel>
         </Panel>
       </Panel>
     </Panel>
@@ -183,6 +207,75 @@ def fade(stops: list[tuple[float, str]], vertical: bool = False) -> str:
     inner = f", {inner}" if inner else ""
     end = "0% 100%" if vertical else "100% 0%"
     return f"gradient( linear, 0% 0%, {end}, from( {first[1]} ){inner}, to( {last[1]} ) )"
+
+
+def num(value: float) -> str:
+    """A CSS number with no trailing zeros: 0.5, 12, -37.25."""
+    text = f"{value:.3f}".rstrip("0").rstrip(".")
+    return "0" if text in ("-0", "") else text
+
+
+def ease_out(t: float) -> float:
+    return 1 - (1 - t) ** 3
+
+
+def ease_in_out(t: float) -> float:
+    return (1 - math.cos(math.pi * t)) / 2
+
+
+def span(n: int, start: int, frames: int) -> float | None:
+    """Where frame n sits (0-1) in a stretch of `frames` frames starting at `start`; None outside it."""
+    return (n - start) / frames if start <= n < start + frames else None
+
+
+def roll_frames() -> list[str]:
+    """
+    The reveal's three timelines, one class per server tick on csr_roll: in{n} as the reel appears,
+    win{n} from the landing, out{n} as the whole reveal fades. A frame only carries the properties
+    that are moving in it - outside a stretch the element's resting rule applies, so the last frame of
+    every timeline is also its resting state.
+    """
+    lines = ["/* ---------- reveal timelines (one class per tick on csr_roll) ---------- */"]
+    rule = lambda sel, decls: lines.append(f"{sel} {{ {' '.join(decls)} }}")
+
+    for n in range(IN_FRAMES):
+        k = ease_out(n / IN_FRAMES)
+        rule(f".CsrRoll.on.in{n}", [f"opacity: {num(k)};", f"transform: translatey( {num((1 - k) * 14)}px );"])
+
+    drop = CARD_GAP + CARD_HEIGHT
+    for n in range(WIN_FRAMES):
+        f = f".CsrRoll.win{n}"
+        # The winner stamps in: a white flash over its icon and a quick swell, settling in ~0.3s.
+        if (t := span(n, 0, 18)) is not None:
+            rule(f"{f} .CsrTileFlash", [f"opacity: {num(0.65 * (1 - ease_out(t)))};"])
+        if (t := span(n, 0, 4)) is not None:
+            s = 1 + 0.16 * ease_out(t)
+            rule(f"{f} .CsrTile.won", [f"transform: scale3d( {num(s)}, {num(s)}, 1 );"])
+        if (t := span(n, 4, 14)) is not None:
+            s = 1 + 0.16 * (1 - ease_in_out(t))
+            rule(f"{f} .CsrTile.won", [f"transform: scale3d( {num(s)}, {num(s)}, 1 );"])
+        # The rest of the reel steps back to the `landed` look.
+        if (t := span(n, 0, 20)) is not None:
+            k = ease_out(t)
+            rule(f".CsrRoll.landed.win{n} .CsrTile", [f"opacity: {num(1 - 0.65 * k)};", f"saturation: {num(1 - 0.7 * k)};"])
+            rule(f".CsrRoll.landed.win{n} .CsrSlot", [f"opacity: {num(1 - k)};"])
+        # The card slides down out of the reel's bottom edge, then its text rises in.
+        if (t := span(n, 0, 22)) is not None:
+            k = ease_out(t)
+            rule(f"{f} .CsrCard.on", [f"transform: translatey( -{num(drop * (1 - k))}px );", f"opacity: {num(min(1.0, t * 1.8))};"])
+        if (t := span(n, 6, 22)) is not None:
+            k = ease_out(t)
+            rule(f"{f} .CsrCardText", [f"opacity: {num(k)};", f"transform: translatey( {num((1 - k) * 8)}px );"])
+        # Light sweeps left to right, over the reel first, then the card.
+        for panel, start, frames in (("CsrShineReel", 2, 36), ("CsrShineCard", 20, 38)):
+            if (t := span(n, start, frames)) is not None:
+                x = -SHINE_W + ease_in_out(t) * (REEL_WIDTH + SHINE_W)
+                rule(f"{f} .{panel}", [f"transform: translatex( {num(x)}px );"])
+
+    for n in range(OUT_FRAMES + 1):
+        k = ease_in_out(n / OUT_FRAMES)
+        rule(f".CsrRoll.on.out{n}", [f"opacity: {num(1 - k)};", f"transform: translatey( -{num(10 * k)}px );"])
+    return lines
 
 
 def stylesheet(icon_names: list[str]) -> str:
@@ -426,6 +519,7 @@ def stylesheet(icon_names: list[str]) -> str:
     rail = fade([(0, "#ffffff14"), (0.40, "#ffffff33"), (0.47, "#ffffff40"), (0.50, GOLD),
                  (0.53, "#ffffff40"), (0.60, "#ffffff33"), (1, "#ffffff14")])
     tile = fade([(0, "#ffffff0f"), (1, "#ffffff05")], vertical=True)
+    shine = fade([(0, "#ffffff00"), (0.35, "#ffffff14"), (0.5, "#ffffff40"), (0.65, "#ffffff14"), (1, "#ffffff00")])
     w(f""".CsrRoll
 {{
 	flow-children: down;
@@ -442,7 +536,7 @@ def stylesheet(icon_names: list[str]) -> str:
 }}
 
 /* The plate: a crisp dark translucent rectangle, like CS2's own status boxes. Its children overlay in
-   paint order - slot, strip, shades, rails, notches. */
+   paint order - slot, track, shades, shine, rails, notches. */
 .CsrReel
 {{
 	width: {REEL_WIDTH}px;
@@ -461,14 +555,21 @@ def stylesheet(icon_names: list[str]) -> str:
 	background-color: {slot};
 }}
 
-/* Moved by the server one position class (p0..pN) per tick - see POS_QUANTUM. */
+/* The reel's position in two parts: the track slides up to one tile in half pixels (h0..hN), the
+   strip inside it jumps whole tiles (c0..cN). */
+.CsrTrack
+{{
+	width: {STRIP_WIDTH}px;
+	height: {TILE}px;
+	margin-left: {STRIP_LEFT}px;
+	margin-top: {REEL_PAD}px;
+}}
+
 .CsrStrip
 {{
 	flow-children: right;
 	width: {STRIP_WIDTH}px;
 	height: {TILE}px;
-	margin-left: {STRIP_LEFT}px;
-	margin-top: {REEL_PAD}px;
 }}
 
 /* An item card: neutral top, category wash at the bottom, 1px top highlight, 2px category bar.
@@ -492,8 +593,7 @@ def stylesheet(icon_names: list[str]) -> str:
 	vertical-align: center;
 }}
 
-/* Winner: full ring + glow + solid fill (category values below). No scale - with no transition it
-   would pop, and it softens the bitmap. */
+/* Winner: full ring + glow + solid fill (category values below). Its landing pop is in the win frames. */
 .CsrTile.won
 {{
 	border: 2px solid #ffffff;
@@ -505,6 +605,16 @@ def stylesheet(icon_names: list[str]) -> str:
 .CsrTile.won .CsrIco
 {{
 	wash-color: #ffffff;
+}}
+
+/* Only the winning tile has one: a white flash over the icon at the landing, faded by the win frames. */
+.CsrTileFlash
+{{
+	width: 100%;
+	height: 100%;
+	border-radius: 2px;
+	background-color: #ffffff;
+	opacity: 0;
 }}
 
 /* Edge vignette, IN FRONT of the strip: outer tiles fade into the plate. */
@@ -524,6 +634,36 @@ def stylesheet(icon_names: list[str]) -> str:
 {{
 	horizontal-align: right;
 	background-color: {shade_r};
+}}
+
+/* The light sweep, one over the reel and one over the card: a travelling panel (parked off to the left
+   until a win frame moves it) clipping a tilted soft band. */
+.CsrShine
+{{
+	width: {SHINE_W}px;
+	overflow: clip clip;
+	transform: translatex( -{SHINE_W}px );
+}}
+
+.CsrShineReel
+{{
+	height: {REEL_HEIGHT}px;
+}}
+
+.CsrShineCard
+{{
+	height: {CARD_HEIGHT}px;
+	margin-top: {CARD_GAP}px;
+}}
+
+.CsrShineBand
+{{
+	width: {SHINE_BAND}px;
+	height: {2 * max(REEL_HEIGHT, CARD_HEIGHT)}px;
+	horizontal-align: center;
+	vertical-align: center;
+	transform: rotatez( 20deg );
+	background-color: {shine};
 }}
 
 /* Hairline rails, brightening toward the centre with a gold glint at the notch. */
@@ -573,7 +713,8 @@ def stylesheet(icon_names: list[str]) -> str:
 	saturation: 0.3;
 }}
 
-.CsrRoll.landed .CsrTile.won
+/* Five classes, so it outranks the four-class dimming steps in the win frames too. */
+.CsrRoll.landed .CsrStrip .CsrTile.won
 {{
 	opacity: 1;
 	saturation: 1;
@@ -585,6 +726,15 @@ def stylesheet(icon_names: list[str]) -> str:
 }}
 
 /* ---------- reveal card: compact centred caption under the winner ---------- */
+/* Clips the card as it slides down out of the reel's bottom edge. Taller than the card so its shadow
+   keeps most of its fall-off. */
+.CsrCardClip
+{{
+	width: 100%;
+	height: {CARD_GAP + CARD_HEIGHT + 24}px;
+	overflow: clip clip;
+}}
+
 .CsrCard
 {{
 	flow-children: right;
@@ -659,8 +809,11 @@ def stylesheet(icon_names: list[str]) -> str:
 	text-overflow: ellipsis;
 }}
 """)
-    for n in range(POS_STEPS + 1):
-        w(f".CsrStrip.p{n} {{ transform: translate3d( -{n * POS_QUANTUM}px, 0px, 0px ); }}")
+    for n in range(COARSE_STEPS + 1):
+        w(f".CsrStrip.c{n} {{ transform: translate3d( -{n * STEP}px, 0px, 0px ); }}")
+    w("")
+    for n in range(FINE_STEPS):
+        w(f".CsrTrack.h{n} {{ transform: translate3d( -{num(n / FINE_PER_PX)}px, 0px, 0px ); }}")
     w("")
     for cat, colour in CATEGORIES.items():
         wash = fade([(0, "#ffffff0d"), (0.5, "#ffffff08"), (1, f"{colour}38")], vertical=True)
@@ -670,6 +823,8 @@ def stylesheet(icon_names: list[str]) -> str:
         w(f".CsrTile.won.cat-{cat} {{ border-color: {colour}; background-color: {won}; box-shadow: {colour}80 0px 0px 12px 0px; }}")
         w(f".CsrCard.cat-{cat} {{ border-top-color: {colour}; background-color: {card}; }}")
         w(f".CsrCard.cat-{cat} .CsrCardCat {{ color: {colour}; }}")
+    w("")
+    out.extend(roll_frames())
     w("")
 
     # ---------- prompt ----------
@@ -734,6 +889,7 @@ public static partial class HudLayout
     public const string ListPanel = "csr_list";
     public const string ListTitle = "csr_list_title";
     public const string RollPanel = "csr_roll";
+    public const string Track = "csr_track";
     public const string Strip = "csr_strip";
     public const string Card = "csr_card";
     public const string CardIcon = "csr_card_ico";
@@ -750,9 +906,16 @@ public static partial class HudLayout
     public const int StartTile = {START_TILE};
     public const int WinTile = {WIN_TILE};
     public const float SpinSeconds = {SPIN_SECONDS}f;
-    public const int PositionQuantum = {POS_QUANTUM};
-    public const int PositionSteps = {POS_STEPS};
-    public static readonly (float X1, float Y1, float X2, float Y2) SpinCurve = ({BEZIER[0]}f, {BEZIER[1]}f, {BEZIER[2]}f, {BEZIER[3]}f);
+    public const float SpinPower = {SPIN_POWER}f;
+    public const int Step = {STEP};
+    public const int CoarseSteps = {COARSE_STEPS};
+    public const int FinePerPixel = {FINE_PER_PX};
+    public const int FineSteps = {FINE_STEPS};
+
+    public const int Fps = {FPS};
+    public const int InFrames = {IN_FRAMES};
+    public const int WinFrames = {WIN_FRAMES};
+    public const int OutFrames = {OUT_FRAMES};
 
     public const string FallbackIcon = "{FALLBACK_ICON}";
 
@@ -778,7 +941,11 @@ public static partial class HudLayout
     public static string IconClass(string icon) => $"ico-{{icon}}";
     public static string CategoryClass(string category) => $"cat-{{category}}";
     public static string FillClass(int step) => $"f{{step}}";
-    public static string PositionClass(int step) => $"p{{step}}";
+    public static string CoarseClass(int step) => $"c{{step}}";
+    public static string FineClass(int step) => $"h{{step}}";
+    public static string InClass(int frame) => $"in{{frame}}";
+    public static string WinClass(int frame) => $"win{{frame}}";
+    public static string OutClass(int frame) => $"out{{frame}}";
     public static string ListOffsetClass(int offset) => $"y{{offset}}";
 
     /// <summary>Text variable names, as written in the layout's {{s:...}} slots.</summary>

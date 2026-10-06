@@ -53,7 +53,9 @@ public sealed class CustomHudService
         public Action? OnLanded { get; set; }
         public float StartedAt { get; init; }
         public int NextTick { get; set; }
+        public float LastTickSoundAt { get; set; } = float.MinValue;
         public bool Landed { get; set; }
+        public float LandedAt { get; set; }
         public float HideAt { get; set; }
     }
 
@@ -73,8 +75,11 @@ public sealed class CustomHudService
     private readonly Dictionary<int, PlayerState> _players = [];
     private readonly Dictionary<(string Panel, string Group), string> _globalExclusive = [];
 
-    /// <summary>When each tile boundary crosses the marker, in seconds from the start of a spin - the same curve the stylesheet animates with, so every tick lands on a tile.</summary>
+    /// <summary>When each tile boundary crosses the marker, in seconds from the start of a spin - the same curve the reel moves along, so every tick lands on a tile.</summary>
     private static readonly float[] TickTimes = BuildTickTimes();
+
+    /// <summary>Tick sounds closer together than this are skipped: at the start of a spin tiles cross faster than the sound can play distinctly.</summary>
+    private const float MinTickSoundGapSeconds = 0.05f;
 
     private CCSCustomHudLayout? _layout;
     private bool _installed;
@@ -230,8 +235,8 @@ public sealed class CustomHudService
 
     /// <summary>
     /// Plays the carousel for one player and lands it on the first of their modifiers after
-    /// HudLayout.SpinSeconds - the same moment the center-HTML spin lands - then invokes onLanded, which
-    /// is the roll's own commit (ModifierRuntime's Reveal). If the HUD can't play it, the commit happens
+    /// HudLayout.SpinSeconds, then invokes onLanded, which is the roll's own commit (ModifierRuntime's
+    /// Reveal). If the HUD can't play it, the commit happens
     /// immediately instead: a modifier is never held back by the HUD.
     /// </summary>
     public void PlayRoll(int slot, IReadOnlyList<GameModifierBase> modifiers, Action? onLanded)
@@ -263,7 +268,9 @@ public sealed class CustomHudService
         SetExclusive(slot, state, HudLayout.TileIcon(HudLayout.WinTile), "icon", HudLayout.IconClass(HudCatalog.Icon(primary)));
         SetExclusive(slot, state, HudLayout.Tile(HudLayout.WinTile), "cat", HudLayout.CategoryClass(HudCatalog.Category(primary)));
 
-        SetExclusive(slot, state, HudLayout.Strip, "pos", HudLayout.PositionClass(0));
+        // Same tick as `on`, so the first frame the player sees is the fade-in's first.
+        SetReelPosition(slot, state, 0f);
+        SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.InClass(0));
         SetFlag(slot, state, HudLayout.RollPanel, HudLayout.On, true);
 
         state.Roll = new RollState { Primary = primary, Count = modifiers.Count, OnLanded = onLanded, StartedAt = now };
@@ -280,36 +287,80 @@ public sealed class CustomHudService
             elapsed = HudLayout.SpinSeconds;
         }
 
-        // The server is the animation: one position per tick along the eased curve.
-        var progress = EaseProgress(Math.Clamp(elapsed / HudLayout.SpinSeconds, 0f, 1f));
-        var position = (int)MathF.Round(progress * HudLayout.PositionSteps);
-        SetExclusive(slot, state, HudLayout.Strip, "pos", HudLayout.PositionClass(Math.Clamp(position, 0, HudLayout.PositionSteps)));
-
-        while (roll.NextTick < TickTimes.Length && elapsed >= TickTimes[roll.NextTick])
+        if (!roll.Landed)
         {
-            roll.NextTick++;
-            CSRollUtils.PlaySoundToPlayer(player, _runtime.Config.SpinReveal.TickSoundEventName, _runtime.Config.SpinReveal.TickSoundVolume);
-        }
+            // The server is the animation: the reel's position along the eased curve, every tick.
+            SetReelPosition(slot, state, EaseProgress(Math.Clamp(elapsed / HudLayout.SpinSeconds, 0f, 1f)));
+            SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.InClass(Math.Min(Frame(elapsed), HudLayout.InFrames)));
 
-        if (!roll.Landed && elapsed >= HudLayout.SpinSeconds)
-        {
+            while (roll.NextTick < TickTimes.Length && elapsed >= TickTimes[roll.NextTick])
+            {
+                roll.NextTick++;
+                if (now - roll.LastTickSoundAt >= MinTickSoundGapSeconds)
+                {
+                    roll.LastTickSoundAt = now;
+                    CSRollUtils.PlaySoundToPlayer(player, _runtime.Config.SpinReveal.TickSoundEventName, _runtime.Config.SpinReveal.TickSoundVolume);
+                }
+            }
+
+            if (elapsed < HudLayout.SpinSeconds)
+            {
+                return;
+            }
+
+            // Landing: the win timeline starts in the same tick as the ring, the card and `landed`.
             roll.Landed = true;
-            roll.HideAt = now + Math.Max(0.5f, Cfg.RevealHoldSeconds);
+            roll.LandedAt = now;
+            roll.HideAt = now + Math.Max((float)HudLayout.WinFrames / HudLayout.Fps + 0.5f, Cfg.RevealHoldSeconds);
             ShowCard(slot, state, roll);
             SetFlag(slot, state, HudLayout.Tile(HudLayout.WinTile), HudLayout.Won, true);
             SetFlag(slot, state, HudLayout.RollPanel, HudLayout.Landed, true);
+            SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.WinClass(0));
 
             var onLanded = roll.OnLanded;
             roll.OnLanded = null;
             InvokeSafely(onLanded);
+            return;
         }
 
-        if (roll.Landed && now >= roll.HideAt)
+        // The map clock restarted mid-hold: skip straight to the fade.
+        if (now < roll.LandedAt)
         {
-            SetFlag(slot, state, HudLayout.Card, HudLayout.On, false);
-            SetFlag(slot, state, HudLayout.RollPanel, HudLayout.On, false);
-            state.Roll = null;
+            roll.LandedAt = roll.HideAt = now;
         }
+
+        if (now < roll.HideAt)
+        {
+            SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.WinClass(Math.Min(Frame(now - roll.LandedAt), HudLayout.WinFrames)));
+            return;
+        }
+
+        var fade = Frame(now - roll.HideAt);
+        if (fade < HudLayout.OutFrames)
+        {
+            SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.OutClass(fade));
+            return;
+        }
+
+        SetFlag(slot, state, HudLayout.Card, HudLayout.On, false);
+        SetFlag(slot, state, HudLayout.RollPanel, HudLayout.On, false);
+        state.Roll = null;
+    }
+
+    /// <summary>Which timeline frame (HudLayout.Fps a second) a moment falls on. The nudge keeps float error from holding a frame back a tick.</summary>
+    private static int Frame(float seconds) => Math.Max(0, (int)((seconds * HudLayout.Fps) + 0.01f));
+
+    /// <summary>
+    /// Moves the reel to a point (0-1) along its travel, in half-pixel steps: the strip jumps whole tiles
+    /// and the track around it slides the remainder. Both land in the same tick's update, so the client
+    /// never draws one without the other.
+    /// </summary>
+    private void SetReelPosition(int slot, PlayerState state, float progress)
+    {
+        var total = HudLayout.CoarseSteps * HudLayout.FineSteps;
+        var steps = Math.Clamp((int)MathF.Round(progress * total), 0, total);
+        SetExclusive(slot, state, HudLayout.Strip, "pos", HudLayout.CoarseClass(steps / HudLayout.FineSteps));
+        SetExclusive(slot, state, HudLayout.Track, "pos", HudLayout.FineClass(steps % HudLayout.FineSteps));
     }
 
     private void ShowCard(int slot, PlayerState state, RollState roll)
@@ -366,55 +417,23 @@ public sealed class CustomHudService
         }
     }
 
-    private static float Bezier(float t, float a, float b)
-    {
-        var u = 1f - t;
-        return (3f * u * u * t * a) + (3f * u * t * t * b) + (t * t * t);
-    }
-
-    /// <summary>The eased curve (HudLayout.SpinCurve, a cubic-bezier) solved for the curve parameter whose first coordinate reaches target - the y side for a distance, the x side for a time.</summary>
-    private static float SolveCurve(float target, bool forDistance)
-    {
-        var (x1, y1, x2, y2) = HudLayout.SpinCurve;
-        float lo = 0f, hi = 1f;
-        for (var i = 0; i < 30; i++)
-        {
-            var mid = (lo + hi) / 2f;
-            var value = forDistance ? Bezier(mid, y1, y2) : Bezier(mid, x1, x2);
-            if (value < target)
-            {
-                lo = mid;
-            }
-            else
-            {
-                hi = mid;
-            }
-        }
-
-        return (lo + hi) / 2f;
-    }
-
-    /// <summary>How far along the reel is (0-1) at a fraction of the spin's duration.</summary>
-    private static float EaseProgress(float timeFraction)
-    {
-        var (_, y1, _, y2) = HudLayout.SpinCurve;
-        return Bezier(SolveCurve(timeFraction, forDistance: false), y1, y2);
-    }
+    /// <summary>How far along the reel is (0-1) at a fraction of the spin's duration: an ease-out, 1 - (1 - t)^SpinPower.</summary>
+    private static float EaseProgress(float timeFraction) =>
+        1f - MathF.Pow(1f - timeFraction, HudLayout.SpinPower);
 
     /// <summary>
     /// For each tile boundary the marker passes between StartTile and WinTile, the moment the eased reel
-    /// reaches it - the same curve that positions the reel each tick, so every tick lands on a tile.
+    /// reaches it - EaseProgress solved for time - so every tick lands on a tile.
     /// </summary>
     private static float[] BuildTickTimes()
     {
-        var (x1, _, x2, _) = HudLayout.SpinCurve;
         var crossings = HudLayout.WinTile - HudLayout.StartTile;
         var times = new float[crossings];
 
         for (var j = 0; j < crossings; j++)
         {
-            var s = SolveCurve((j + 0.5f) / crossings, forDistance: true);
-            times[j] = Bezier(s, x1, x2) * HudLayout.SpinSeconds;
+            var distance = (j + 0.5f) / crossings;
+            times[j] = (1f - MathF.Pow(1f - distance, 1f / HudLayout.SpinPower)) * HudLayout.SpinSeconds;
         }
 
         return times;
@@ -514,7 +533,7 @@ public sealed class CustomHudService
 
         var subject = ResolveSubject(player);
         var title = subject.Slot == slot ? "Modifiers" : $"{DisplayName(subject)}'s Modifiers";
-        var modifiers = _runtime.GetModifiersForSlot(subject.Slot);
+        var modifiers = RevealPending(slot, state, subject) ? [] : _runtime.GetModifiersForSlot(subject.Slot);
 
         // While watching someone the title stays up even when they have nothing - "Rex's Modifiers"
         // over an empty list says more than a list that silently vanished.
@@ -541,7 +560,7 @@ public sealed class CustomHudService
 
     private void RefreshGauges(int slot, PlayerState state, IPlayer subject)
     {
-        var gauges = _runtime.GetHudGauges(subject.Slot);
+        var gauges = RevealPending(slot, state, subject) ? [] : _runtime.GetHudGauges(subject.Slot);
         for (var i = 0; i < HudLayout.Gauges; i++)
         {
             if (i >= gauges.Count)
@@ -561,6 +580,13 @@ public sealed class CustomHudService
             SetFlag(slot, state, HudLayout.Gauge(i), HudLayout.On, true);
         }
     }
+
+    /// <summary>
+    /// Your own list and gauges wait for your reel to land. A global roll commits on the centre-text
+    /// spin's schedule, which finishes before the carousel, and the list would give the result away.
+    /// </summary>
+    private static bool RevealPending(int slot, PlayerState state, IPlayer subject) =>
+        subject.Slot == slot && state.Roll is { Landed: false };
 
     /// <summary>The prompt shows only to players who haven't chosen, for PromptSeconds after each spawn. Players without the addon get the write too, but have no layout to draw it with - which is the whole point.</summary>
     private bool ShouldPrompt(IPlayer player, PlayerState state, float now) =>

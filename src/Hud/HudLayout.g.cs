@@ -12,6 +12,7 @@ public static partial class HudLayout
     public const string ListPanel = "csr_list";
     public const string ListTitle = "csr_list_title";
     public const string RollPanel = "csr_roll";
+    public const string Track = "csr_track";
     public const string Strip = "csr_strip";
     public const string Card = "csr_card";
     public const string CardIcon = "csr_card_ico";
@@ -24,13 +25,20 @@ public static partial class HudLayout
     public const int FillSteps = 100;
     public const int ListOffsets = 5;
 
-    public const int Tiles = 30;
+    public const int Tiles = 60;
     public const int StartTile = 3;
-    public const int WinTile = 26;
-    public const float SpinSeconds = 4.0f;
-    public const int PositionQuantum = 4;
-    public const int PositionSteps = 437;
-    public static readonly (float X1, float Y1, float X2, float Y2) SpinCurve = (0.08f, 0.7f, 0.12f, 1.0f);
+    public const int WinTile = 55;
+    public const float SpinSeconds = 6.0f;
+    public const float SpinPower = 2.6f;
+    public const int Step = 76;
+    public const int CoarseSteps = 52;
+    public const int FinePerPixel = 2;
+    public const int FineSteps = 152;
+
+    public const int Fps = 64;
+    public const int InFrames = 16;
+    public const int WinFrames = 64;
+    public const int OutFrames = 24;
 
     public const string FallbackIcon = "InfiniteRoll";
 
@@ -103,7 +111,11 @@ public static partial class HudLayout
     public static string IconClass(string icon) => $"ico-{icon}";
     public static string CategoryClass(string category) => $"cat-{category}";
     public static string FillClass(int step) => $"f{step}";
-    public static string PositionClass(int step) => $"p{step}";
+    public static string CoarseClass(int step) => $"c{step}";
+    public static string FineClass(int step) => $"h{step}";
+    public static string InClass(int frame) => $"in{frame}";
+    public static string WinClass(int frame) => $"win{frame}";
+    public static string OutClass(int frame) => $"out{frame}";
     public static string ListOffsetClass(int offset) => $"y{offset}";
 
     /// <summary>Text variable names, as written in the layout's {s:...} slots.</summary>
