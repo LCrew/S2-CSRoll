@@ -32,6 +32,7 @@ CONTRACT = ROOT / "src/Hud/HudLayout.g.cs"
 # ---------------------------------------------------------------------------------------------------
 ROWS = 6            # active-modifier rows in the left list
 GAUGES = 3          # floating gauges above the bottom HUD
+GAUGE_WIDTH = 420   # px
 FILL_STEPS = 100    # bar resolution: 1% per step, driven by clip from the server every tick (width resets when text updates)
 LIST_OFFSETS = [360, 400, 440, 480, 520]   # list top margins (px @1080p) - radar scale varies per player
 
@@ -97,11 +98,16 @@ SHADE = "#0a0d11"
 GOLD = "#f3c74f"
 
 
+def mix(base: str, top: str, amount: float) -> str:
+    """`top` mixed `amount` into `base`, as #rrggbb."""
+    a = [int(top[i:i + 2], 16) for i in (1, 3, 5)]
+    b = [int(base[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(lo + (hi - lo) * amount):02x}" for hi, lo in zip(a, b))
+
+
 def premix(accent: str, amount: float = 0.12) -> str:
-    """The accent mixed `amount` into SHADE, as #rrggbb - a gradient can't layer a tint over a base."""
-    a = [int(accent[i:i + 2], 16) for i in (1, 3, 5)]
-    b = [int(SHADE[i:i + 2], 16) for i in (1, 3, 5)]
-    return "#" + "".join(f"{round(base + (top - base) * amount):02x}" for top, base in zip(a, b))
+    """The accent mixed `amount` into SHADE - a gradient can't layer a tint over a base."""
+    return mix(SHADE, accent, amount)
 
 
 def icons() -> list[str]:
@@ -130,11 +136,14 @@ def layout() -> str:
     gauges = "\n".join(
         f'''        <Panel id="csr_g{i}" class="CsrGauge">
           <Panel class="CsrGaugeTop">
-            <Panel id="csr_g{i}_ico" class="CsrIco CsrGaugeIco" />
+            <Panel class="CsrGaugeTile"><Panel id="csr_g{i}_ico" class="CsrIco CsrGaugeIco" /></Panel>
             <Label id="csr_g{i}_label" class="CsrGaugeLabel" text="{{s:label}}" />
             <Label id="csr_g{i}_val" class="CsrGaugeVal" text="{{s:val}}" />
           </Panel>
-          <Panel class="CsrBar"><Panel id="csr_g{i}_fill" class="CsrFill" /></Panel>
+          <Panel class="CsrBar">
+            <Panel class="CsrFill" />
+            <Panel class="CsrBarTip" />
+          </Panel>
         </Panel>''' for i in range(GAUGES))
 
     # Only the winner gets the landing flash layer, painted over its icon.
@@ -491,10 +500,15 @@ def stylesheet(icon_names: list[str]) -> str:
     w("")
 
     # ---------- gauges ----------
+    # No plate here - they float over the game. The reel's language is in the details: the item-card
+    # tile, a hairline rail for the track, a category fill with a glowing tip, and a "won" tile when a
+    # gauge is ready. The fill step class sits on the gauge itself so one write moves the fill and tip.
+    track = fade([(0, "#ffffff38"), (1, "#ffffff17")], vertical=True)
+    tile = fade([(0, "#ffffff0f"), (1, "#ffffff05")], vertical=True)
     w(f""".CsrGauges
 {{
 	flow-children: down;
-	width: 420px;
+	width: {GAUGE_WIDTH}px;
 	horizontal-align: center;
 	vertical-align: bottom;
 	margin-bottom: 180px;
@@ -504,7 +518,7 @@ def stylesheet(icon_names: list[str]) -> str:
 {{
 	flow-children: down;
 	width: 100%;
-	margin-top: 14px;
+	margin-top: 12px;
 	visibility: collapse;
 }}
 
@@ -519,12 +533,32 @@ def stylesheet(icon_names: list[str]) -> str:
 	width: 100%;
 }}
 
+/* The list's tile, smaller. */
+.CsrGaugeTile
+{{
+	width: 28px;
+	height: 28px;
+	vertical-align: center;
+	margin-right: 9px;
+	border-radius: 2px;
+	border-top: 1px solid #ffffff1a;
+	border-bottom: 2px solid #ffffff40;
+	background-color: {tile};
+	box-shadow: #00000066 0px 1px 4px 0px;
+}}
+
 .CsrGaugeIco
 {{
-	width: 24px;
-	height: 24px;
+	width: 18px;
+	height: 18px;
+	horizontal-align: center;
 	vertical-align: center;
-	margin-right: 8px;
+}}
+
+/* Ready: the tile lights up like the reel's winner, its icon turns white. */
+.CsrGauge.ready .CsrGaugeTile .CsrIco
+{{
+	wash-color: #ffffff;
 }}
 
 .CsrGaugeLabel
@@ -532,10 +566,10 @@ def stylesheet(icon_names: list[str]) -> str:
 	width: fill-parent-flow( 1.0 );
 	vertical-align: center;
 	font-family: {FONT_BOLD};
-	font-size: 17px;
-	letter-spacing: 1px;
+	font-size: 15px;
+	letter-spacing: 2px;
 	text-transform: uppercase;
-	color: #ffffffe6;
+	color: #ffffffe0;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	text-shadow: 0px 1px 4px 1.5 #000000e6;
@@ -545,38 +579,62 @@ def stylesheet(icon_names: list[str]) -> str:
 {{
 	vertical-align: center;
 	font-family: {FONT_BOLD};
-	font-size: 17px;
+	font-size: 15px;
+	letter-spacing: 1px;
 	color: #ffffff;
 	white-space: nowrap;
 	text-shadow: 0px 1px 4px 1.5 #000000e6;
 }}
 
+/* The track: a hairline-lit rail. noclip, so the taller tip can stand proud of it. */
 .CsrBar
 {{
 	width: 100%;
-	height: 6px;
-	margin-top: 5px;
-	background-color: #ffffff2e;
-	box-shadow: #00000099 0px 0px 5px 0px;
+	height: 4px;
+	margin-top: 6px;
+	overflow: noclip;
+	border-radius: 1px;
+	background-color: {track};
+	box-shadow: #000000a6 0px 0px 4px 0px;
 }}
 
 .CsrFill
 {{
 	width: 100%;
 	height: 100%;
+	border-radius: 1px;
 	background-color: #ffffff;
 	clip: rect( 0%, 0%, 100%, 0% );
-	transition-property: clip;
-	transition-duration: 0.12s;
-	transition-timing-function: linear;
+}}
+
+/* A bright tick riding the fill's edge, glowing in the category colour. */
+.CsrBarTip
+{{
+	width: 2px;
+	height: 10px;
+	vertical-align: center;
+	background-color: #ffffff;
+	box-shadow: #ffffffb3 0px 0px 6px 0px;
+}}
+
+.CsrGauge.f0 .CsrBarTip
+{{
+	opacity: 0;
 }}
 """)
     for step in range(FILL_STEPS + 1):
         pct = step * 100 // FILL_STEPS
-        w(f".CsrFill.f{step} {{ clip: rect( 0%, {pct}%, 100%, 0% ); }}")
+        tip = max(0, round(GAUGE_WIDTH * pct / 100) - 2)
+        w(f".CsrGauge.f{step} .CsrFill {{ clip: rect( 0%, {pct}%, 100%, 0% ); }}")
+        w(f".CsrGauge.f{step} .CsrBarTip {{ transform: translatex( {tip}px ); }}")
     w("")
     for cat, colour in CATEGORIES.items():
-        w(f".CsrGauge.cat-{cat} .CsrFill {{ background-color: {colour}; }}")
+        fill = fade([(0, mix(colour, "#ffffff", 0.35)), (1, colour)], vertical=True)
+        won = fade([(0, f"{colour}33"), (1, f"{colour}73")], vertical=True)
+        w(f".CsrGauge.cat-{cat} .CsrFill {{ background-color: {fill}; }}")
+        w(f".CsrGauge.cat-{cat} .CsrBarTip {{ box-shadow: {colour} 0px 0px 6px 1px; }}")
+        w(f".CsrGauge.cat-{cat} .CsrGaugeTile {{ border-bottom-color: {colour}; }}")
+        w(f".CsrGauge.ready.cat-{cat} .CsrGaugeTile {{ border: 1px solid {colour}; border-bottom: 2px solid {colour}; background-color: {won}; box-shadow: {colour}80 0px 0px 8px 0px; }}")
         w(f".CsrGauge.ready.cat-{cat} .CsrGaugeVal {{ color: {colour}; }}")
     w("")
 
@@ -1005,7 +1063,6 @@ public static partial class HudLayout
     public static string GaugeIcon(int i) => $"csr_g{{i}}_ico";
     public static string GaugeLabel(int i) => $"csr_g{{i}}_label";
     public static string GaugeValue(int i) => $"csr_g{{i}}_val";
-    public static string GaugeFill(int i) => $"csr_g{{i}}_fill";
     public static string Tile(int i) => $"csr_t{{i}}";
     public static string TileIcon(int i) => $"csr_t{{i}}_ico";
 

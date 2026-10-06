@@ -601,7 +601,7 @@ public sealed class CustomHudService
             SetExclusive(slot, state, HudLayout.GaugeIcon(i), "icon", HudLayout.IconClass(HudCatalog.Icon(owner)));
             SetText(slot, state, HudLayout.GaugeLabel(i), HudLayout.VarLabel, gauge.Label);
             SetText(slot, state, HudLayout.GaugeValue(i), HudLayout.VarValue, gauge.Value);
-            SetExclusive(slot, state, HudLayout.GaugeFill(i), "fill", HudLayout.FillClass(step));
+            SetExclusive(slot, state, HudLayout.Gauge(i), "fill", HudLayout.FillClass(step));
             SetFlag(slot, state, HudLayout.Gauge(i), HudLayout.Ready, gauge.Ready);
             SetFlag(slot, state, HudLayout.Gauge(i), HudLayout.On, true);
         }

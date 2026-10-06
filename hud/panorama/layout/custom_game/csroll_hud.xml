@@ -79,27 +79,36 @@
       <Panel id="csr_gauges" class="CsrGauges" hittest="false">
         <Panel id="csr_g0" class="CsrGauge">
           <Panel class="CsrGaugeTop">
-            <Panel id="csr_g0_ico" class="CsrIco CsrGaugeIco" />
+            <Panel class="CsrGaugeTile"><Panel id="csr_g0_ico" class="CsrIco CsrGaugeIco" /></Panel>
             <Label id="csr_g0_label" class="CsrGaugeLabel" text="{s:label}" />
             <Label id="csr_g0_val" class="CsrGaugeVal" text="{s:val}" />
           </Panel>
-          <Panel class="CsrBar"><Panel id="csr_g0_fill" class="CsrFill" /></Panel>
+          <Panel class="CsrBar">
+            <Panel class="CsrFill" />
+            <Panel class="CsrBarTip" />
+          </Panel>
         </Panel>
         <Panel id="csr_g1" class="CsrGauge">
           <Panel class="CsrGaugeTop">
-            <Panel id="csr_g1_ico" class="CsrIco CsrGaugeIco" />
+            <Panel class="CsrGaugeTile"><Panel id="csr_g1_ico" class="CsrIco CsrGaugeIco" /></Panel>
             <Label id="csr_g1_label" class="CsrGaugeLabel" text="{s:label}" />
             <Label id="csr_g1_val" class="CsrGaugeVal" text="{s:val}" />
           </Panel>
-          <Panel class="CsrBar"><Panel id="csr_g1_fill" class="CsrFill" /></Panel>
+          <Panel class="CsrBar">
+            <Panel class="CsrFill" />
+            <Panel class="CsrBarTip" />
+          </Panel>
         </Panel>
         <Panel id="csr_g2" class="CsrGauge">
           <Panel class="CsrGaugeTop">
-            <Panel id="csr_g2_ico" class="CsrIco CsrGaugeIco" />
+            <Panel class="CsrGaugeTile"><Panel id="csr_g2_ico" class="CsrIco CsrGaugeIco" /></Panel>
             <Label id="csr_g2_label" class="CsrGaugeLabel" text="{s:label}" />
             <Label id="csr_g2_val" class="CsrGaugeVal" text="{s:val}" />
           </Panel>
-          <Panel class="CsrBar"><Panel id="csr_g2_fill" class="CsrFill" /></Panel>
+          <Panel class="CsrBar">
+            <Panel class="CsrFill" />
+            <Panel class="CsrBarTip" />
+          </Panel>
         </Panel>
       </Panel>
       <Panel id="csr_roll" class="CsrRoll" hittest="false">

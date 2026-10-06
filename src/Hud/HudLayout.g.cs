@@ -104,7 +104,6 @@ public static partial class HudLayout
     public static string GaugeIcon(int i) => $"csr_g{i}_ico";
     public static string GaugeLabel(int i) => $"csr_g{i}_label";
     public static string GaugeValue(int i) => $"csr_g{i}_val";
-    public static string GaugeFill(int i) => $"csr_g{i}_fill";
     public static string Tile(int i) => $"csr_t{i}";
     public static string TileIcon(int i) => $"csr_t{i}_ico";
 

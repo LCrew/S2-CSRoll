@@ -344,7 +344,7 @@
 {
 	flow-children: down;
 	width: 100%;
-	margin-top: 14px;
+	margin-top: 12px;
 	visibility: collapse;
 }
 
@@ -359,12 +359,32 @@
 	width: 100%;
 }
 
+/* The list's tile, smaller. */
+.CsrGaugeTile
+{
+	width: 28px;
+	height: 28px;
+	vertical-align: center;
+	margin-right: 9px;
+	border-radius: 2px;
+	border-top: 1px solid #ffffff1a;
+	border-bottom: 2px solid #ffffff40;
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0f ), to( #ffffff05 ) );
+	box-shadow: #00000066 0px 1px 4px 0px;
+}
+
 .CsrGaugeIco
 {
-	width: 24px;
-	height: 24px;
+	width: 18px;
+	height: 18px;
+	horizontal-align: center;
 	vertical-align: center;
-	margin-right: 8px;
+}
+
+/* Ready: the tile lights up like the reel's winner, its icon turns white. */
+.CsrGauge.ready .CsrGaugeTile .CsrIco
+{
+	wash-color: #ffffff;
 }
 
 .CsrGaugeLabel
@@ -373,10 +393,10 @@
 	vertical-align: center;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-weight: bold;
-	font-size: 17px;
-	letter-spacing: 1px;
+	font-size: 15px;
+	letter-spacing: 2px;
 	text-transform: uppercase;
-	color: #ffffffe6;
+	color: #ffffffe0;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	text-shadow: 0px 1px 4px 1.5 #000000e6;
@@ -387,145 +407,281 @@
 	vertical-align: center;
 	font-family: Stratum2, 'Arial Unicode MS';
 	font-weight: bold;
-	font-size: 17px;
+	font-size: 15px;
+	letter-spacing: 1px;
 	color: #ffffff;
 	white-space: nowrap;
 	text-shadow: 0px 1px 4px 1.5 #000000e6;
 }
 
+/* The track: a hairline-lit rail. noclip, so the taller tip can stand proud of it. */
 .CsrBar
 {
 	width: 100%;
-	height: 6px;
-	margin-top: 5px;
-	background-color: #ffffff2e;
-	box-shadow: #00000099 0px 0px 5px 0px;
+	height: 4px;
+	margin-top: 6px;
+	overflow: noclip;
+	border-radius: 1px;
+	background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff38 ), to( #ffffff17 ) );
+	box-shadow: #000000a6 0px 0px 4px 0px;
 }
 
 .CsrFill
 {
 	width: 100%;
 	height: 100%;
+	border-radius: 1px;
 	background-color: #ffffff;
 	clip: rect( 0%, 0%, 100%, 0% );
-	transition-property: clip;
-	transition-duration: 0.12s;
-	transition-timing-function: linear;
 }
 
-.CsrFill.f0 { clip: rect( 0%, 0%, 100%, 0% ); }
-.CsrFill.f1 { clip: rect( 0%, 1%, 100%, 0% ); }
-.CsrFill.f2 { clip: rect( 0%, 2%, 100%, 0% ); }
-.CsrFill.f3 { clip: rect( 0%, 3%, 100%, 0% ); }
-.CsrFill.f4 { clip: rect( 0%, 4%, 100%, 0% ); }
-.CsrFill.f5 { clip: rect( 0%, 5%, 100%, 0% ); }
-.CsrFill.f6 { clip: rect( 0%, 6%, 100%, 0% ); }
-.CsrFill.f7 { clip: rect( 0%, 7%, 100%, 0% ); }
-.CsrFill.f8 { clip: rect( 0%, 8%, 100%, 0% ); }
-.CsrFill.f9 { clip: rect( 0%, 9%, 100%, 0% ); }
-.CsrFill.f10 { clip: rect( 0%, 10%, 100%, 0% ); }
-.CsrFill.f11 { clip: rect( 0%, 11%, 100%, 0% ); }
-.CsrFill.f12 { clip: rect( 0%, 12%, 100%, 0% ); }
-.CsrFill.f13 { clip: rect( 0%, 13%, 100%, 0% ); }
-.CsrFill.f14 { clip: rect( 0%, 14%, 100%, 0% ); }
-.CsrFill.f15 { clip: rect( 0%, 15%, 100%, 0% ); }
-.CsrFill.f16 { clip: rect( 0%, 16%, 100%, 0% ); }
-.CsrFill.f17 { clip: rect( 0%, 17%, 100%, 0% ); }
-.CsrFill.f18 { clip: rect( 0%, 18%, 100%, 0% ); }
-.CsrFill.f19 { clip: rect( 0%, 19%, 100%, 0% ); }
-.CsrFill.f20 { clip: rect( 0%, 20%, 100%, 0% ); }
-.CsrFill.f21 { clip: rect( 0%, 21%, 100%, 0% ); }
-.CsrFill.f22 { clip: rect( 0%, 22%, 100%, 0% ); }
-.CsrFill.f23 { clip: rect( 0%, 23%, 100%, 0% ); }
-.CsrFill.f24 { clip: rect( 0%, 24%, 100%, 0% ); }
-.CsrFill.f25 { clip: rect( 0%, 25%, 100%, 0% ); }
-.CsrFill.f26 { clip: rect( 0%, 26%, 100%, 0% ); }
-.CsrFill.f27 { clip: rect( 0%, 27%, 100%, 0% ); }
-.CsrFill.f28 { clip: rect( 0%, 28%, 100%, 0% ); }
-.CsrFill.f29 { clip: rect( 0%, 29%, 100%, 0% ); }
-.CsrFill.f30 { clip: rect( 0%, 30%, 100%, 0% ); }
-.CsrFill.f31 { clip: rect( 0%, 31%, 100%, 0% ); }
-.CsrFill.f32 { clip: rect( 0%, 32%, 100%, 0% ); }
-.CsrFill.f33 { clip: rect( 0%, 33%, 100%, 0% ); }
-.CsrFill.f34 { clip: rect( 0%, 34%, 100%, 0% ); }
-.CsrFill.f35 { clip: rect( 0%, 35%, 100%, 0% ); }
-.CsrFill.f36 { clip: rect( 0%, 36%, 100%, 0% ); }
-.CsrFill.f37 { clip: rect( 0%, 37%, 100%, 0% ); }
-.CsrFill.f38 { clip: rect( 0%, 38%, 100%, 0% ); }
-.CsrFill.f39 { clip: rect( 0%, 39%, 100%, 0% ); }
-.CsrFill.f40 { clip: rect( 0%, 40%, 100%, 0% ); }
-.CsrFill.f41 { clip: rect( 0%, 41%, 100%, 0% ); }
-.CsrFill.f42 { clip: rect( 0%, 42%, 100%, 0% ); }
-.CsrFill.f43 { clip: rect( 0%, 43%, 100%, 0% ); }
-.CsrFill.f44 { clip: rect( 0%, 44%, 100%, 0% ); }
-.CsrFill.f45 { clip: rect( 0%, 45%, 100%, 0% ); }
-.CsrFill.f46 { clip: rect( 0%, 46%, 100%, 0% ); }
-.CsrFill.f47 { clip: rect( 0%, 47%, 100%, 0% ); }
-.CsrFill.f48 { clip: rect( 0%, 48%, 100%, 0% ); }
-.CsrFill.f49 { clip: rect( 0%, 49%, 100%, 0% ); }
-.CsrFill.f50 { clip: rect( 0%, 50%, 100%, 0% ); }
-.CsrFill.f51 { clip: rect( 0%, 51%, 100%, 0% ); }
-.CsrFill.f52 { clip: rect( 0%, 52%, 100%, 0% ); }
-.CsrFill.f53 { clip: rect( 0%, 53%, 100%, 0% ); }
-.CsrFill.f54 { clip: rect( 0%, 54%, 100%, 0% ); }
-.CsrFill.f55 { clip: rect( 0%, 55%, 100%, 0% ); }
-.CsrFill.f56 { clip: rect( 0%, 56%, 100%, 0% ); }
-.CsrFill.f57 { clip: rect( 0%, 57%, 100%, 0% ); }
-.CsrFill.f58 { clip: rect( 0%, 58%, 100%, 0% ); }
-.CsrFill.f59 { clip: rect( 0%, 59%, 100%, 0% ); }
-.CsrFill.f60 { clip: rect( 0%, 60%, 100%, 0% ); }
-.CsrFill.f61 { clip: rect( 0%, 61%, 100%, 0% ); }
-.CsrFill.f62 { clip: rect( 0%, 62%, 100%, 0% ); }
-.CsrFill.f63 { clip: rect( 0%, 63%, 100%, 0% ); }
-.CsrFill.f64 { clip: rect( 0%, 64%, 100%, 0% ); }
-.CsrFill.f65 { clip: rect( 0%, 65%, 100%, 0% ); }
-.CsrFill.f66 { clip: rect( 0%, 66%, 100%, 0% ); }
-.CsrFill.f67 { clip: rect( 0%, 67%, 100%, 0% ); }
-.CsrFill.f68 { clip: rect( 0%, 68%, 100%, 0% ); }
-.CsrFill.f69 { clip: rect( 0%, 69%, 100%, 0% ); }
-.CsrFill.f70 { clip: rect( 0%, 70%, 100%, 0% ); }
-.CsrFill.f71 { clip: rect( 0%, 71%, 100%, 0% ); }
-.CsrFill.f72 { clip: rect( 0%, 72%, 100%, 0% ); }
-.CsrFill.f73 { clip: rect( 0%, 73%, 100%, 0% ); }
-.CsrFill.f74 { clip: rect( 0%, 74%, 100%, 0% ); }
-.CsrFill.f75 { clip: rect( 0%, 75%, 100%, 0% ); }
-.CsrFill.f76 { clip: rect( 0%, 76%, 100%, 0% ); }
-.CsrFill.f77 { clip: rect( 0%, 77%, 100%, 0% ); }
-.CsrFill.f78 { clip: rect( 0%, 78%, 100%, 0% ); }
-.CsrFill.f79 { clip: rect( 0%, 79%, 100%, 0% ); }
-.CsrFill.f80 { clip: rect( 0%, 80%, 100%, 0% ); }
-.CsrFill.f81 { clip: rect( 0%, 81%, 100%, 0% ); }
-.CsrFill.f82 { clip: rect( 0%, 82%, 100%, 0% ); }
-.CsrFill.f83 { clip: rect( 0%, 83%, 100%, 0% ); }
-.CsrFill.f84 { clip: rect( 0%, 84%, 100%, 0% ); }
-.CsrFill.f85 { clip: rect( 0%, 85%, 100%, 0% ); }
-.CsrFill.f86 { clip: rect( 0%, 86%, 100%, 0% ); }
-.CsrFill.f87 { clip: rect( 0%, 87%, 100%, 0% ); }
-.CsrFill.f88 { clip: rect( 0%, 88%, 100%, 0% ); }
-.CsrFill.f89 { clip: rect( 0%, 89%, 100%, 0% ); }
-.CsrFill.f90 { clip: rect( 0%, 90%, 100%, 0% ); }
-.CsrFill.f91 { clip: rect( 0%, 91%, 100%, 0% ); }
-.CsrFill.f92 { clip: rect( 0%, 92%, 100%, 0% ); }
-.CsrFill.f93 { clip: rect( 0%, 93%, 100%, 0% ); }
-.CsrFill.f94 { clip: rect( 0%, 94%, 100%, 0% ); }
-.CsrFill.f95 { clip: rect( 0%, 95%, 100%, 0% ); }
-.CsrFill.f96 { clip: rect( 0%, 96%, 100%, 0% ); }
-.CsrFill.f97 { clip: rect( 0%, 97%, 100%, 0% ); }
-.CsrFill.f98 { clip: rect( 0%, 98%, 100%, 0% ); }
-.CsrFill.f99 { clip: rect( 0%, 99%, 100%, 0% ); }
-.CsrFill.f100 { clip: rect( 0%, 100%, 100%, 0% ); }
+/* A bright tick riding the fill's edge, glowing in the category colour. */
+.CsrBarTip
+{
+	width: 2px;
+	height: 10px;
+	vertical-align: center;
+	background-color: #ffffff;
+	box-shadow: #ffffffb3 0px 0px 6px 0px;
+}
 
-.CsrGauge.cat-move .CsrFill { background-color: #4fd1c5; }
+.CsrGauge.f0 .CsrBarTip
+{
+	opacity: 0;
+}
+
+.CsrGauge.f0 .CsrFill { clip: rect( 0%, 0%, 100%, 0% ); }
+.CsrGauge.f0 .CsrBarTip { transform: translatex( 0px ); }
+.CsrGauge.f1 .CsrFill { clip: rect( 0%, 1%, 100%, 0% ); }
+.CsrGauge.f1 .CsrBarTip { transform: translatex( 2px ); }
+.CsrGauge.f2 .CsrFill { clip: rect( 0%, 2%, 100%, 0% ); }
+.CsrGauge.f2 .CsrBarTip { transform: translatex( 6px ); }
+.CsrGauge.f3 .CsrFill { clip: rect( 0%, 3%, 100%, 0% ); }
+.CsrGauge.f3 .CsrBarTip { transform: translatex( 11px ); }
+.CsrGauge.f4 .CsrFill { clip: rect( 0%, 4%, 100%, 0% ); }
+.CsrGauge.f4 .CsrBarTip { transform: translatex( 15px ); }
+.CsrGauge.f5 .CsrFill { clip: rect( 0%, 5%, 100%, 0% ); }
+.CsrGauge.f5 .CsrBarTip { transform: translatex( 19px ); }
+.CsrGauge.f6 .CsrFill { clip: rect( 0%, 6%, 100%, 0% ); }
+.CsrGauge.f6 .CsrBarTip { transform: translatex( 23px ); }
+.CsrGauge.f7 .CsrFill { clip: rect( 0%, 7%, 100%, 0% ); }
+.CsrGauge.f7 .CsrBarTip { transform: translatex( 27px ); }
+.CsrGauge.f8 .CsrFill { clip: rect( 0%, 8%, 100%, 0% ); }
+.CsrGauge.f8 .CsrBarTip { transform: translatex( 32px ); }
+.CsrGauge.f9 .CsrFill { clip: rect( 0%, 9%, 100%, 0% ); }
+.CsrGauge.f9 .CsrBarTip { transform: translatex( 36px ); }
+.CsrGauge.f10 .CsrFill { clip: rect( 0%, 10%, 100%, 0% ); }
+.CsrGauge.f10 .CsrBarTip { transform: translatex( 40px ); }
+.CsrGauge.f11 .CsrFill { clip: rect( 0%, 11%, 100%, 0% ); }
+.CsrGauge.f11 .CsrBarTip { transform: translatex( 44px ); }
+.CsrGauge.f12 .CsrFill { clip: rect( 0%, 12%, 100%, 0% ); }
+.CsrGauge.f12 .CsrBarTip { transform: translatex( 48px ); }
+.CsrGauge.f13 .CsrFill { clip: rect( 0%, 13%, 100%, 0% ); }
+.CsrGauge.f13 .CsrBarTip { transform: translatex( 53px ); }
+.CsrGauge.f14 .CsrFill { clip: rect( 0%, 14%, 100%, 0% ); }
+.CsrGauge.f14 .CsrBarTip { transform: translatex( 57px ); }
+.CsrGauge.f15 .CsrFill { clip: rect( 0%, 15%, 100%, 0% ); }
+.CsrGauge.f15 .CsrBarTip { transform: translatex( 61px ); }
+.CsrGauge.f16 .CsrFill { clip: rect( 0%, 16%, 100%, 0% ); }
+.CsrGauge.f16 .CsrBarTip { transform: translatex( 65px ); }
+.CsrGauge.f17 .CsrFill { clip: rect( 0%, 17%, 100%, 0% ); }
+.CsrGauge.f17 .CsrBarTip { transform: translatex( 69px ); }
+.CsrGauge.f18 .CsrFill { clip: rect( 0%, 18%, 100%, 0% ); }
+.CsrGauge.f18 .CsrBarTip { transform: translatex( 74px ); }
+.CsrGauge.f19 .CsrFill { clip: rect( 0%, 19%, 100%, 0% ); }
+.CsrGauge.f19 .CsrBarTip { transform: translatex( 78px ); }
+.CsrGauge.f20 .CsrFill { clip: rect( 0%, 20%, 100%, 0% ); }
+.CsrGauge.f20 .CsrBarTip { transform: translatex( 82px ); }
+.CsrGauge.f21 .CsrFill { clip: rect( 0%, 21%, 100%, 0% ); }
+.CsrGauge.f21 .CsrBarTip { transform: translatex( 86px ); }
+.CsrGauge.f22 .CsrFill { clip: rect( 0%, 22%, 100%, 0% ); }
+.CsrGauge.f22 .CsrBarTip { transform: translatex( 90px ); }
+.CsrGauge.f23 .CsrFill { clip: rect( 0%, 23%, 100%, 0% ); }
+.CsrGauge.f23 .CsrBarTip { transform: translatex( 95px ); }
+.CsrGauge.f24 .CsrFill { clip: rect( 0%, 24%, 100%, 0% ); }
+.CsrGauge.f24 .CsrBarTip { transform: translatex( 99px ); }
+.CsrGauge.f25 .CsrFill { clip: rect( 0%, 25%, 100%, 0% ); }
+.CsrGauge.f25 .CsrBarTip { transform: translatex( 103px ); }
+.CsrGauge.f26 .CsrFill { clip: rect( 0%, 26%, 100%, 0% ); }
+.CsrGauge.f26 .CsrBarTip { transform: translatex( 107px ); }
+.CsrGauge.f27 .CsrFill { clip: rect( 0%, 27%, 100%, 0% ); }
+.CsrGauge.f27 .CsrBarTip { transform: translatex( 111px ); }
+.CsrGauge.f28 .CsrFill { clip: rect( 0%, 28%, 100%, 0% ); }
+.CsrGauge.f28 .CsrBarTip { transform: translatex( 116px ); }
+.CsrGauge.f29 .CsrFill { clip: rect( 0%, 29%, 100%, 0% ); }
+.CsrGauge.f29 .CsrBarTip { transform: translatex( 120px ); }
+.CsrGauge.f30 .CsrFill { clip: rect( 0%, 30%, 100%, 0% ); }
+.CsrGauge.f30 .CsrBarTip { transform: translatex( 124px ); }
+.CsrGauge.f31 .CsrFill { clip: rect( 0%, 31%, 100%, 0% ); }
+.CsrGauge.f31 .CsrBarTip { transform: translatex( 128px ); }
+.CsrGauge.f32 .CsrFill { clip: rect( 0%, 32%, 100%, 0% ); }
+.CsrGauge.f32 .CsrBarTip { transform: translatex( 132px ); }
+.CsrGauge.f33 .CsrFill { clip: rect( 0%, 33%, 100%, 0% ); }
+.CsrGauge.f33 .CsrBarTip { transform: translatex( 137px ); }
+.CsrGauge.f34 .CsrFill { clip: rect( 0%, 34%, 100%, 0% ); }
+.CsrGauge.f34 .CsrBarTip { transform: translatex( 141px ); }
+.CsrGauge.f35 .CsrFill { clip: rect( 0%, 35%, 100%, 0% ); }
+.CsrGauge.f35 .CsrBarTip { transform: translatex( 145px ); }
+.CsrGauge.f36 .CsrFill { clip: rect( 0%, 36%, 100%, 0% ); }
+.CsrGauge.f36 .CsrBarTip { transform: translatex( 149px ); }
+.CsrGauge.f37 .CsrFill { clip: rect( 0%, 37%, 100%, 0% ); }
+.CsrGauge.f37 .CsrBarTip { transform: translatex( 153px ); }
+.CsrGauge.f38 .CsrFill { clip: rect( 0%, 38%, 100%, 0% ); }
+.CsrGauge.f38 .CsrBarTip { transform: translatex( 158px ); }
+.CsrGauge.f39 .CsrFill { clip: rect( 0%, 39%, 100%, 0% ); }
+.CsrGauge.f39 .CsrBarTip { transform: translatex( 162px ); }
+.CsrGauge.f40 .CsrFill { clip: rect( 0%, 40%, 100%, 0% ); }
+.CsrGauge.f40 .CsrBarTip { transform: translatex( 166px ); }
+.CsrGauge.f41 .CsrFill { clip: rect( 0%, 41%, 100%, 0% ); }
+.CsrGauge.f41 .CsrBarTip { transform: translatex( 170px ); }
+.CsrGauge.f42 .CsrFill { clip: rect( 0%, 42%, 100%, 0% ); }
+.CsrGauge.f42 .CsrBarTip { transform: translatex( 174px ); }
+.CsrGauge.f43 .CsrFill { clip: rect( 0%, 43%, 100%, 0% ); }
+.CsrGauge.f43 .CsrBarTip { transform: translatex( 179px ); }
+.CsrGauge.f44 .CsrFill { clip: rect( 0%, 44%, 100%, 0% ); }
+.CsrGauge.f44 .CsrBarTip { transform: translatex( 183px ); }
+.CsrGauge.f45 .CsrFill { clip: rect( 0%, 45%, 100%, 0% ); }
+.CsrGauge.f45 .CsrBarTip { transform: translatex( 187px ); }
+.CsrGauge.f46 .CsrFill { clip: rect( 0%, 46%, 100%, 0% ); }
+.CsrGauge.f46 .CsrBarTip { transform: translatex( 191px ); }
+.CsrGauge.f47 .CsrFill { clip: rect( 0%, 47%, 100%, 0% ); }
+.CsrGauge.f47 .CsrBarTip { transform: translatex( 195px ); }
+.CsrGauge.f48 .CsrFill { clip: rect( 0%, 48%, 100%, 0% ); }
+.CsrGauge.f48 .CsrBarTip { transform: translatex( 200px ); }
+.CsrGauge.f49 .CsrFill { clip: rect( 0%, 49%, 100%, 0% ); }
+.CsrGauge.f49 .CsrBarTip { transform: translatex( 204px ); }
+.CsrGauge.f50 .CsrFill { clip: rect( 0%, 50%, 100%, 0% ); }
+.CsrGauge.f50 .CsrBarTip { transform: translatex( 208px ); }
+.CsrGauge.f51 .CsrFill { clip: rect( 0%, 51%, 100%, 0% ); }
+.CsrGauge.f51 .CsrBarTip { transform: translatex( 212px ); }
+.CsrGauge.f52 .CsrFill { clip: rect( 0%, 52%, 100%, 0% ); }
+.CsrGauge.f52 .CsrBarTip { transform: translatex( 216px ); }
+.CsrGauge.f53 .CsrFill { clip: rect( 0%, 53%, 100%, 0% ); }
+.CsrGauge.f53 .CsrBarTip { transform: translatex( 221px ); }
+.CsrGauge.f54 .CsrFill { clip: rect( 0%, 54%, 100%, 0% ); }
+.CsrGauge.f54 .CsrBarTip { transform: translatex( 225px ); }
+.CsrGauge.f55 .CsrFill { clip: rect( 0%, 55%, 100%, 0% ); }
+.CsrGauge.f55 .CsrBarTip { transform: translatex( 229px ); }
+.CsrGauge.f56 .CsrFill { clip: rect( 0%, 56%, 100%, 0% ); }
+.CsrGauge.f56 .CsrBarTip { transform: translatex( 233px ); }
+.CsrGauge.f57 .CsrFill { clip: rect( 0%, 57%, 100%, 0% ); }
+.CsrGauge.f57 .CsrBarTip { transform: translatex( 237px ); }
+.CsrGauge.f58 .CsrFill { clip: rect( 0%, 58%, 100%, 0% ); }
+.CsrGauge.f58 .CsrBarTip { transform: translatex( 242px ); }
+.CsrGauge.f59 .CsrFill { clip: rect( 0%, 59%, 100%, 0% ); }
+.CsrGauge.f59 .CsrBarTip { transform: translatex( 246px ); }
+.CsrGauge.f60 .CsrFill { clip: rect( 0%, 60%, 100%, 0% ); }
+.CsrGauge.f60 .CsrBarTip { transform: translatex( 250px ); }
+.CsrGauge.f61 .CsrFill { clip: rect( 0%, 61%, 100%, 0% ); }
+.CsrGauge.f61 .CsrBarTip { transform: translatex( 254px ); }
+.CsrGauge.f62 .CsrFill { clip: rect( 0%, 62%, 100%, 0% ); }
+.CsrGauge.f62 .CsrBarTip { transform: translatex( 258px ); }
+.CsrGauge.f63 .CsrFill { clip: rect( 0%, 63%, 100%, 0% ); }
+.CsrGauge.f63 .CsrBarTip { transform: translatex( 263px ); }
+.CsrGauge.f64 .CsrFill { clip: rect( 0%, 64%, 100%, 0% ); }
+.CsrGauge.f64 .CsrBarTip { transform: translatex( 267px ); }
+.CsrGauge.f65 .CsrFill { clip: rect( 0%, 65%, 100%, 0% ); }
+.CsrGauge.f65 .CsrBarTip { transform: translatex( 271px ); }
+.CsrGauge.f66 .CsrFill { clip: rect( 0%, 66%, 100%, 0% ); }
+.CsrGauge.f66 .CsrBarTip { transform: translatex( 275px ); }
+.CsrGauge.f67 .CsrFill { clip: rect( 0%, 67%, 100%, 0% ); }
+.CsrGauge.f67 .CsrBarTip { transform: translatex( 279px ); }
+.CsrGauge.f68 .CsrFill { clip: rect( 0%, 68%, 100%, 0% ); }
+.CsrGauge.f68 .CsrBarTip { transform: translatex( 284px ); }
+.CsrGauge.f69 .CsrFill { clip: rect( 0%, 69%, 100%, 0% ); }
+.CsrGauge.f69 .CsrBarTip { transform: translatex( 288px ); }
+.CsrGauge.f70 .CsrFill { clip: rect( 0%, 70%, 100%, 0% ); }
+.CsrGauge.f70 .CsrBarTip { transform: translatex( 292px ); }
+.CsrGauge.f71 .CsrFill { clip: rect( 0%, 71%, 100%, 0% ); }
+.CsrGauge.f71 .CsrBarTip { transform: translatex( 296px ); }
+.CsrGauge.f72 .CsrFill { clip: rect( 0%, 72%, 100%, 0% ); }
+.CsrGauge.f72 .CsrBarTip { transform: translatex( 300px ); }
+.CsrGauge.f73 .CsrFill { clip: rect( 0%, 73%, 100%, 0% ); }
+.CsrGauge.f73 .CsrBarTip { transform: translatex( 305px ); }
+.CsrGauge.f74 .CsrFill { clip: rect( 0%, 74%, 100%, 0% ); }
+.CsrGauge.f74 .CsrBarTip { transform: translatex( 309px ); }
+.CsrGauge.f75 .CsrFill { clip: rect( 0%, 75%, 100%, 0% ); }
+.CsrGauge.f75 .CsrBarTip { transform: translatex( 313px ); }
+.CsrGauge.f76 .CsrFill { clip: rect( 0%, 76%, 100%, 0% ); }
+.CsrGauge.f76 .CsrBarTip { transform: translatex( 317px ); }
+.CsrGauge.f77 .CsrFill { clip: rect( 0%, 77%, 100%, 0% ); }
+.CsrGauge.f77 .CsrBarTip { transform: translatex( 321px ); }
+.CsrGauge.f78 .CsrFill { clip: rect( 0%, 78%, 100%, 0% ); }
+.CsrGauge.f78 .CsrBarTip { transform: translatex( 326px ); }
+.CsrGauge.f79 .CsrFill { clip: rect( 0%, 79%, 100%, 0% ); }
+.CsrGauge.f79 .CsrBarTip { transform: translatex( 330px ); }
+.CsrGauge.f80 .CsrFill { clip: rect( 0%, 80%, 100%, 0% ); }
+.CsrGauge.f80 .CsrBarTip { transform: translatex( 334px ); }
+.CsrGauge.f81 .CsrFill { clip: rect( 0%, 81%, 100%, 0% ); }
+.CsrGauge.f81 .CsrBarTip { transform: translatex( 338px ); }
+.CsrGauge.f82 .CsrFill { clip: rect( 0%, 82%, 100%, 0% ); }
+.CsrGauge.f82 .CsrBarTip { transform: translatex( 342px ); }
+.CsrGauge.f83 .CsrFill { clip: rect( 0%, 83%, 100%, 0% ); }
+.CsrGauge.f83 .CsrBarTip { transform: translatex( 347px ); }
+.CsrGauge.f84 .CsrFill { clip: rect( 0%, 84%, 100%, 0% ); }
+.CsrGauge.f84 .CsrBarTip { transform: translatex( 351px ); }
+.CsrGauge.f85 .CsrFill { clip: rect( 0%, 85%, 100%, 0% ); }
+.CsrGauge.f85 .CsrBarTip { transform: translatex( 355px ); }
+.CsrGauge.f86 .CsrFill { clip: rect( 0%, 86%, 100%, 0% ); }
+.CsrGauge.f86 .CsrBarTip { transform: translatex( 359px ); }
+.CsrGauge.f87 .CsrFill { clip: rect( 0%, 87%, 100%, 0% ); }
+.CsrGauge.f87 .CsrBarTip { transform: translatex( 363px ); }
+.CsrGauge.f88 .CsrFill { clip: rect( 0%, 88%, 100%, 0% ); }
+.CsrGauge.f88 .CsrBarTip { transform: translatex( 368px ); }
+.CsrGauge.f89 .CsrFill { clip: rect( 0%, 89%, 100%, 0% ); }
+.CsrGauge.f89 .CsrBarTip { transform: translatex( 372px ); }
+.CsrGauge.f90 .CsrFill { clip: rect( 0%, 90%, 100%, 0% ); }
+.CsrGauge.f90 .CsrBarTip { transform: translatex( 376px ); }
+.CsrGauge.f91 .CsrFill { clip: rect( 0%, 91%, 100%, 0% ); }
+.CsrGauge.f91 .CsrBarTip { transform: translatex( 380px ); }
+.CsrGauge.f92 .CsrFill { clip: rect( 0%, 92%, 100%, 0% ); }
+.CsrGauge.f92 .CsrBarTip { transform: translatex( 384px ); }
+.CsrGauge.f93 .CsrFill { clip: rect( 0%, 93%, 100%, 0% ); }
+.CsrGauge.f93 .CsrBarTip { transform: translatex( 389px ); }
+.CsrGauge.f94 .CsrFill { clip: rect( 0%, 94%, 100%, 0% ); }
+.CsrGauge.f94 .CsrBarTip { transform: translatex( 393px ); }
+.CsrGauge.f95 .CsrFill { clip: rect( 0%, 95%, 100%, 0% ); }
+.CsrGauge.f95 .CsrBarTip { transform: translatex( 397px ); }
+.CsrGauge.f96 .CsrFill { clip: rect( 0%, 96%, 100%, 0% ); }
+.CsrGauge.f96 .CsrBarTip { transform: translatex( 401px ); }
+.CsrGauge.f97 .CsrFill { clip: rect( 0%, 97%, 100%, 0% ); }
+.CsrGauge.f97 .CsrBarTip { transform: translatex( 405px ); }
+.CsrGauge.f98 .CsrFill { clip: rect( 0%, 98%, 100%, 0% ); }
+.CsrGauge.f98 .CsrBarTip { transform: translatex( 410px ); }
+.CsrGauge.f99 .CsrFill { clip: rect( 0%, 99%, 100%, 0% ); }
+.CsrGauge.f99 .CsrBarTip { transform: translatex( 414px ); }
+.CsrGauge.f100 .CsrFill { clip: rect( 0%, 100%, 100%, 0% ); }
+.CsrGauge.f100 .CsrBarTip { transform: translatex( 418px ); }
+
+.CsrGauge.cat-move .CsrFill { background-color: gradient( linear, 0% 0%, 0% 100%, from( #8de1d9 ), to( #4fd1c5 ) ); }
+.CsrGauge.cat-move .CsrBarTip { box-shadow: #4fd1c5 0px 0px 6px 1px; }
+.CsrGauge.cat-move .CsrGaugeTile { border-bottom-color: #4fd1c5; }
+.CsrGauge.ready.cat-move .CsrGaugeTile { border: 1px solid #4fd1c5; border-bottom: 2px solid #4fd1c5; background-color: gradient( linear, 0% 0%, 0% 100%, from( #4fd1c533 ), to( #4fd1c573 ) ); box-shadow: #4fd1c580 0px 0px 8px 0px; }
 .CsrGauge.ready.cat-move .CsrGaugeVal { color: #4fd1c5; }
-.CsrGauge.cat-weap .CsrFill { background-color: #f6ad55; }
+.CsrGauge.cat-weap .CsrFill { background-color: gradient( linear, 0% 0%, 0% 100%, from( #f9ca90 ), to( #f6ad55 ) ); }
+.CsrGauge.cat-weap .CsrBarTip { box-shadow: #f6ad55 0px 0px 6px 1px; }
+.CsrGauge.cat-weap .CsrGaugeTile { border-bottom-color: #f6ad55; }
+.CsrGauge.ready.cat-weap .CsrGaugeTile { border: 1px solid #f6ad55; border-bottom: 2px solid #f6ad55; background-color: gradient( linear, 0% 0%, 0% 100%, from( #f6ad5533 ), to( #f6ad5573 ) ); box-shadow: #f6ad5580 0px 0px 8px 0px; }
 .CsrGauge.ready.cat-weap .CsrGaugeVal { color: #f6ad55; }
-.CsrGauge.cat-util .CsrFill { background-color: #a3e635; }
+.CsrGauge.cat-util .CsrFill { background-color: gradient( linear, 0% 0%, 0% 100%, from( #c3ef7c ), to( #a3e635 ) ); }
+.CsrGauge.cat-util .CsrBarTip { box-shadow: #a3e635 0px 0px 6px 1px; }
+.CsrGauge.cat-util .CsrGaugeTile { border-bottom-color: #a3e635; }
+.CsrGauge.ready.cat-util .CsrGaugeTile { border: 1px solid #a3e635; border-bottom: 2px solid #a3e635; background-color: gradient( linear, 0% 0%, 0% 100%, from( #a3e63533 ), to( #a3e63573 ) ); box-shadow: #a3e63580 0px 0px 8px 0px; }
 .CsrGauge.ready.cat-util .CsrGaugeVal { color: #a3e635; }
-.CsrGauge.cat-surv .CsrFill { background-color: #f56565; }
+.CsrGauge.cat-surv .CsrFill { background-color: gradient( linear, 0% 0%, 0% 100%, from( #f89b9b ), to( #f56565 ) ); }
+.CsrGauge.cat-surv .CsrBarTip { box-shadow: #f56565 0px 0px 6px 1px; }
+.CsrGauge.cat-surv .CsrGaugeTile { border-bottom-color: #f56565; }
+.CsrGauge.ready.cat-surv .CsrGaugeTile { border: 1px solid #f56565; border-bottom: 2px solid #f56565; background-color: gradient( linear, 0% 0%, 0% 100%, from( #f5656533 ), to( #f5656573 ) ); box-shadow: #f5656580 0px 0px 8px 0px; }
 .CsrGauge.ready.cat-surv .CsrGaugeVal { color: #f56565; }
-.CsrGauge.cat-stealth .CsrFill { background-color: #b794f4; }
+.CsrGauge.cat-stealth .CsrFill { background-color: gradient( linear, 0% 0%, 0% 100%, from( #d0b9f8 ), to( #b794f4 ) ); }
+.CsrGauge.cat-stealth .CsrBarTip { box-shadow: #b794f4 0px 0px 6px 1px; }
+.CsrGauge.cat-stealth .CsrGaugeTile { border-bottom-color: #b794f4; }
+.CsrGauge.ready.cat-stealth .CsrGaugeTile { border: 1px solid #b794f4; border-bottom: 2px solid #b794f4; background-color: gradient( linear, 0% 0%, 0% 100%, from( #b794f433 ), to( #b794f473 ) ); box-shadow: #b794f480 0px 0px 8px 0px; }
 .CsrGauge.ready.cat-stealth .CsrGaugeVal { color: #b794f4; }
-.CsrGauge.cat-chaos .CsrFill { background-color: #ed64a6; }
+.CsrGauge.cat-chaos .CsrFill { background-color: gradient( linear, 0% 0%, 0% 100%, from( #f39ac5 ), to( #ed64a6 ) ); }
+.CsrGauge.cat-chaos .CsrBarTip { box-shadow: #ed64a6 0px 0px 6px 1px; }
+.CsrGauge.cat-chaos .CsrGaugeTile { border-bottom-color: #ed64a6; }
+.CsrGauge.ready.cat-chaos .CsrGaugeTile { border: 1px solid #ed64a6; border-bottom: 2px solid #ed64a6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ed64a633 ), to( #ed64a673 ) ); box-shadow: #ed64a680 0px 0px 8px 0px; }
 .CsrGauge.ready.cat-chaos .CsrGaugeVal { color: #ed64a6; }
 
 .CsrRoll
