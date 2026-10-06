@@ -11,48 +11,69 @@
   <Panel class="CsrScreen" hittest="false">
     <Panel id="csr_hud" class="CsrHud" hittest="false">
       <Panel id="csr_list" class="CsrList" hittest="false">
-        <Label id="csr_list_title" class="CsrListTitle" text="{s:title}" />
-        <Panel id="csr_row0" class="CsrRow">
-          <Panel id="csr_row0_ico" class="CsrIco CsrRowIco" />
-          <Panel class="CsrRowText">
-            <Label id="csr_row0_name" class="CsrRowName" text="{s:name}" />
-            <Label id="csr_row0_short" class="CsrRowShort" text="{s:short}" />
-          </Panel>
+        <Panel class="CsrListHead">
+          <Label id="csr_list_title" class="CsrListTitle" text="{s:title}" />
+          <Panel class="CsrListRule" />
         </Panel>
-        <Panel id="csr_row1" class="CsrRow">
-          <Panel id="csr_row1_ico" class="CsrIco CsrRowIco" />
-          <Panel class="CsrRowText">
-            <Label id="csr_row1_name" class="CsrRowName" text="{s:name}" />
-            <Label id="csr_row1_short" class="CsrRowShort" text="{s:short}" />
+        <Panel id="csr_row0" class="CsrRow row0">
+          <Panel class="CsrRowBody">
+            <Panel class="CsrRowTile"><Panel id="csr_row0_ico" class="CsrIco CsrRowIco" /></Panel>
+            <Panel class="CsrRowText">
+              <Label id="csr_row0_name" class="CsrRowName" text="{s:name}" />
+              <Label id="csr_row0_short" class="CsrRowShort" text="{s:short}" />
+            </Panel>
           </Panel>
+          <Panel class="CsrRowRail" />
         </Panel>
-        <Panel id="csr_row2" class="CsrRow">
-          <Panel id="csr_row2_ico" class="CsrIco CsrRowIco" />
-          <Panel class="CsrRowText">
-            <Label id="csr_row2_name" class="CsrRowName" text="{s:name}" />
-            <Label id="csr_row2_short" class="CsrRowShort" text="{s:short}" />
+        <Panel id="csr_row1" class="CsrRow row1">
+          <Panel class="CsrRowBody">
+            <Panel class="CsrRowTile"><Panel id="csr_row1_ico" class="CsrIco CsrRowIco" /></Panel>
+            <Panel class="CsrRowText">
+              <Label id="csr_row1_name" class="CsrRowName" text="{s:name}" />
+              <Label id="csr_row1_short" class="CsrRowShort" text="{s:short}" />
+            </Panel>
           </Panel>
+          <Panel class="CsrRowRail" />
         </Panel>
-        <Panel id="csr_row3" class="CsrRow">
-          <Panel id="csr_row3_ico" class="CsrIco CsrRowIco" />
-          <Panel class="CsrRowText">
-            <Label id="csr_row3_name" class="CsrRowName" text="{s:name}" />
-            <Label id="csr_row3_short" class="CsrRowShort" text="{s:short}" />
+        <Panel id="csr_row2" class="CsrRow row2">
+          <Panel class="CsrRowBody">
+            <Panel class="CsrRowTile"><Panel id="csr_row2_ico" class="CsrIco CsrRowIco" /></Panel>
+            <Panel class="CsrRowText">
+              <Label id="csr_row2_name" class="CsrRowName" text="{s:name}" />
+              <Label id="csr_row2_short" class="CsrRowShort" text="{s:short}" />
+            </Panel>
           </Panel>
+          <Panel class="CsrRowRail" />
         </Panel>
-        <Panel id="csr_row4" class="CsrRow">
-          <Panel id="csr_row4_ico" class="CsrIco CsrRowIco" />
-          <Panel class="CsrRowText">
-            <Label id="csr_row4_name" class="CsrRowName" text="{s:name}" />
-            <Label id="csr_row4_short" class="CsrRowShort" text="{s:short}" />
+        <Panel id="csr_row3" class="CsrRow row3">
+          <Panel class="CsrRowBody">
+            <Panel class="CsrRowTile"><Panel id="csr_row3_ico" class="CsrIco CsrRowIco" /></Panel>
+            <Panel class="CsrRowText">
+              <Label id="csr_row3_name" class="CsrRowName" text="{s:name}" />
+              <Label id="csr_row3_short" class="CsrRowShort" text="{s:short}" />
+            </Panel>
           </Panel>
+          <Panel class="CsrRowRail" />
         </Panel>
-        <Panel id="csr_row5" class="CsrRow">
-          <Panel id="csr_row5_ico" class="CsrIco CsrRowIco" />
-          <Panel class="CsrRowText">
-            <Label id="csr_row5_name" class="CsrRowName" text="{s:name}" />
-            <Label id="csr_row5_short" class="CsrRowShort" text="{s:short}" />
+        <Panel id="csr_row4" class="CsrRow row4">
+          <Panel class="CsrRowBody">
+            <Panel class="CsrRowTile"><Panel id="csr_row4_ico" class="CsrIco CsrRowIco" /></Panel>
+            <Panel class="CsrRowText">
+              <Label id="csr_row4_name" class="CsrRowName" text="{s:name}" />
+              <Label id="csr_row4_short" class="CsrRowShort" text="{s:short}" />
+            </Panel>
           </Panel>
+          <Panel class="CsrRowRail" />
+        </Panel>
+        <Panel id="csr_row5" class="CsrRow row5">
+          <Panel class="CsrRowBody">
+            <Panel class="CsrRowTile"><Panel id="csr_row5_ico" class="CsrIco CsrRowIco" /></Panel>
+            <Panel class="CsrRowText">
+              <Label id="csr_row5_name" class="CsrRowName" text="{s:name}" />
+              <Label id="csr_row5_short" class="CsrRowShort" text="{s:short}" />
+            </Panel>
+          </Panel>
+          <Panel class="CsrRowRail" />
         </Panel>
       </Panel>
       <Panel id="csr_gauges" class="CsrGauges" hittest="false">

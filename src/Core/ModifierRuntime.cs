@@ -700,7 +700,7 @@ public sealed class ModifierRuntime
             // Bug fix: the description was sent raw while only the display name went through
             // Helper.Colored(), so any "[green]"/"[default]" token inside a description printed as
             // literal text in chat instead of coloring it.
-            player.SendChat(SwiftlyS2.Shared.Helper.Colored($"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - {CSRollUtils.GetModifierDescription(_core, modifier)}"));
+            player.SendChat(SwiftlyS2.Shared.Helper.Colored($"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - {CSRollUtils.GetModifierDescription(_core, modifier, player.Slot)}"));
         }
     }
 

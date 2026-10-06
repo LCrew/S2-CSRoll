@@ -116,12 +116,15 @@ def icons() -> list[str]:
 # ---------------------------------------------------------------------------------------------------
 def layout() -> str:
     rows = "\n".join(
-        f'''        <Panel id="csr_row{i}" class="CsrRow">
-          <Panel id="csr_row{i}_ico" class="CsrIco CsrRowIco" />
-          <Panel class="CsrRowText">
-            <Label id="csr_row{i}_name" class="CsrRowName" text="{{s:name}}" />
-            <Label id="csr_row{i}_short" class="CsrRowShort" text="{{s:short}}" />
+        f'''        <Panel id="csr_row{i}" class="CsrRow row{i}">
+          <Panel class="CsrRowBody">
+            <Panel class="CsrRowTile"><Panel id="csr_row{i}_ico" class="CsrIco CsrRowIco" /></Panel>
+            <Panel class="CsrRowText">
+              <Label id="csr_row{i}_name" class="CsrRowName" text="{{s:name}}" />
+              <Label id="csr_row{i}_short" class="CsrRowShort" text="{{s:short}}" />
+            </Panel>
           </Panel>
+          <Panel class="CsrRowRail" />
         </Panel>''' for i in range(ROWS))
 
     gauges = "\n".join(
@@ -153,7 +156,10 @@ def layout() -> str:
   <Panel class="CsrScreen" hittest="false">
     <Panel id="csr_hud" class="CsrHud" hittest="false">
       <Panel id="csr_list" class="CsrList" hittest="false">
-        <Label id="csr_list_title" class="CsrListTitle" text="{{s:title}}" />
+        <Panel class="CsrListHead">
+          <Label id="csr_list_title" class="CsrListTitle" text="{{s:title}}" />
+          <Panel class="CsrListRule" />
+        </Panel>
 {rows}
       </Panel>
       <Panel id="csr_gauges" class="CsrGauges" hittest="false">
@@ -231,7 +237,8 @@ def span(n: int, start: int, frames: int) -> float | None:
 def roll_frames() -> list[str]:
     """
     The reveal's three timelines, one class per server tick on csr_roll: in{n} as the reel appears,
-    win{n} from the landing, out{n} as the whole reveal fades. A frame only carries the properties
+    win{n} from the landing, out{n} as the whole reveal fades. The win frames also go to csr_list, for
+    the list's entry. A frame only carries the properties
     that are moving in it - outside a stretch the element's resting rule applies, so the last frame of
     every timeline is also its resting state.
     """
@@ -271,6 +278,19 @@ def roll_frames() -> list[str]:
             if (t := span(n, start, frames)) is not None:
                 x = -SHINE_W + ease_in_out(t) * (REEL_WIDTH + SHINE_W)
                 rule(f"{f} .{panel}", [f"transform: translatex( {num(x)}px );"])
+
+    # After the card lands, the list (hidden during your own spin) comes in: the title first, then each
+    # row slides in from the left, a few frames apart. Before its start a row is held invisible - one
+    # grouped rule per row rather than one per frame.
+    list_parts = [("CsrListHead", 20, 14, 0)] + [(f"CsrRow.row{i}", 24 + 4 * i, 16, 20) for i in range(ROWS)]
+    for panel, start, frames, slide in list_parts:
+        lines.append(", ".join(f".CsrList.win{n} .{panel}" for n in range(start)) + " { opacity: 0; }")
+        for n in range(start, start + frames):
+            k = ease_out(span(n, start, frames))
+            decls = [f"opacity: {num(k)};"]
+            if slide:
+                decls.append(f"transform: translatex( -{num(slide * (1 - k))}px );")
+            rule(f".CsrList.win{n} .{panel}", decls)
 
     for n in range(OUT_FRAMES + 1):
         k = ease_in_out(n / OUT_FRAMES)
@@ -330,11 +350,16 @@ def stylesheet(icon_names: list[str]) -> str:
     w("")
 
     # ---------- left list ----------
-    row_shade = fade([(0, f"{SHADE}c7"), (0.55, f"{SHADE}80"), (1, f"{SHADE}00")])
+    # The reel's language, turned down: the same item-card tile, a 2px category edge, and a plate that
+    # is lighter than the reel's and fades out to the right, so it never boxes in the game.
+    row_plate = lambda base: fade([(0, f"{base}b3"), (0.55, f"{SHADE}66"), (1, f"{SHADE}00")])
+    rule_line = fade([(0, GOLD), (0.12, f"{GOLD}66"), (0.35, "#ffffff1f"), (1, "#ffffff00")])
+    row_rail = fade([(0, "#ffffff1f"), (0.6, "#ffffff0a"), (1, "#ffffff00")])
+    tile = fade([(0, "#ffffff0f"), (1, "#ffffff05")], vertical=True)
     w(f""".CsrList
 {{
 	flow-children: down;
-	width: 340px;
+	width: 320px;
 	horizontal-align: left;
 	vertical-align: top;
 	margin-left: 16px;
@@ -350,26 +375,40 @@ def stylesheet(icon_names: list[str]) -> str:
     for i, top in enumerate(LIST_OFFSETS[1:], start=1):
         w(f".CsrList.y{i} {{ margin-top: {top}px; }}")
     w(f"""
+.CsrListHead
+{{
+	flow-children: down;
+	width: 100%;
+	margin-bottom: 6px;
+}}
+
 .CsrListTitle
 {{
+	margin-left: 2px;
 	font-family: {FONT_BOLD};
-	font-size: 15px;
+	font-size: 12px;
 	letter-spacing: 3px;
 	text-transform: uppercase;
 	color: #ffffffb3;
-	margin-left: 4px;
-	margin-bottom: 5px;
 	text-shadow: 0px 1px 3px 1.0 #000000cc;
 }}
 
+/* The reel's rail, laid flat: a gold glint at the left fading out. */
+.CsrListRule
+{{
+	width: 100%;
+	height: 1px;
+	margin-top: 4px;
+	background-color: {rule_line};
+}}
+
+/* A row overlays its body and a top hairline (no flow), so the hairline can fade like the plate. */
 .CsrRow
 {{
-	flow-children: right;
 	width: 100%;
-	padding: 6px 12px 6px 9px;
-	margin-bottom: 5px;
-	border-left: 4px solid #ffffff;
-	background-color: {row_shade};
+	margin-bottom: 4px;
+	border-left: 2px solid #ffffff66;
+	background-color: {row_plate("#11151a")};
 	visibility: collapse;
 }}
 
@@ -378,12 +417,40 @@ def stylesheet(icon_names: list[str]) -> str:
 	visibility: visible;
 }}
 
+.CsrRowRail
+{{
+	width: 100%;
+	height: 1px;
+	vertical-align: top;
+	background-color: {row_rail};
+}}
+
+.CsrRowBody
+{{
+	flow-children: right;
+	width: 100%;
+	padding: 6px 12px 6px 8px;
+}}
+
+/* The reel tile, smaller: neutral top, category wash and 2px category bar (per category below). */
+.CsrRowTile
+{{
+	width: 40px;
+	height: 40px;
+	vertical-align: center;
+	margin-right: 10px;
+	border-radius: 2px;
+	border-top: 1px solid #ffffff1a;
+	border-bottom: 2px solid #ffffff40;
+	background-color: {tile};
+}}
+
 .CsrRowIco
 {{
-	width: 34px;
-	height: 34px;
+	width: 26px;
+	height: 26px;
+	horizontal-align: center;
 	vertical-align: center;
-	margin-right: 11px;
 }}
 
 .CsrRowText
@@ -397,26 +464,30 @@ def stylesheet(icon_names: list[str]) -> str:
 {{
 	width: 100%;
 	font-family: {FONT_BOLD};
-	font-size: 20px;
+	font-size: 17px;
 	letter-spacing: 1px;
 	text-transform: uppercase;
 	color: #ffffff;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	text-shadow: 0px 1px 2px 1.0 #000000b3;
 }}
 
 .CsrRowShort
 {{
 	width: 100%;
 	font-family: {FONT_BODY};
-	font-size: 15px;
-	color: #ffffffb3;
+	font-size: 14px;
+	color: #ffffffa6;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+	text-shadow: 0px 1px 2px 1.0 #000000b3;
 }}
 """)
     for cat, colour in CATEGORIES.items():
-        w(f".CsrRow.cat-{cat} {{ border-left-color: {colour}; }}")
+        wash = fade([(0, "#ffffff0d"), (0.5, "#ffffff08"), (1, f"{colour}38")], vertical=True)
+        w(f".CsrRow.cat-{cat} {{ border-left-color: {colour}; background-color: {row_plate(premix(colour))}; }}")
+        w(f".CsrRow.cat-{cat} .CsrRowTile {{ border-bottom-color: {colour}; background-color: {wash}; }}")
     w("")
 
     # ---------- gauges ----------

@@ -46,23 +46,26 @@
   "Juggernaut.Description": "Max health set to 300",
   "Juggernaut.Short": "300 max health",
 
+  // "{hp}" is the health this player rolled - in the HUD and the "Your modifiers" chat line - and
+  // the configured range (e.g. "1-250") where the text isn't for one player.
   "RandomHealth.DisplayName": "Random Health",
-  "RandomHealth.Description": "Random health",
-  "RandomHealth.Short": "Random starting health",
+  "RandomHealth.Description": "Random health: [green]{hp}[default] HP",
+  "RandomHealth.Short": "Spawned with {hp} HP",
 
   // FlashingBullets/DisarmingBullets/Revive/Saint each roll their chance fresh per activation (from
   // their own Min/Max config range) rather than using a fixed number - the literal token "{rand%}"
   // below gets substituted with that live value (e.g. "23.7%", or the configured range like
-  // "10-40%" before this has ever been rolled) every time the description is displayed. Reword the
+  // "10-40%" before this has ever been rolled) every time the description is displayed. In the
+  // custom HUD, Revive shows the player's current chance, which shrinks with each revive. Reword the
   // surrounding text however you like; just keep the "{rand%}" token somewhere in each line, or
   // remove the line entirely to fall back to the hardcoded default wording.
   "FlashingBullets.DisplayName": "Flashing Bullets",
   "FlashingBullets.Description": "[green]{rand%}[default] chance to blind on hit",
-  "FlashingBullets.Short": "Hits can blind",
+  "FlashingBullets.Short": "{rand%} chance to blind on hit",
 
   "DisarmingBullets.DisplayName": "Disarming Bullets",
   "DisarmingBullets.Description": "[green]{rand%}[default] chance to disarm on hit",
-  "DisarmingBullets.Short": "Hits can disarm",
+  "DisarmingBullets.Short": "{rand%} chance to disarm on hit",
 
   "HardHead.DisplayName": "Hard Head",
   "HardHead.Description": "Immune to headshots",
@@ -88,11 +91,12 @@
 
   "Revive.DisplayName": "Revive",
   "Revive.Description": "[green]{rand%}[default] chance to survive lethal damage",
-  "Revive.Short": "Chance to survive death",
+  "Revive.Short": "{rand%} chance to survive death",
 
+  // "{hp}" is SmallPlayers.MaxHealth from config.jsonc.
   "SmallPlayers.DisplayName": "Small Players",
-  "SmallPlayers.Description": "2x smaller, 50 HP",
-  "SmallPlayers.Short": "Half size, 50 HP",
+  "SmallPlayers.Description": "2x smaller, {hp} HP",
+  "SmallPlayers.Short": "Half size, {hp} HP",
 
   "PoisonousSmoke.DisplayName": "Poisonous Smoke",
   "PoisonousSmoke.Description": "Your smokes damage enemies inside them",
@@ -128,7 +132,7 @@
 
   "Saint.DisplayName": "Saint",
   "Saint.Description": "[green]{rand%}[default] chance to revive a teammate on kill",
-  "Saint.Short": "Kills can revive a teammate",
+  "Saint.Short": "{rand%} chance a kill revives an ally",
 
   "Speedhack.DisplayName": "Speedhack",
   "Speedhack.Description": "You are really fast",

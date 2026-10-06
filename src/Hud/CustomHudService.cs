@@ -312,14 +312,26 @@ public sealed class CustomHudService
             roll.Landed = true;
             roll.LandedAt = now;
             roll.HideAt = now + Math.Max((float)HudLayout.WinFrames / HudLayout.Fps + 0.5f, Cfg.RevealHoldSeconds);
-            ShowCard(slot, state, roll);
-            SetFlag(slot, state, HudLayout.Tile(HudLayout.WinTile), HudLayout.Won, true);
-            SetFlag(slot, state, HudLayout.RollPanel, HudLayout.Landed, true);
-            SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.WinClass(0));
 
+            // Commit before drawing the card: activating is what rolls a modifier's chance or health,
+            // so the card shows the real number rather than the configured range.
             var onLanded = roll.OnLanded;
             roll.OnLanded = null;
             InvokeSafely(onLanded);
+
+            // The commit started a new roll for this player - that one owns the panels now.
+            if (state.Roll != roll)
+            {
+                return;
+            }
+
+            ShowCard(slot, state, roll);
+            SetFlag(slot, state, HudLayout.Tile(HudLayout.WinTile), HudLayout.Won, true);
+            SetFlag(slot, state, HudLayout.RollPanel, HudLayout.Landed, true);
+            SetWinFrame(slot, state, 0);
+
+            // The list was held back for the spin; redraw it this tick so its rows arrive with frame 0.
+            state.NextRefresh = now;
             return;
         }
 
@@ -331,7 +343,7 @@ public sealed class CustomHudService
 
         if (now < roll.HideAt)
         {
-            SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.WinClass(Math.Min(Frame(now - roll.LandedAt), HudLayout.WinFrames)));
+            SetWinFrame(slot, state, Math.Min(Frame(now - roll.LandedAt), HudLayout.WinFrames));
             return;
         }
 
@@ -345,6 +357,13 @@ public sealed class CustomHudService
         SetFlag(slot, state, HudLayout.Card, HudLayout.On, false);
         SetFlag(slot, state, HudLayout.RollPanel, HudLayout.On, false);
         state.Roll = null;
+    }
+
+    /// <summary>The landing timeline runs on the reel and the list together - the list's rows slide in on it.</summary>
+    private void SetWinFrame(int slot, PlayerState state, int frame)
+    {
+        SetExclusive(slot, state, HudLayout.RollPanel, "fx", HudLayout.WinClass(frame));
+        SetExclusive(slot, state, HudLayout.ListPanel, "fx", HudLayout.WinClass(frame));
     }
 
     /// <summary>Which timeline frame (HudLayout.Fps a second) a moment falls on. The nudge keeps float error from holding a frame back a tick.</summary>
@@ -377,7 +396,7 @@ public sealed class CustomHudService
         SetExclusive(slot, state, HudLayout.CardIcon, "icon", HudLayout.IconClass(HudCatalog.Icon(modifier)));
         SetText(slot, state, HudLayout.CardCategory, HudLayout.VarCategory, label);
         SetText(slot, state, HudLayout.CardName, HudLayout.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier));
-        SetText(slot, state, HudLayout.CardDescription, HudLayout.VarDescription, CSRollUtils.StripChatColors(CSRollUtils.GetModifierDescription(_core, modifier)));
+        SetText(slot, state, HudLayout.CardDescription, HudLayout.VarDescription, CSRollUtils.StripChatColors(CSRollUtils.GetModifierDescription(_core, modifier, slot)));
         SetFlag(slot, state, HudLayout.Card, HudLayout.On, true);
     }
 
@@ -535,6 +554,13 @@ public sealed class CustomHudService
         var title = subject.Slot == slot ? "Modifiers" : $"{DisplayName(subject)}'s Modifiers";
         var modifiers = RevealPending(slot, state, subject) ? [] : _runtime.GetModifiersForSlot(subject.Slot);
 
+        // Outside a landing the list rests on the last win frame, which has no rules - so a landing cut
+        // short (a new roll, the round restarting) can't leave rows stuck half-faded.
+        if (state.Roll is not { Landed: true } landing || now >= landing.HideAt)
+        {
+            SetExclusive(slot, state, HudLayout.ListPanel, "fx", HudLayout.WinClass(HudLayout.WinFrames));
+        }
+
         // While watching someone the title stays up even when they have nothing - "Rex's Modifiers"
         // over an empty list says more than a list that silently vanished.
         SetFlag(slot, state, HudLayout.ListPanel, HudLayout.On, modifiers.Count > 0 || subject.Slot != slot);
@@ -552,7 +578,7 @@ public sealed class CustomHudService
             SetExclusive(slot, state, HudLayout.Row(i), "cat", HudLayout.CategoryClass(HudCatalog.Category(modifier)));
             SetExclusive(slot, state, HudLayout.RowIcon(i), "icon", HudLayout.IconClass(HudCatalog.Icon(modifier)));
             SetText(slot, state, HudLayout.RowName(i), HudLayout.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier));
-            SetText(slot, state, HudLayout.RowShort(i), HudLayout.VarShort, CSRollUtils.GetModifierShortDescription(_core, modifier));
+            SetText(slot, state, HudLayout.RowShort(i), HudLayout.VarShort, CSRollUtils.GetModifierShortDescription(_core, modifier, subject.Slot));
             SetFlag(slot, state, HudLayout.Row(i), HudLayout.On, true);
         }
 

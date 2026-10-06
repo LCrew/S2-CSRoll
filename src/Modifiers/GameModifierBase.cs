@@ -32,6 +32,12 @@ public abstract class GameModifierBase
     /// track what's live. Null for modifiers with nothing dynamic to show.
     /// </summary>
     public virtual IReadOnlyDictionary<string, string>? DynamicTextTokens => null;
+
+    /// <summary>
+    /// DynamicTextTokens as one player sees them, for a value rolled or tracked per player -
+    /// RandomHealth's health, Revive's shrinking chance. Defaults to the shared tokens.
+    /// </summary>
+    public virtual IReadOnlyDictionary<string, string>? DynamicTextTokensFor(int slot) => DynamicTextTokens;
     public virtual bool SupportsRandomRounds { get; protected set; } = false;
     public virtual bool IsRegistered { get; protected set; } = true;
     public bool IsActive { get; private set; }
