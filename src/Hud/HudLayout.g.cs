@@ -21,13 +21,15 @@ public static partial class HudLayout
 
     public const int Rows = 6;
     public const int Gauges = 3;
-    public const int FillSteps = 20;
+    public const int FillSteps = 100;
     public const int ListOffsets = 5;
 
     public const int Tiles = 30;
     public const int StartTile = 3;
     public const int WinTile = 26;
     public const float SpinSeconds = 4.0f;
+    public const int PositionQuantum = 4;
+    public const int PositionSteps = 437;
     public static readonly (float X1, float Y1, float X2, float Y2) SpinCurve = (0.08f, 0.7f, 0.12f, 1.0f);
 
     public const string FallbackIcon = "InfiniteRoll";
@@ -101,6 +103,7 @@ public static partial class HudLayout
     public static string IconClass(string icon) => $"ico-{icon}";
     public static string CategoryClass(string category) => $"cat-{category}";
     public static string FillClass(int step) => $"f{step}";
+    public static string PositionClass(int step) => $"p{step}";
     public static string ListOffsetClass(int offset) => $"y{offset}";
 
     /// <summary>Text variable names, as written in the layout's {s:...} slots.</summary>
@@ -115,6 +118,4 @@ public static partial class HudLayout
     public const string On = "on";
     public const string Ready = "ready";
     public const string Won = "won";
-    public const string SpinA = "spin-a";
-    public const string SpinB = "spin-b";
 }

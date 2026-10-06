@@ -28,8 +28,9 @@ namespace CSRoll.Hud;
 /// - A per-player call takes a player slot. Anything else (an entity index) indexes past the engine's
 ///   player array - memory corruption, not an exception. IsAddressable gates every per-player write.
 /// - Clients on the spectator team receive no HUD state at all, so they stay on center-HTML.
-/// - Re-adding a class that is already set sends nothing, so restarting an animation means swapping
-///   between two class names (spin-a / spin-b).
+/// - A CSS animation or transition started by a server class write does not run in game (seen live:
+///   the reel sat still at its end position). So nothing animates client-side: the reel is moved by
+///   the server through a position class per tick, and bars step 1% at a time every tick.
 /// - Turning a class off writes Undefined rather than DoesNotHave, which drops the override instead of
 ///   piling up hundreds of them over a round.
 /// - The entity can disappear (round restart, map change) and is recreated on the next tick; every
@@ -63,7 +64,6 @@ public sealed class CustomHudService
         public readonly HashSet<(string Panel, string Class)> Flags = [];
         public float NextRefresh;
         public float PromptUntil;
-        public string SpinClass = HudLayout.SpinB;
         public RollState? Roll;
     }
 
@@ -252,12 +252,7 @@ public sealed class CustomHudService
         SetExclusive(slot, state, HudLayout.TileIcon(HudLayout.WinTile), "icon", HudLayout.IconClass(HudCatalog.Icon(primary)));
         SetExclusive(slot, state, HudLayout.Tile(HudLayout.WinTile), "cat", HudLayout.CategoryClass(HudCatalog.Category(primary)));
 
-        // Restart the spin by swapping to the other animation class - see the class comment.
-        var next = state.SpinClass == HudLayout.SpinA ? HudLayout.SpinB : HudLayout.SpinA;
-        SetFlag(slot, state, HudLayout.Strip, state.SpinClass, false);
-        SetFlag(slot, state, HudLayout.Strip, next, true);
-        state.SpinClass = next;
-
+        SetExclusive(slot, state, HudLayout.Strip, "pos", HudLayout.PositionClass(0));
         SetFlag(slot, state, HudLayout.RollPanel, HudLayout.On, true);
 
         state.Roll = new RollState { Primary = primary, Count = modifiers.Count, OnLanded = onLanded, StartedAt = now };
@@ -273,6 +268,11 @@ public sealed class CustomHudService
         {
             elapsed = HudLayout.SpinSeconds;
         }
+
+        // The server is the animation: one position per tick along the eased curve.
+        var progress = EaseProgress(Math.Clamp(elapsed / HudLayout.SpinSeconds, 0f, 1f));
+        var position = (int)MathF.Round(progress * HudLayout.PositionSteps);
+        SetExclusive(slot, state, HudLayout.Strip, "pos", HudLayout.PositionClass(Math.Clamp(position, 0, HudLayout.PositionSteps)));
 
         while (roll.NextTick < TickTimes.Length && elapsed >= TickTimes[roll.NextTick])
         {
@@ -354,40 +354,55 @@ public sealed class CustomHudService
         }
     }
 
+    private static float Bezier(float t, float a, float b)
+    {
+        var u = 1f - t;
+        return (3f * u * u * t * a) + (3f * u * t * t * b) + (t * t * t);
+    }
+
+    /// <summary>The eased curve (HudLayout.SpinCurve, a cubic-bezier) solved for the curve parameter whose first coordinate reaches target - the y side for a distance, the x side for a time.</summary>
+    private static float SolveCurve(float target, bool forDistance)
+    {
+        var (x1, y1, x2, y2) = HudLayout.SpinCurve;
+        float lo = 0f, hi = 1f;
+        for (var i = 0; i < 30; i++)
+        {
+            var mid = (lo + hi) / 2f;
+            var value = forDistance ? Bezier(mid, y1, y2) : Bezier(mid, x1, x2);
+            if (value < target)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+
+        return (lo + hi) / 2f;
+    }
+
+    /// <summary>How far along the reel is (0-1) at a fraction of the spin's duration.</summary>
+    private static float EaseProgress(float timeFraction)
+    {
+        var (_, y1, _, y2) = HudLayout.SpinCurve;
+        return Bezier(SolveCurve(timeFraction, forDistance: false), y1, y2);
+    }
+
     /// <summary>
-    /// Inverts the stylesheet's cubic-bezier: for each of the tile boundaries the marker passes between
-    /// StartTile and WinTile, finds the moment the eased strip reaches it.
+    /// For each tile boundary the marker passes between StartTile and WinTile, the moment the eased reel
+    /// reaches it - the same curve that positions the reel each tick, so every tick lands on a tile.
     /// </summary>
     private static float[] BuildTickTimes()
     {
-        var (x1, y1, x2, y2) = HudLayout.SpinCurve;
+        var (x1, _, x2, _) = HudLayout.SpinCurve;
         var crossings = HudLayout.WinTile - HudLayout.StartTile;
         var times = new float[crossings];
 
-        static float Bezier(float t, float a, float b)
-        {
-            var u = 1f - t;
-            return (3f * u * u * t * a) + (3f * u * t * t * b) + (t * t * t);
-        }
-
         for (var j = 0; j < crossings; j++)
         {
-            var progress = (j + 0.5f) / crossings;
-            float lo = 0f, hi = 1f;
-            for (var i = 0; i < 40; i++)
-            {
-                var mid = (lo + hi) / 2f;
-                if (Bezier(mid, y1, y2) < progress)
-                {
-                    lo = mid;
-                }
-                else
-                {
-                    hi = mid;
-                }
-            }
-
-            times[j] = Bezier((lo + hi) / 2f, x1, x2) * HudLayout.SpinSeconds;
+            var s = SolveCurve((j + 0.5f) / crossings, forDistance: true);
+            times[j] = Bezier(s, x1, x2) * HudLayout.SpinSeconds;
         }
 
         return times;
@@ -447,10 +462,17 @@ public sealed class CustomHudService
 
             var state = State(player.Slot);
 
-            // Every tick, not on the refresh throttle - the tick sounds need the precision.
+            // Every tick, not on the refresh throttle: the reel position and tick sounds need the
+            // precision, and gauges step 1% at a time - at ten updates a second a fast drain like
+            // Jetpack fuel visibly jumps.
             if (state.Roll is { } roll)
             {
                 AdvanceRoll(player, state, roll, now);
+            }
+
+            if (UsesCustomHud(player.Slot))
+            {
+                RefreshGauges(player.Slot, state, ResolveSubject(player));
             }
 
             // The "now >= NextRefresh - interval" half is the map-clock guard: a deadline from the
@@ -482,7 +504,9 @@ public sealed class CustomHudService
         var title = subject.Slot == slot ? "Modifiers" : $"{DisplayName(subject)}'s Modifiers";
         var modifiers = _runtime.GetModifiersForSlot(subject.Slot);
 
-        SetFlag(slot, state, HudLayout.ListPanel, HudLayout.On, modifiers.Count > 0);
+        // While watching someone the title stays up even when they have nothing - "Rex's Modifiers"
+        // over an empty list says more than a list that silently vanished.
+        SetFlag(slot, state, HudLayout.ListPanel, HudLayout.On, modifiers.Count > 0 || subject.Slot != slot);
         SetText(slot, state, HudLayout.ListTitle, HudLayout.VarTitle, title);
 
         for (var i = 0; i < HudLayout.Rows; i++)
@@ -501,6 +525,10 @@ public sealed class CustomHudService
             SetFlag(slot, state, HudLayout.Row(i), HudLayout.On, true);
         }
 
+    }
+
+    private void RefreshGauges(int slot, PlayerState state, IPlayer subject)
+    {
         var gauges = _runtime.GetHudGauges(subject.Slot);
         for (var i = 0; i < HudLayout.Gauges; i++)
         {

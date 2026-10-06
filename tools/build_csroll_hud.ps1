@@ -4,9 +4,9 @@
 
 .DESCRIPTION
     1. Copies hud\panorama into <CS2>\content\csgo_addons\<Addon>\panorama - the addon's source tree.
-    2. Compiles every .xml, .css and .svg there with resourcecompiler.exe, which ships with the
+    2. Compiles every .xml, .css, .svg and .png there with resourcecompiler.exe, which ships with the
        Counter-Strike 2 Workshop Tools.
-    3. Checks that every compiled file (.vxml_c, .vcss_c, .vsvg_c) landed in
+    3. Checks that every compiled file (.vxml_c, .vcss_c, .vsvg_c, _png.vtex_c) landed in
        <CS2>\game\csgo_addons\<Addon>\panorama. resourcecompiler can report success and write nothing,
        and an addon published without them looks fine everywhere and draws nothing in game.
 
@@ -59,7 +59,7 @@ Write-Host "`n[1/3] Copying hud\panorama -> $contentDir" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $contentDir | Out-Null
 Copy-Item -Path (Join-Path $source '*') -Destination $contentDir -Recurse -Force
 
-$sources = Get-ChildItem -Path $contentDir -Recurse -File -Include *.xml, *.css, *.svg
+$sources = Get-ChildItem -Path $contentDir -Recurse -File -Include *.xml, *.css, *.svg, *.png
 if (-not $sources) { throw "Nothing to compile under $contentDir" }
 
 Write-Host "`n[2/3] Compiling $($sources.Count) file(s)" -ForegroundColor Cyan
@@ -77,11 +77,13 @@ foreach ($src in $sources) {
 }
 
 Write-Host "`n[3/3] Checking compiled output in $gameDir" -ForegroundColor Cyan
-$suffix  = @{ '.xml' = '.vxml_c'; '.css' = '.vcss_c'; '.svg' = '.vsvg_c' }
+# Panorama images compile with the source extension folded into the name: icon.png -> icon_png.vtex_c.
+$suffix  = @{ '.xml' = '.vxml_c'; '.css' = '.vcss_c'; '.svg' = '.vsvg_c'; '.png' = '_png.vtex_c' }
 $missing = @()
 foreach ($src in $sources) {
     $relative = $src.FullName.Substring($contentDir.Length + 1)
-    $compiled = Join-Path $gameDir ([System.IO.Path]::ChangeExtension($relative, $suffix[$src.Extension.ToLower()]))
+    $stem     = $relative.Substring(0, $relative.Length - $src.Extension.Length)
+    $compiled = Join-Path $gameDir ($stem + $suffix[$src.Extension.ToLower()])
     if (-not (Test-Path $compiled)) { $missing += $compiled }
 }
 if ($missing.Count -gt 0) {

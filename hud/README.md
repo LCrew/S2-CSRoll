@@ -18,6 +18,7 @@ centre text.
 hud/panorama/layout/custom_game/csroll_hud.xml     GENERATED - the layout
 hud/panorama/styles/custom_game/csroll_hud.css     GENERATED - its stylesheet
 hud/panorama/images/custom_game/csroll/*.svg       one icon per modifier (white, 64x64), plus InfiniteRoll
+hud/panorama/images/custom_game/csroll_png/*.png   the same icons as 128x128 PNGs (tools/rasterize_icons.py)
 src/Hud/HudLayout.g.cs                             GENERATED - the ids and classes the plugin drives
 tools/generate_hud.py                              writes all three generated files from one spec
 ```
