@@ -53,6 +53,14 @@ namespace CSRoll.Modifiers;
 /// state-machine bug above was fixed, the gradient helper itself is dropped in favor of a plain
 /// colored span, matching how every other HUD in this codebase (e.g. Flanker's own cooldown
 /// text) already renders colored status text with no issues.
+///
+/// Bug fix: nothing checked whether a carrier was alive, so every reroll kept spinning for dead
+/// players too - tick sounds and HUD frames for a spectating corpse, ending in a strip-and-give on a
+/// pawn that wasn't playing. The shared reroll now only starts rolls for living carriers, a roll
+/// already on screen when its carrier dies is abandoned (they keep whatever weapon last landed, which
+/// the spawn handler hands back if they return), and the HUD block is cleared while they're dead. A
+/// carrier who died before their very first roll ever landed gets one the moment they're alive again,
+/// so a revive never leaves them gun-less until the next cycle.
 /// </summary>
 public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
 {
@@ -73,6 +81,9 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
     private readonly Dictionary<int, string> _currentWeaponName = [];
     private readonly Dictionary<int, float> _lastHtmlUpdateTime = [];
     private readonly Dictionary<int, SpinState> _spins = [];
+
+    /// <summary>Carriers seen dead since they last were alive - so the death cleanup runs once, not every tick, and the first tick alive again knows to check they're armed.</summary>
+    private readonly HashSet<int> _pausedWhileDead = [];
 
     /// <summary>
     /// -1 means "not yet scheduled". OnRoundStart's "re-apply active modifiers in case anything was
@@ -204,6 +215,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         // reroll timer (or a genuinely new player with no cached weapon yet) starts a new spin now.
         _lastHtmlUpdateTime.Clear();
         _spins.Clear();
+        _pausedWhileDead.Clear();
         base.OnDisabled();
     }
 
@@ -265,7 +277,7 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
             // wasn't it) still to be found.
             foreach (var player in Core.PlayerManager.GetAllValidPlayers())
             {
-                if (IsAssignedTo(player.Slot))
+                if (IsAssignedTo(player.Slot) && player.IsAlive)
                 {
                     StartSpin(player);
                 }
@@ -276,6 +288,23 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         {
             if (!IsAssignedTo(player.Slot))
             {
+                continue;
+            }
+
+            if (!player.IsAlive)
+            {
+                if (_pausedWhileDead.Add(player.Slot))
+                {
+                    _spins.Remove(player.Slot);
+                    ClearHud(player.Slot);
+                }
+
+                continue;
+            }
+
+            if (_pausedWhileDead.Remove(player.Slot) && !_currentWeaponName.ContainsKey(player.Slot) && !_spins.ContainsKey(player.Slot))
+            {
+                StartSpin(player);
                 continue;
             }
 
@@ -434,5 +463,6 @@ public sealed class GameModifierWeaponRoulette : GameModifierRemoveWeapons
         _currentWeaponName.Remove(@event.PlayerId);
         _lastHtmlUpdateTime.Remove(@event.PlayerId);
         _spins.Remove(@event.PlayerId);
+        _pausedWhileDead.Remove(@event.PlayerId);
     }
 }
