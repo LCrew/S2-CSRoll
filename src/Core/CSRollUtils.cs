@@ -1141,19 +1141,25 @@ public static partial class CSRollUtils
     /// per-activation, a config-driven delay/timer, etc.) can still have its surrounding wording
     /// freely customized in the translation file while always showing the real current value(s).
     /// </summary>
-    public static string GetModifierDescription(ISwiftlyCore core, GameModifierBase modifier)
+    /// Pass a slot to show that player's own values (DynamicTextTokensFor) - the HUD does.
+    public static string GetModifierDescription(ISwiftlyCore core, GameModifierBase modifier, int? slot = null)
     {
         var description = TryLocalize(core, $"{modifier.Name}.Description", out var value) ? value : modifier.Description;
+        return SubstituteTokens(modifier, description, slot);
+    }
 
-        if (modifier.DynamicTextTokens is { } tokens)
+    /// <summary>Fills each "{token}" in text with the modifier's live DynamicTextTokens value - for one player's when a slot is given - if it has any.</summary>
+    private static string SubstituteTokens(GameModifierBase modifier, string text, int? slot = null)
+    {
+        if ((slot is { } s ? modifier.DynamicTextTokensFor(s) : modifier.DynamicTextTokens) is { } tokens)
         {
             foreach (var (token, replacement) in tokens)
             {
-                description = description.Replace($"{{{token}}}", replacement);
+                text = text.Replace($"{{{token}}}", replacement);
             }
         }
 
-        return description;
+        return text;
     }
 
     /// <summary>
@@ -1166,6 +1172,18 @@ public static partial class CSRollUtils
     /// </summary>
     public static string GetModifierDisplayName(ISwiftlyCore core, GameModifierBase modifier) =>
         TryLocalize(core, $"{modifier.Name}.DisplayName", out var value) ? value : modifier.Name;
+
+    /// <summary>
+    /// The very short line under a modifier's name in the custom HUD's list (key: "{Name}.Short" in
+    /// translations/en.jsonc), falling back to the full description. Chat colour tags are stripped -
+    /// the HUD draws plain text.
+    /// </summary>
+    public static string GetModifierShortDescription(ISwiftlyCore core, GameModifierBase modifier, int? slot = null) =>
+        StripChatColors(TryLocalize(core, $"{modifier.Name}.Short", out var value) ? SubstituteTokens(modifier, value, slot) : GetModifierDescription(core, modifier, slot));
+
+    /// <summary>Removes chat colour tags ("[green]", "[default]") from text meant for a surface that draws plain text, such as the custom HUD.</summary>
+    public static string StripChatColors(string text) =>
+        System.Text.RegularExpressions.Regex.Replace(text, @"\[[a-z]+\]", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public static bool IsWarmupActive(ISwiftlyCore core)
     {

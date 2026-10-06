@@ -5,6 +5,7 @@ using SwiftlyS2.Shared.Commands;
 using SwiftlyS2.Shared.Misc;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 using CSRoll.Modifiers;
 
 namespace CSRoll;
@@ -60,6 +61,8 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
         _commandGuids.Add(Core.Command.RegisterCommand("rolltestall", Debounce("rolltestall", OnRollTestAll), registerRaw: true, permission: AdminPermission, helpText: "[seconds] - Applies every registered modifier to you one at a time, announcing each on and off, so broken ones can be spotted. Run again to stop."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollhelp", Debounce("rollhelp", OnRollHelp), registerRaw: true, helpText: "Prints every available CSRoll command."));
+        _commandGuids.Add(Core.Command.RegisterCommand("hud", Debounce("hud", OnHud), registerRaw: true, helpText: "Switch between the new CSRoll HUD and the centre-text HUD (needs the HUD addon). Remembered for next time."));
+        _commandGuids.Add(Core.Command.RegisterCommand("hudstatus", Debounce("hudstatus", OnHudStatus), registerRaw: true, permission: AdminPermission, helpText: "Reports whether the custom HUD entity is live and who is using it."));
 
         InitializeMenu();
 
@@ -199,6 +202,22 @@ public partial class CSRoll
 
         ReloadConfigFromManager();
         CSRollUtils.PrintTitleToChat(Core, context.Sender, "Config reloaded from disk.");
+    }
+
+    public void OnHud(ICommandContext context)
+    {
+        if (context.Sender is not { IsValid: true } sender)
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, "Only an in-game player can switch HUDs.");
+            return;
+        }
+
+        CSRollUtils.PrintTitleToChat(Core, sender, _customHud?.Toggle(sender) ?? "The custom HUD isn't available.");
+    }
+
+    public void OnHudStatus(ICommandContext context)
+    {
+        CSRollUtils.PrintTitleToChat(Core, context.Sender, _customHud?.Status(context.Sender) ?? "The custom HUD isn't available.");
     }
 
     public void OnMeModifier(ICommandContext context)

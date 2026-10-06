@@ -39,6 +39,12 @@ public sealed class GameModifierRevive : GameModifierBase
 
     public override IReadOnlyDictionary<string, string>? DynamicTextTokens => new Dictionary<string, string> { ["rand%"] = RollText };
 
+    /// <summary>The player's own chance right now - it shrinks with every revive this life.</summary>
+    public override IReadOnlyDictionary<string, string>? DynamicTextTokensFor(int slot) =>
+        _rolledBasePercent is not null && _currentChancePercent.TryGetValue(slot, out var current)
+            ? new Dictionary<string, string> { ["rand%"] = $"{current:0.#}%" }
+            : DynamicTextTokens;
+
     public override string Description => $"{RollText} chance to survive lethal damage, shrinking with each revive";
 
     public GameModifierRevive()

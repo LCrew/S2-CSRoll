@@ -124,6 +124,9 @@ public class CSRollConfig
     /// <summary>Tunables for the persistent center-HTML popup shown to spectators, listing whatever modifiers are active on whoever they're currently observing.</summary>
     public SpectatorHudConfig SpectatorHud { get; set; } = new();
 
+    /// <summary>The Panorama HUD (roll carousel, modifier list, gauges) for players with the CSRoll HUD Workshop addon - see hud/README.md.</summary>
+    public CustomHudConfig CustomHud { get; set; } = new();
+
     /// <summary>Tunables for the ChineseGrenades ("Chinese Grenades") modifier (randomized fuse timer range applied to HE/flashbang/smoke).</summary>
     public ChineseGrenadesConfig ChineseGrenades { get; set; } = new();
 
@@ -778,6 +781,54 @@ public class SpinRevealConfig
 
     /// <summary>Fade colour as "R,G,B,A" (0-255 each). The default is a low-alpha white flash rather than a heavy blackout.</summary>
     public string FadeColor { get; set; } = "255,255,255,64";
+}
+
+public class CustomHudConfig
+{
+    /// <summary>
+    /// Master switch. Drawing the HUD needs the CSRoll HUD Workshop addon on the client (delivered with
+    /// AddonsManager); players without it stay on center-HTML, and in OptIn mode never even see the
+    /// prompt, so leaving this on is harmless before the addon is set up. Off: no HUD entity is
+    /// created and everyone is on center-HTML.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>The layout the HUD entity loads, relative to the game's panorama tree.</summary>
+    public string LayoutPath { get; set; } = "panorama/layout/custom_game/csroll_hud.xml";
+
+    /// <summary>
+    /// "Everyone" (default, opt-out): every player gets the custom HUD unless they switch back with
+    /// !hud; the choice is remembered per player. A layout cannot run scripts, so the server can't tell
+    /// who actually has the addon - a player without it would see no reveal at all, so everyone who
+    /// hasn't chosen is told once per map how to switch back.
+    /// "OptIn": everyone starts on center-HTML. Players who have the addon see a "NEW HUD READY"
+    /// prompt (players without it see nothing - their client cannot draw the layout at all) and switch
+    /// with !hud. The safer choice while AddonsManager isn't delivering the addon to everyone.
+    /// </summary>
+    public string Mode { get; set; } = "Everyone";
+
+    /// <summary>How long the "NEW HUD READY" prompt stays up after each spawn, for players who haven't chosen yet.</summary>
+    public float PromptSeconds { get; set; } = 15f;
+
+    /// <summary>How long the reveal card stays up after the carousel lands. The modifier list shows it from the moment it lands either way.</summary>
+    public float RevealHoldSeconds { get; set; } = 4f;
+
+    /// <summary>
+    /// Caption on the small bar that slides up above the reel when a roll lands - a server name, a
+    /// Discord invite. Shown exactly as written (no forced capitals, so invite codes survive), cut
+    /// at 64 characters. Empty hides the bar.
+    /// </summary>
+    public string BrandText { get; set; } = "Powered by CSRoll";
+
+    /// <summary>
+    /// Whether players on the Spectator team get the custom HUD (the list shows whoever they watch,
+    /// as "Name's Modifiers"). Turn off if spectators see nothing - then they keep the center-HTML
+    /// spectator panel. Dead players on T/CT always get it.
+    /// </summary>
+    public bool ShowToSpectatorTeam { get; set; } = true;
+
+    /// <summary>Vertical position of the modifier list under the radar: 0 (highest) to 4 (lowest), 40px apart at 1080p. Raise it if a large radar scale or the money display overlaps the list.</summary>
+    public int ListOffset { get; set; } = 0;
 }
 
 public class SpectatorHudConfig

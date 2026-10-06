@@ -8,6 +8,7 @@ using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -320,13 +321,6 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
             return;
         }
 
-        // Stay off the center-HTML surface while the roll's own reveal owns it - see
-        // ModifierRuntime.IsModifierHudSuppressed.
-        if (Runtime.IsModifierHudSuppressed)
-        {
-            return;
-        }
-
         _lastHtmlUpdateTime[slot] = now;
 
         var alpha = _currentAlpha.TryGetValue(slot, out var current) ? current : VisibleAlpha;
@@ -338,6 +332,16 @@ public sealed class GameModifierConditionalInvisibility : GameModifierInvisibleB
         var (label, labelColor) = alpha <= InvisibleAlpha
             ? ("INVISIBLE", "lime")
             : alpha >= VisibleAlpha ? ("VISIBLE", "red") : ("FADING", "yellow");
+
+        var state = alpha <= InvisibleAlpha ? "Invisible" : alpha >= VisibleAlpha ? "Visible" : "Fading";
+        SetGauge(slot, new HudGauge("Concealment", state, concealment, Ready: alpha <= InvisibleAlpha));
+
+        // The center-HTML block stays off the surface while the roll's own reveal owns it (see
+        // ModifierRuntime.IsModifierHudSuppressed); the gauge above has no such conflict.
+        if (Runtime.IsModifierHudSuppressed)
+        {
+            return;
+        }
 
         SetHud(slot, CSRollUtils.BuildGaugeHtml(label, labelColor, concealment, CSRollUtils.GetGaugeBarColor(concealment), GaugeBarWidth));
     }

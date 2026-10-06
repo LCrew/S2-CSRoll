@@ -7,3 +7,4 @@ build/
 .DS_Store
 *.bak
 CLAUDE.md
+__pycache__/

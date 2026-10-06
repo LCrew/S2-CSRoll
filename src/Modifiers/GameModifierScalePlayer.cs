@@ -108,6 +108,8 @@ public sealed class GameModifierSmallPlayers : GameModifierScalePlayer
 
     protected override float GetScale() => 0.5f;
 
+    public override IReadOnlyDictionary<string, string>? DynamicTextTokens => new Dictionary<string, string> { ["hp"] = $"{Runtime.Config.SmallPlayers.MaxHealth}" };
+
     protected override void OnRegistered()
     {
         base.OnRegistered();

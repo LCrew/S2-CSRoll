@@ -5,6 +5,7 @@ using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 
 using CSRoll.Core;
+using CSRoll.Hud;
 
 namespace CSRoll.Modifiers;
 
@@ -300,11 +301,6 @@ public sealed class GameModifierRecall : GameModifierBase
             return;
         }
 
-        if (Runtime.IsModifierHudSuppressed)
-        {
-            return;
-        }
-
         _lastHtmlUpdateTime[slot] = now;
 
         var cooldown = Math.Max(0.01f, Runtime.Config.Recall.CooldownSeconds);
@@ -318,6 +314,19 @@ public sealed class GameModifierRecall : GameModifierBase
             : readyAt > now
                 ? "<span color=\"red\" class=\"fontWeight-Bold\">Charging</span>"
                 : "<span class=\"fontWeight-Bold\">Press </span><span color=\"gold\" class=\"fontWeight-Bold\">Inspect</span>";
+
+        SetGauge(slot, _rewinds.ContainsKey(slot)
+            ? new HudGauge("Recall", "Rewinding", ratio)
+            : readyAt > now
+                ? new HudGauge("Recall", $"{readyAt - now:0.0}s", ratio)
+                : new HudGauge("Recall", "Ready · Inspect", 1f, Ready: true));
+
+        // The center-HTML block stays off the surface while the roll's own reveal owns it (see
+        // ModifierRuntime.IsModifierHudSuppressed); the gauge above has no such conflict.
+        if (Runtime.IsModifierHudSuppressed)
+        {
+            return;
+        }
 
         var html = "<span color=\"gold\" class=\"fontWeight-Bold\">Recall</span><br/>" +
                    CSRollUtils.BuildBarHtml(ratio, readyAt > now ? CSRollUtils.GetGaugeBarColor(ratio) : "lime", GaugeBarWidth) + "<br/>" +

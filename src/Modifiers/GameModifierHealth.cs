@@ -17,6 +17,9 @@ public abstract class GameModifierHealth : GameModifierBase
     private readonly ConcurrentDictionary<int, int> _cachedOriginalMaxHealth = new();
     private Guid _spawnHookId;
 
+    /// <summary>The health each player was last given, for descriptions that show it.</summary>
+    protected readonly ConcurrentDictionary<int, int> AppliedHealth = new();
+
     protected abstract int GetHealthValue();
 
     protected override void OnRegistered()
@@ -69,6 +72,7 @@ public abstract class GameModifierHealth : GameModifierBase
         _cachedOriginalMaxHealth[player.Slot] = pawn.MaxHealth;
 
         var health = GetHealthValue();
+        AppliedHealth[player.Slot] = health;
         pawn.MaxHealth = health;
         pawn.MaxHealthUpdated();
         pawn.Health = health;
@@ -77,6 +81,8 @@ public abstract class GameModifierHealth : GameModifierBase
 
     private void ResetHealth(IPlayer player)
     {
+        AppliedHealth.TryRemove(player.Slot, out _);
+
         if (player.PlayerPawn is not { IsValid: true } pawn)
         {
             return;
@@ -93,6 +99,7 @@ public abstract class GameModifierHealth : GameModifierBase
     {
         // Bug fix vs. the CSS original: unconditional TryRemove, no inverted ContainsKey guard.
         _cachedOriginalMaxHealth.TryRemove(@event.PlayerId, out _);
+        AppliedHealth.TryRemove(@event.PlayerId, out _);
     }
 }
 
@@ -120,6 +127,14 @@ public sealed class GameModifierRandomHealth : GameModifierHealth
         SupportsPerPlayerRandomization = true;
         IncompatibleModifiers = ["Juggernaut"];
     }
+
+    private string RangeText => $"{Runtime.Config.RandomHealth.MinHealth}-{Runtime.Config.RandomHealth.MaxHealth}";
+
+    public override IReadOnlyDictionary<string, string>? DynamicTextTokens => new Dictionary<string, string> { ["hp"] = RangeText };
+
+    /// <summary>The health this player actually rolled, once they have one.</summary>
+    public override IReadOnlyDictionary<string, string>? DynamicTextTokensFor(int slot) =>
+        new Dictionary<string, string> { ["hp"] = AppliedHealth.TryGetValue(slot, out var health) ? $"{health}" : RangeText };
 
     // Random.Next(min, max) is exclusive of max - +1 so the configured MaxHealth is actually reachable.
     protected override int GetHealthValue() => Random.Shared.Next(Runtime.Config.RandomHealth.MinHealth, Runtime.Config.RandomHealth.MaxHealth + 1);
