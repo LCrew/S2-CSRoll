@@ -783,6 +783,12 @@ public class HumanShieldConfig
 
     /// <summary>Share of the damage the hostage takes off hits from behind (0.3 = 30% less).</summary>
     public float BackDamageReduction { get; set; } = 0.3f;
+
+    /// <summary>
+    /// Whether the carrier sees the hostage from their own camera. It's the same over-the-shoulder
+    /// model everyone else sees, seen from inside - turn it off if it gets in the way of the view.
+    /// </summary>
+    public bool VisibleToCarrier { get; set; } = true;
 }
 
 public class RarityConfig

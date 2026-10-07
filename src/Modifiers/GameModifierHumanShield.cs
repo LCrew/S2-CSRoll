@@ -24,7 +24,8 @@ namespace CSRoll.Modifiers;
 /// is merged onto the pawn, and the hostage onto the relay. The game's own hostage_carriable_prop set
 /// as the pawn's CarriedHostageProp was tried first and never showed up live - and a single prop
 /// merged straight onto a pawn vanishes after about a second (see Wallhack), which is what the relay
-/// is for. The carrier's own client doesn't receive the hostage, or it would hang across their view.
+/// is for. VisibleToCarrier decides whether the carrier sees it from their own camera too - it is the
+/// third-person model seen from inside, not CS's first-person hostage arm.
 ///
 /// The props are maintained, not just placed once: twice a second every living assigned player is
 /// checked, and one whose hostage has gone (a death, a respawn, the engine cleaning it up) gets a new
@@ -170,9 +171,12 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         relay.AcceptInput("FollowEntity", "!activator", pawn, pawn, 0);
         hostage.AcceptInput("FollowEntity", "!activator", relay, relay, 0);
 
-        // Not sent to the carrier: from their own camera it would hang right across the view.
-        player.ShouldBlockTransmitEntity((int)hostage.Index, true);
-        player.ShouldBlockTransmitEntity((int)relay.Index, true);
+        // Off: the carrier's own client never receives the chain, so they only see it on others.
+        if (!Cfg.VisibleToCarrier)
+        {
+            player.ShouldBlockTransmitEntity((int)hostage.Index, true);
+            player.ShouldBlockTransmitEntity((int)relay.Index, true);
+        }
 
         _props[player.Slot] = (Core.EntitySystem.GetRefEHandle(relay), Core.EntitySystem.GetRefEHandle(hostage));
         Core.Logger.LogInformation("[CSRoll] HumanShield: hostage #{Hostage} (relay #{Relay}) on slot {Slot}.", hostage.Index, relay.Index, player.Slot);
