@@ -321,18 +321,18 @@ public class MimicConfig
 
 public class SpeedhackConfig
 {
-    /// <summary>Movement speed multiplier (VelocityModifier mechanism).</summary>
-    public float SpeedMultiplier { get; set; } = 2.0f;
+    /// <summary>
+    /// Movement speed multiplier (VelocityModifier mechanism). Replaces the old SpeedMultiplier (2.0),
+    /// renamed so existing config files pick up this 15% slower default instead of keeping 2.0.
+    /// </summary>
+    public float RunSpeedMultiplier { get; set; } = 1.7f;
 
     /// <summary>
-    /// Zeroes CCSPlayer_MovementServices.Stamina every tick, so jumping doesn't strip the speed
-    /// bonus away. Stamina is CS2's own jump/land fatigue value - it rises on every jump and landing
-    /// and reduces max speed until it decays, which is why a boosted player visibly slows the moment
-    /// they leave the ground. GameModifierBunnyHop used to zero it for exactly this reason (it now
-    /// zeroes the stamina convars per player instead); this applies the same fix to Speedhack. Turn
-    /// off to keep vanilla jump fatigue.
+    /// Keeps the boosted speed through jumps: lifts CS2's anti-bunnyhop jump speed cap and its
+    /// jump/landing fatigue for the Speedhack player only (per-player convars, like BunnyHop). Off:
+    /// jumping drops them back to about normal speed. Replaces RemoveJumpStaminaPenalty.
     /// </summary>
-    public bool RemoveJumpStaminaPenalty { get; set; } = true;
+    public bool KeepSpeedWhenJumping { get; set; } = true;
 }
 
 public class RandomHealthConfig
