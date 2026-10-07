@@ -27,6 +27,13 @@ namespace CSRoll.Modifiers;
 /// is for. VisibleToCarrier decides whether the carrier sees it from their own camera too - it is the
 /// third-person model seen from inside, not CS's first-person hostage arm.
 ///
+/// NativeCarry (experimental) is for that first-person view: the client draws the real carry - the
+/// hostage over the shoulder and the carry icon - itself, keyed on the pawn's CarriedHostage. A real
+/// hostage_entity is spawned for it and set there, kept hidden, non-solid, undamageable and inside
+/// the carrier (so it stays in their PVS and the handle resolves on their client), with its AI think
+/// cancelled so it never walks off or calls for help. CarriedHostageProp is left alone: the client
+/// may cast whatever it points at to its own carriable-prop class.
+///
 /// The props are maintained, not just placed once: twice a second every living assigned player is
 /// checked, and one whose hostage has gone (a death, a respawn, the engine cleaning it up) gets a new
 /// chain, while dead players lose theirs. That covers spawns and deaths without hooking either.
@@ -34,6 +41,8 @@ namespace CSRoll.Modifiers;
 public sealed class GameModifierHumanShield : GameModifierVelocity
 {
     private const string PropDesignerName = "prop_dynamic";
+    private const string HostageDesignerName = "hostage_entity";
+    private const string HostageModel = "models/hostage/hostage.vmdl";
     private const string CarryModel = "models/hostage/hostage_carry.vmdl";
     private const float MaintainIntervalSeconds = 0.5f;
 
@@ -41,6 +50,9 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
     private const float BehindCosine = -0.34f;
 
     private readonly Dictionary<int, (CHandle<CDynamicProp> Relay, CHandle<CDynamicProp> Hostage)> _props = [];
+
+    /// <summary>NativeCarry's hidden real hostages, by carrier slot.</summary>
+    private readonly Dictionary<int, CHandle<CHostage>> _realHostages = [];
     private float _nextMaintainAt;
 
     public GameModifierHumanShield()
@@ -82,6 +94,7 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         base.OnEnabled();
         Core.Event.OnTick += OnTick;
         Core.GameHooks.Entities.TakeDamage.Pre += OnTakeDamage;
+        Core.GameHooks.Datamaps.CHostage.HostageThink.Pre += OnHostageThink;
         _nextMaintainAt = 0f;
     }
 
@@ -98,8 +111,9 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
     {
         Core.Event.OnTick -= OnTick;
         Core.GameHooks.Entities.TakeDamage.Pre -= OnTakeDamage;
+        Core.GameHooks.Datamaps.CHostage.HostageThink.Pre -= OnHostageThink;
 
-        foreach (var slot in _props.Keys.ToList())
+        foreach (var slot in _props.Keys.Concat(_realHostages.Keys).Distinct().ToList())
         {
             Detach(slot);
         }
@@ -110,11 +124,23 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
     private void OnPrecacheResource(IOnPrecacheResourceEvent @event)
     {
         @event.AddItem(CarryModel);
+        @event.AddItem(HostageModel);
     }
 
     private void OnTick()
     {
         var now = Core.Engine.GlobalVars.CurrentTime;
+
+        // Every tick, the hidden real hostage stays inside its carrier.
+        foreach (var (slot, handle) in _realHostages)
+        {
+            if (ResolveReal(handle) is { } hostage &&
+                Core.PlayerManager.GetPlayer(slot)?.PlayerPawn is { } carrierPawn && CSRollUtils.IsUsableHandle(carrierPawn) &&
+                carrierPawn.AbsOrigin is { } at)
+            {
+                hostage.Teleport(at, null, null);
+            }
+        }
 
         // The map clock restarts on a map change, so a deadline from before it would sit far ahead.
         if (now < _nextMaintainAt && now >= _nextMaintainAt - MaintainIntervalSeconds)
@@ -179,6 +205,11 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         }
 
         _props[player.Slot] = (Core.EntitySystem.GetRefEHandle(relay), Core.EntitySystem.GetRefEHandle(hostage));
+
+        if (Cfg.NativeCarry)
+        {
+            AttachRealHostage(player, pawn, origin);
+        }
         Core.Logger.LogInformation("[CSRoll] HumanShield: hostage #{Hostage} (relay #{Relay}) on slot {Slot}.", hostage.Index, relay.Index, player.Slot);
     }
 
@@ -212,9 +243,72 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         return prop;
     }
 
+    /// <summary>NativeCarry: a real hostage, hidden inside the carrier, set as their CarriedHostage so the client may draw the native first-person carry and icon.</summary>
+    private void AttachRealHostage(IPlayer player, CCSPlayerPawn pawn, Vector origin)
+    {
+        if (pawn.HostageServices is not { } services || !CSRollUtils.IsUsableHandle(services))
+        {
+            return;
+        }
+
+        var hostage = Core.EntitySystem.CreateEntityByDesignerName<CHostage>(HostageDesignerName);
+        using (var keyValues = new CEntityKeyValues())
+        {
+            keyValues.SetVector("origin", origin);
+            hostage.DispatchSpawn(keyValues);
+        }
+
+        if (!CSRollUtils.IsUsableHandle(hostage))
+        {
+            Core.Logger.LogWarning("[CSRoll] HumanShield: the hidden hostage for slot {Slot} was destroyed during DispatchSpawn.", player.Slot);
+            return;
+        }
+
+        hostage.RenderMode = RenderMode_t.kRenderNone;
+        hostage.RenderModeUpdated();
+        hostage.TakesDamage = false;
+        hostage.TakesDamageUpdated();
+        if (hostage.Collision.IsValid)
+        {
+            hostage.Collision.CollisionGroup = (byte)CollisionGroup.Nonphysical;
+            hostage.Collision.CollisionGroupUpdated();
+            hostage.Collision.SolidFlags = 4; // FSOLID_NOT_SOLID
+            hostage.Collision.SolidFlagsUpdated();
+            hostage.Collision.SolidType = SolidType_t.SOLID_NONE;
+            hostage.Collision.SolidTypeUpdated();
+        }
+
+        var handle = Core.EntitySystem.GetRefEHandle(hostage);
+        services.CarriedHostage = new CHandle<CBaseEntity>(handle.Raw);
+        services.CarriedHostageUpdated();
+        _realHostages[player.Slot] = handle;
+
+        Core.Logger.LogInformation("[CSRoll] HumanShield: native carry - hidden hostage #{Index} set as slot {Slot}'s CarriedHostage.", hostage.Index, player.Slot);
+    }
+
+    private static CHostage? ResolveReal(CHandle<CHostage> handle) =>
+        handle.IsValid && handle.Value is { } hostage && CSRollUtils.IsUsableHandle(hostage) && hostage.DesignerName == HostageDesignerName ? hostage : null;
+
+    /// <summary>Our hidden hostages never think: no walking off, no following, no calls for help.</summary>
+    private void OnHostageThink(ref CHostageHostageThinkPreContext ctx)
+    {
+        if (_realHostages.Count == 0)
+        {
+            return;
+        }
+
+        var index = ctx.SchemaObject.Index;
+        if (_realHostages.Values.Any(handle => handle.EntityIndex == index && handle.IsValid))
+        {
+            ctx.SetHookResult(HookResult.CancelOriginal);
+        }
+    }
+
     /// <summary>Removes the slot's chain. The carrier's transmit block is lifted first - indices get recycled, and a block left behind would hide whatever inherits the index.</summary>
     private void Detach(int slot)
     {
+        DetachRealHostage(slot);
+
         if (!_props.Remove(slot, out var chain))
         {
             return;
@@ -237,9 +331,38 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         }
     }
 
+    /// <summary>Clears the carrier's CarriedHostage, if it is still ours, and removes the hidden hostage.</summary>
+    private void DetachRealHostage(int slot)
+    {
+        if (!_realHostages.Remove(slot, out var handle))
+        {
+            return;
+        }
+
+        if (Core.PlayerManager.GetPlayer(slot)?.PlayerPawn is { } pawn && CSRollUtils.IsUsableHandle(pawn) &&
+            pawn.HostageServices is { } services && CSRollUtils.IsUsableHandle(services) && services.CarriedHostage.Raw == handle.Raw)
+        {
+            services.CarriedHostage = CHandle<CBaseEntity>.Invalid;
+            services.CarriedHostageUpdated();
+        }
+
+        ResolveReal(handle)?.Despawn();
+    }
+
     /// <summary>Hits from another player standing behind the carrier land on the hostage first.</summary>
     private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
     {
+        if (_realHostages.Count > 0 && ctx.Params.Entity is { IsValid: true } entity && entity.DesignerName == HostageDesignerName)
+        {
+            var index = entity.Index;
+            if (_realHostages.Values.Any(handle => handle.EntityIndex == index && handle.IsValid))
+            {
+                ctx.Params.Info.Damage = 0f;
+            }
+
+            return;
+        }
+
         if (!TryGetAssignedTakeDamageVictim(ref ctx, out var victim) || !victim.IsAlive || !HasProp(victim.Slot) ||
             victim.PlayerPawn is not { } pawn || pawn.AbsOrigin is not { } at)
         {
@@ -271,7 +394,12 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
-        // The carrier is gone, so there's no transmit block left to lift - just the props.
+        // The carrier is gone, so there's no transmit block left to lift and no pawn to clear - just the entities.
+        if (_realHostages.Remove(@event.PlayerId, out var real))
+        {
+            ResolveReal(real)?.Despawn();
+        }
+
         if (_props.Remove(@event.PlayerId, out var chain))
         {
             Resolve(chain.Hostage)?.Despawn();

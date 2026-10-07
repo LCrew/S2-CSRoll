@@ -785,10 +785,18 @@ public class HumanShieldConfig
     public float BackDamageReduction { get; set; } = 0.3f;
 
     /// <summary>
-    /// Whether the carrier sees the hostage from their own camera. It's the same over-the-shoulder
-    /// model everyone else sees, seen from inside - turn it off if it gets in the way of the view.
+    /// Whether the carrier sees the hostage model from their own camera. It's the same over-the-shoulder
+    /// model everyone else sees, seen from inside - off by default, since NativeCarry is meant to give
+    /// the carrier the game's own first-person carry instead. Turn it on if NativeCarry is off.
     /// </summary>
-    public bool VisibleToCarrier { get; set; } = true;
+    public bool VisibleToCarrier { get; set; } = false;
+
+    /// <summary>
+    /// Experimental: also spawns a hidden, frozen, undamageable real hostage and sets it as the player's
+    /// carried hostage, so the game itself may draw its first-person carry view and carry icon. Off if it
+    /// shows nothing or misbehaves (bots chasing hostages, hostage rules kicking in).
+    /// </summary>
+    public bool NativeCarry { get; set; } = true;
 }
 
 public class RarityConfig
