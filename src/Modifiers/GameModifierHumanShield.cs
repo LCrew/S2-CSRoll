@@ -19,25 +19,27 @@ namespace CSRoll.Modifiers;
 /// where the hostage hangs - deal BackDamageReduction less.
 ///
 /// No real hostage is involved, so no rescue, kill or round rules apply and it works for both teams
-/// on any map. What's spawned is the game's own carried-hostage prop (hostage_carriable_prop with
-/// the hostage_carry model), bone-merged onto the player with FollowEntity and set as the pawn's
-/// HostageServices.CarriedHostageProp - the same two things the game does itself when a hostage is
-/// picked up, so the client draws it the way it draws a real carry.
+/// on any map. The hostage is the game's hostage_carry model on a plain prop_dynamic, bone-merged
+/// onto the player through Wallhack's relay chain: an invisible relay carrying the player's own model
+/// is merged onto the pawn, and the hostage onto the relay. The game's own hostage_carriable_prop set
+/// as the pawn's CarriedHostageProp was tried first and never showed up live - and a single prop
+/// merged straight onto a pawn vanishes after about a second (see Wallhack), which is what the relay
+/// is for. The carrier's own client doesn't receive the hostage, or it would hang across their view.
 ///
-/// The prop is maintained, not just placed once: twice a second every living assigned player is
-/// checked, and one whose prop has gone (a death, a respawn, the engine cleaning it up) gets a new
-/// one, while dead players lose theirs. That covers spawns and deaths without hooking either.
+/// The props are maintained, not just placed once: twice a second every living assigned player is
+/// checked, and one whose hostage has gone (a death, a respawn, the engine cleaning it up) gets a new
+/// chain, while dead players lose theirs. That covers spawns and deaths without hooking either.
 /// </summary>
 public sealed class GameModifierHumanShield : GameModifierVelocity
 {
-    private const string CarryPropDesignerName = "hostage_carriable_prop";
+    private const string PropDesignerName = "prop_dynamic";
     private const string CarryModel = "models/hostage/hostage_carry.vmdl";
     private const float MaintainIntervalSeconds = 0.5f;
 
     /// <summary>A hit counts as "from behind" when the attacker stands within about 70 degrees of straight behind the player.</summary>
     private const float BehindCosine = -0.34f;
 
-    private readonly Dictionary<int, CHandle<CHostageCarriableProp>> _props = [];
+    private readonly Dictionary<int, (CHandle<CDynamicProp> Relay, CHandle<CDynamicProp> Hostage)> _props = [];
     private float _nextMaintainAt;
 
     public GameModifierHumanShield()
@@ -134,35 +136,65 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         }
     }
 
-    private bool HasProp(int slot) =>
-        _props.TryGetValue(slot, out var handle) && handle.IsValid && handle.Value is { } prop &&
-        CSRollUtils.IsUsableHandle(prop) && prop.DesignerName == CarryPropDesignerName;
+    private bool HasProp(int slot) => _props.TryGetValue(slot, out var chain) && Resolve(chain.Hostage) is not null;
+
+    private static CDynamicProp? Resolve(CHandle<CDynamicProp> handle) =>
+        handle.IsValid && handle.Value is { } prop && CSRollUtils.IsUsableHandle(prop) && prop.DesignerName == PropDesignerName ? prop : null;
 
     private void Attach(IPlayer player)
     {
         if (player.PlayerPawn is not { } pawn || !CSRollUtils.IsUsableHandle(pawn) || pawn.AbsOrigin is not { } origin ||
-            pawn.HostageServices is not { } services || !CSRollUtils.IsUsableHandle(services))
+            pawn.GetModel() is not { Length: > 0 } playerModel)
         {
             return;
         }
 
         Detach(player.Slot);
 
-        var prop = Core.EntitySystem.CreateEntityByDesignerName<CHostageCarriableProp>(CarryPropDesignerName);
+        if (SpawnProp(player.Slot, playerModel, origin, "relay") is not { } relay)
+        {
+            return;
+        }
+
+        // The relay only carries the merged skeleton; it is never drawn.
+        relay.RenderMode = RenderMode_t.kRenderNone;
+        relay.RenderModeUpdated();
+
+        if (SpawnProp(player.Slot, CarryModel, origin, "hostage") is not { } hostage)
+        {
+            relay.Despawn();
+            return;
+        }
+
+        // FollowEntity is a bone merge: the relay takes the player's pose, the hostage the relay's.
+        relay.AcceptInput("FollowEntity", "!activator", pawn, pawn, 0);
+        hostage.AcceptInput("FollowEntity", "!activator", relay, relay, 0);
+
+        // Not sent to the carrier: from their own camera it would hang right across the view.
+        player.ShouldBlockTransmitEntity((int)hostage.Index, true);
+        player.ShouldBlockTransmitEntity((int)relay.Index, true);
+
+        _props[player.Slot] = (Core.EntitySystem.GetRefEHandle(relay), Core.EntitySystem.GetRefEHandle(hostage));
+        Core.Logger.LogInformation("[CSRoll] HumanShield: hostage #{Hostage} (relay #{Relay}) on slot {Slot}.", hostage.Index, relay.Index, player.Slot);
+    }
+
+    /// <summary>Wallhack's spawn recipe: model and origin as spawn keyvalues (a bare prop_dynamic given a model afterwards has no render bounds), non-solid.</summary>
+    private CDynamicProp? SpawnProp(int slot, string model, Vector origin, string role)
+    {
+        var prop = Core.EntitySystem.CreateEntityByDesignerName<CDynamicProp>(PropDesignerName);
         using (var keyValues = new CEntityKeyValues())
         {
-            keyValues.SetString("model", CarryModel);
+            keyValues.SetString("model", model);
             keyValues.SetVector("origin", origin);
             prop.DispatchSpawn(keyValues);
         }
 
         if (!CSRollUtils.IsUsableHandle(prop))
         {
-            Core.Logger.LogWarning("[CSRoll] HumanShield: the hostage prop for slot {Slot} was destroyed during DispatchSpawn.", player.Slot);
-            return;
+            Core.Logger.LogWarning("[CSRoll] HumanShield: the {Role} for slot {Slot} was destroyed during DispatchSpawn.", role, slot);
+            return null;
         }
 
-        // Riding on the player, it must never collide with anyone.
         if (prop.Collision.IsValid)
         {
             prop.Collision.CollisionGroup = (byte)CollisionGroup.Nonphysical;
@@ -173,33 +205,30 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
             prop.Collision.SolidTypeUpdated();
         }
 
-        prop.AcceptInput("FollowEntity", "!activator", pawn, pawn);
-
-        var handle = Core.EntitySystem.GetRefEHandle(prop);
-        services.CarriedHostageProp = new CHandle<CBaseEntity>(handle.Raw);
-        services.CarriedHostagePropUpdated();
-
-        _props[player.Slot] = handle;
-        Core.Logger.LogInformation("[CSRoll] HumanShield: hostage #{Index} on slot {Slot}.", prop.Index, player.Slot);
+        return prop;
     }
 
-    /// <summary>Removes the slot's hostage prop, and clears the pawn's carried-hostage field if it still points at it.</summary>
+    /// <summary>Removes the slot's chain. The carrier's transmit block is lifted first - indices get recycled, and a block left behind would hide whatever inherits the index.</summary>
     private void Detach(int slot)
     {
-        if (!_props.Remove(slot, out var handle))
+        if (!_props.Remove(slot, out var chain))
         {
             return;
         }
 
-        if (Core.PlayerManager.GetPlayer(slot)?.PlayerPawn is { } pawn && CSRollUtils.IsUsableHandle(pawn) &&
-            pawn.HostageServices is { } services && CSRollUtils.IsUsableHandle(services) && services.CarriedHostageProp.Raw == handle.Raw)
+        var carrier = Core.PlayerManager.GetPlayer(slot);
+        foreach (var prop in new[] { Resolve(chain.Hostage), Resolve(chain.Relay) })
         {
-            services.CarriedHostageProp = CHandle<CBaseEntity>.Invalid;
-            services.CarriedHostagePropUpdated();
-        }
+            if (prop is null)
+            {
+                continue;
+            }
 
-        if (handle.IsValid && handle.Value is { } prop && CSRollUtils.IsUsableHandle(prop) && prop.DesignerName == CarryPropDesignerName)
-        {
+            if (carrier is { IsValid: true })
+            {
+                carrier.ShouldBlockTransmitEntity((int)prop.Index, false);
+            }
+
             prop.Despawn();
         }
     }
@@ -238,11 +267,11 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
 
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
-        // The pawn is gone with the player; only the prop needs removing.
-        if (_props.Remove(@event.PlayerId, out var handle) &&
-            handle.IsValid && handle.Value is { } prop && CSRollUtils.IsUsableHandle(prop) && prop.DesignerName == CarryPropDesignerName)
+        // The carrier is gone, so there's no transmit block left to lift - just the props.
+        if (_props.Remove(@event.PlayerId, out var chain))
         {
-            prop.Despawn();
+            Resolve(chain.Hostage)?.Despawn();
+            Resolve(chain.Relay)?.Despawn();
         }
     }
 }
