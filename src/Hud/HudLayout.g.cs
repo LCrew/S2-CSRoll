@@ -60,6 +60,7 @@ public static partial class HudLayout
         "FlashingBullets",
         "HardHead",
         "HeavyBoots",
+        "HumanShield",
         "IncreasedSpread",
         "InfiniteAmmo",
         "InfiniteRoll",

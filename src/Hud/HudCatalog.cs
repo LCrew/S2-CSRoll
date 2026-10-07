@@ -34,6 +34,7 @@ public static class HudCatalog
 
         ["Juggernaut"] = "surv", ["RandomHealth"] = "surv", ["Vampire"] = "surv", ["HardHead"] = "surv",
         ["SteelBody"] = "surv", ["Revive"] = "surv", ["Saint"] = "surv", ["HeavyBoots"] = "surv",
+        ["HumanShield"] = "surv",
         ["Regeneration"] = "surv",
 
         ["SmallPlayers"] = "stealth", ["Wallhack"] = "stealth", ["SmokeImmunity"] = "stealth",

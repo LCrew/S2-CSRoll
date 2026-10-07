@@ -81,6 +81,9 @@
 .CsrGaugeIco.ico-HeavyBoots { background-image: url("file://{images}/custom_game/csroll_png/x32/HeavyBoots.png"); }
 .CsrRowIco.ico-HeavyBoots, .CsrTileIco.ico-HeavyBoots { background-image: url("file://{images}/custom_game/csroll_png/x64/HeavyBoots.png"); }
 .CsrCardIco.ico-HeavyBoots { background-image: url("file://{images}/custom_game/csroll_png/x160/HeavyBoots.png"); }
+.CsrGaugeIco.ico-HumanShield { background-image: url("file://{images}/custom_game/csroll_png/x32/HumanShield.png"); }
+.CsrRowIco.ico-HumanShield, .CsrTileIco.ico-HumanShield { background-image: url("file://{images}/custom_game/csroll_png/x64/HumanShield.png"); }
+.CsrCardIco.ico-HumanShield { background-image: url("file://{images}/custom_game/csroll_png/x160/HumanShield.png"); }
 .CsrGaugeIco.ico-IncreasedSpread { background-image: url("file://{images}/custom_game/csroll_png/x32/IncreasedSpread.png"); }
 .CsrRowIco.ico-IncreasedSpread, .CsrTileIco.ico-IncreasedSpread { background-image: url("file://{images}/custom_game/csroll_png/x64/IncreasedSpread.png"); }
 .CsrCardIco.ico-IncreasedSpread { background-image: url("file://{images}/custom_game/csroll_png/x160/IncreasedSpread.png"); }

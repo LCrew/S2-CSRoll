@@ -158,6 +158,9 @@ public class CSRollConfig
     /// <summary>Tunables for the KamikazeChickens modifier (Inspect-Weapon-triggered wave of beeping chickens that run at the nearest enemy and explode as HE grenades, on a cooldown).</summary>
     public KamikazeChickensConfig KamikazeChickens { get; set; } = new();
 
+    /// <summary>Tunables for the HumanShield modifier (carrying a hostage: slower, but hits from behind deal less damage).</summary>
+    public HumanShieldConfig HumanShield { get; set; } = new();
+
     /// <summary>Rarity tiers (CS case style): how often each tier rolls, and which modifier sits in which tier.</summary>
     public RarityConfig Rarity { get; set; } = new();
 
@@ -366,7 +369,7 @@ public class HeavyBootsConfig
     /// Movement speed multiplier (VelocityModifier mechanism) - below 1.0 to feel "heavy". Replaces the
     /// old SpeedMultiplier (0.5), renamed so existing config files pick up this faster default.
     /// </summary>
-    public float RunSpeedMultiplier { get; set; } = 0.8f;
+    public float RunSpeedMultiplier { get; set; } = 0.75f;
 
     /// <summary>Armor value granted (full kevlar+helmet) to compensate for the reduced mobility.</summary>
     public int ArmorValue { get; set; } = 100;
@@ -771,6 +774,15 @@ public class KamikazeChickensConfig
 
     /// <summary>Also call the engine's grenade Detonate function directly when a chicken blows, in case writing the fuse alone leaves the normal ~1.5s HE delay. Experimental.</summary>
     public bool DetonateViaInvoke { get; set; } = false;
+}
+
+public class HumanShieldConfig
+{
+    /// <summary>Movement speed multiplier while carrying the hostage (VelocityModifier mechanism, like HeavyBoots).</summary>
+    public float RunSpeedMultiplier { get; set; } = 0.75f;
+
+    /// <summary>Share of the damage the hostage takes off hits from behind (0.3 = 30% less).</summary>
+    public float BackDamageReduction { get; set; } = 0.3f;
 }
 
 public class RarityConfig

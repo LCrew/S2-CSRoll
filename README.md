@@ -47,7 +47,8 @@ Each round all players roll a random modifiers that apply for a round.
 | Wallhack | Free cheats, for free - VAC SAFE |
 | Random Loadout | Random loadout |
 | Walking Grenadier | No guns - unlimited HE grenades |
-| Heavy Boots | Much slower - armor, helmet and bonus health |
+| Heavy Boots | Slower - armor, helmet and bonus health |
+| Human Shield | You carry a hostage on your back: 25% slower, but hits from behind deal 30% less damage |
 | Jetpack | Hold jump in the air to thrust |
 | Bunny Hop | Hold jump to auto bunny-hop - every hop is faster |
 | Infinite Ammo | All weapons go brrrrrr... |

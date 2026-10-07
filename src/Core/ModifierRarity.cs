@@ -46,7 +46,7 @@ public static class ModifierRarity
 
         // Everything else - Drunk, SwapOnHit, TeleportOnReload, TeleportOnHit, OnePerReload, Butterfingers,
         // BoomerangBullets, IncreasedSpread, ChineseGrenades, PlantAnywhere, RandomHealth, RandomLoadout,
-        // WeaponRoulette, and any ConVar .cfg modifier - is Mil-Spec.
+        // WeaponRoulette, HumanShield, and any ConVar .cfg modifier - is Mil-Spec.
     };
 
     // Rebuilt whenever a config reload hands over a new RarityConfig object.

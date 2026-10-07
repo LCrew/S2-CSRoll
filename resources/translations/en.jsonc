@@ -175,6 +175,11 @@
   "HeavyBoots.Description": "Much slower - armor, helmet and bonus health",
   "HeavyBoots.Short": "Slow, armored, extra HP",
 
+  // "{slow}" and "{block}" come from HumanShield.RunSpeedMultiplier / BackDamageReduction in config.jsonc.
+  "HumanShield.DisplayName": "Human Shield",
+  "HumanShield.Description": "You carry a hostage: [red]{slow} slower[default], but hits from behind deal [green]{block} less[default]",
+  "HumanShield.Short": "Carrying a hostage - {slow} slower",
+
   "Jetpack.DisplayName": "Jetpack",
   "Jetpack.Description": "Hold [green]jump[default] in the air to thrust",
   "Jetpack.Short": "Hold jump in the air to fly",

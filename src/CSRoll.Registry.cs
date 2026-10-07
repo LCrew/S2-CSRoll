@@ -82,6 +82,7 @@ public partial class CSRoll
         // failing several times, then reinstated once a working technique was found (see
         // GameModifierJetpack.cs's own class doc comment for the full history).)
         () => new GameModifierHeavyBoots(),
+        () => new GameModifierHumanShield(),
         () => new GameModifierJetpack(),
         () => new GameModifierBunnyHop(),
         () => new GameModifierInfiniteAmmo(),
