@@ -33,6 +33,9 @@
 	background-position: 0% 0%;
 }
 
+.CsrGaugeIco { background-image: url("file://{images}/custom_game/csroll_png/x32/InfiniteRoll.png"); }
+.CsrRowIco, .CsrTileIco { background-image: url("file://{images}/custom_game/csroll_png/x64/InfiniteRoll.png"); }
+.CsrCardIco { background-image: url("file://{images}/custom_game/csroll_png/x160/InfiniteRoll.png"); }
 .CsrGaugeIco.ico-AtomicExplosions { background-image: url("file://{images}/custom_game/csroll_png/x32/AtomicExplosions.png"); }
 .CsrRowIco.ico-AtomicExplosions, .CsrTileIco.ico-AtomicExplosions { background-image: url("file://{images}/custom_game/csroll_png/x64/AtomicExplosions.png"); }
 .CsrCardIco.ico-AtomicExplosions { background-image: url("file://{images}/custom_game/csroll_png/x160/AtomicExplosions.png"); }

@@ -9,6 +9,7 @@ using SwiftlyS2.Shared.Natives;
 using SwiftlyS2.Shared.Players;
 using SwiftlyS2.Shared.SchemaDefinitions;
 using SwiftlyS2.Shared.Sounds;
+using SwiftlyS2.Shared.Trace;
 
 using CSRoll.Config;
 using CSRoll.Core;
@@ -20,12 +21,19 @@ namespace CSRoll.Modifiers;
 /// Player-triggered ability on Flanker's Inspect-Weapon pattern (cooldown, gauge, status HTML):
 /// pressing Inspect releases a wave of ChickensPerWave chickens, SpawnGapSeconds apart, that run at
 /// the nearest living enemy. Each one beeps like a planted C4 - faster and faster as its FuseSeconds
-/// run out, with a red flash on every beep - and blows up as a normal HE grenade thrown by the owner
-/// (so the owner gets the kill) when it reaches an enemy, when the fuse runs out, or when shot.
+/// run out, with the C4's red timer blink on every beep - and blows up as a normal HE grenade thrown
+/// by the owner (so the owner gets the kill) when it reaches an enemy, when the fuse runs out, or
+/// when shot.
 ///
-/// Steering: by default the target is made the chicken's Leader, the field a player's +use sets, so
-/// the chicken's own AI runs after them along the nav mesh. "Direct" mode moves it toward the target
-/// every tick instead, for maps or builds where following a leader doesn't work out.
+/// Steering: "Direct" (default) moves the chicken itself, every tick, straight at its target at
+/// RunSpeed - stepping up ledges, sliding along walls and dropping to the ground with hull traces.
+/// "Leader" instead makes the target the chicken's Leader (the field a player's +use sets) and lets
+/// its own AI chase them; live testing showed those chickens sometimes ran in circles, at the AI's own
+/// speed.
+///
+/// The blink is the C4's own timer-light effect, spawned per beep and parented to the chicken. The
+/// planted bomb's c4_timer_light is a composite effect, and composites never render when a plugin
+/// spawns them (see MasterZeus) - so its two children are spawned directly instead.
 ///
 /// The explosion is a real hegrenade_projectile from Core.Game.EmitHEGrenade - hand-built grenades
 /// never went off (see ClusterGrenades). Its fuse is forced to "now" three times over: inside
@@ -54,11 +62,17 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
     /// <summary>How far above or below an enemy a chicken can be and still count as touching them.</summary>
     private const float ContactHeight = 72f;
 
-    private const float FlashSeconds = 0.08f;
-    private const float DirectSpeed = 260f;
     private const float GrenadeTrackSeconds = 3f;
-    private const int GlowTypeOff = 0;
-    private const int GlowTypeOutline = 3;
+
+    /// <summary>How long each beep's blink effect lives before it is removed.</summary>
+    private const float BlinkSeconds = 0.4f;
+
+    /// <summary>Height above the chicken's feet the blink appears at - about its back.</summary>
+    private const float BlinkHeight = 18f;
+
+    /// <summary>Direct steering: the tallest ledge a chicken steps up, and how fast it falls off one.</summary>
+    private const float StepHeight = 18f;
+    private const float FallSpeed = 600f;
 
     /// <summary>Damage that sets a chicken off when it lands: guns, knives, Zeus, fire, and anyone else's grenades.</summary>
     private const DamageTypes_t DetonatingDamage =
@@ -66,7 +80,6 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
         DamageTypes_t.DMG_BURN | DamageTypes_t.DMG_SHOCK | DamageTypes_t.DMG_BLAST;
 
     private static readonly Color ChickenTint = new((byte)255, (byte)110, (byte)110, (byte)255);
-    private static readonly Color FlashColor = new((byte)255, (byte)32, (byte)32, (byte)255);
 
     private static readonly BBox_t ChickenBounds = new()
     {
@@ -84,7 +97,6 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
         public required float ExplodeAt { get; init; }
         public int TargetSlot { get; set; } = -1;
         public float NextBeepAt { get; set; }
-        public float FlashOffAt { get; set; }
         public float LastSteerAt { get; set; }
         public bool DetonateRequested { get; set; }
     }
@@ -96,6 +108,9 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
     private readonly Dictionary<int, float> _lastFailureMessageTime = [];
     private readonly List<PendingSpawn> _pendingSpawns = [];
     private readonly List<LiveChicken> _chickens = [];
+
+    /// <summary>Live blink effects and when to remove them.</summary>
+    private readonly List<(CHandle<CParticleSystem> Handle, float RemoveAt)> _blinks = [];
 
     /// <summary>This modifier's grenades (raw handle -> when to stop tracking), so their blasts don't set off the rest of the wave.</summary>
     private readonly Dictionary<uint, float> _ourGrenades = [];
@@ -187,6 +202,7 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
 
         _chickens.Clear();
         _pendingSpawns.Clear();
+        RemoveBlinks(float.MaxValue);
         _ourGrenades.Clear();
         _emitTimes.Clear();
         _nextAvailableTime.Clear();
@@ -198,7 +214,14 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
     private void OnPrecacheResource(IOnPrecacheResourceEvent @event)
     {
         @event.AddItem(ChickenModel);
+        foreach (var path in BlinkParticlePaths)
+        {
+            @event.AddItem(path);
+        }
     }
+
+    private IEnumerable<string> BlinkParticlePaths =>
+        new[] { Cfg.BlinkParticlePath, Cfg.BlinkSecondaryParticlePath }.Where(path => !string.IsNullOrWhiteSpace(path));
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event)
     {
@@ -216,6 +239,7 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
 
         SpawnDueChickens(now);
         UpdateChickens(now);
+        RemoveBlinks(now);
 
         foreach (var expired in _ourGrenades.Where(entry => now >= entry.Value).Select(entry => entry.Key).ToList())
         {
@@ -308,25 +332,9 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
             return;
         }
 
+        // A red tint, so they stand out from a map's own chickens.
         chicken.Render = ChickenTint;
         chicken.RenderUpdated();
-
-        // Colour and reach once; each beep then only flips GlowType. Per-field notifiers only - the
-        // parent GlowUpdated() is what crashed the server in Wallhack.
-        var glow = chicken.Glow;
-        if (CSRollUtils.IsUsableHandle(glow))
-        {
-            glow.GlowColorOverride = FlashColor;
-            glow.GlowRange = (int)Math.Max(0f, Cfg.GlowRange);
-            glow.GlowRangeMin = 0;
-            glow.GlowTeam = -1;
-            glow.GlowType = GlowTypeOff;
-            glow.GlowColorOverrideUpdated();
-            glow.GlowRangeUpdated();
-            glow.GlowRangeMinUpdated();
-            glow.GlowTeamUpdated();
-            glow.GlowTypeUpdated();
-        }
 
         var live = new LiveChicken
         {
@@ -364,7 +372,7 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
             }
 
             Steer(live, chicken, position, now);
-            Beep(live, chicken, now);
+            Beep(live, chicken, position, now);
         }
     }
 
@@ -420,7 +428,7 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
 
         live.TargetSlot = target.Slot;
 
-        if (string.Equals(Cfg.SteeringMode, "Direct", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(Cfg.SteeringMode, "Leader", StringComparison.OrdinalIgnoreCase))
         {
             SteerDirect(live, chicken, position, targetPosition, now);
             return;
@@ -441,7 +449,12 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
         }
     }
 
-    /// <summary>Fallback steering: a straight-line step toward the target each tick, holding still when the next step would be inside something.</summary>
+    /// <summary>
+    /// Moves the chicken itself toward the target at RunSpeed: a hull sweep raised by StepHeight (so it
+    /// climbs ledges and stairs), sliding along whatever it hits, then dropped back to the ground - at
+    /// most FallSpeed a second, so running off a ledge reads as a fall rather than a snap. Other
+    /// chickens are ignored by the traces, so a wave doesn't jam on itself.
+    /// </summary>
     private void SteerDirect(LiveChicken live, CChicken chicken, Vector position, Vector targetPosition, float now)
     {
         var dt = Math.Clamp(now - live.LastSteerAt, 0f, 0.1f);
@@ -455,52 +468,112 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
             return;
         }
 
-        var step = Math.Min(distance, DirectSpeed * dt);
-        var next = new Vector(position.X + (dx / distance * step), position.Y + (dy / distance * step), position.Z);
-        if (Core.Trace.TracePlayerBBox(next, next, ChickenBounds).StartInSolid)
+        var dirX = dx / distance;
+        var dirY = dy / distance;
+        var step = Math.Min(distance, Math.Max(0f, Cfg.RunSpeed) * dt);
+        var trace = new TraceParams { ShouldHitEntity = entity => entity.DesignerName != ChickenDesignerName };
+
+        var from = new Vector(position.X, position.Y, position.Z + StepHeight);
+        var sweep = Core.Trace.TracePlayerBBox(from, new Vector(from.X + (dirX * step), from.Y + (dirY * step), from.Z), ChickenBounds, trace);
+        if (sweep.StartInSolid)
         {
-            return;
+            // No headroom to step up from - move flat.
+            from = position;
+            sweep = Core.Trace.TracePlayerBBox(from, new Vector(from.X + (dirX * step), from.Y + (dirY * step), from.Z), ChickenBounds, trace);
+            if (sweep.StartInSolid)
+            {
+                return;
+            }
         }
+
+        var moved = sweep.EndPos;
+        if (sweep.Fraction < 1f)
+        {
+            // Slide: what's left of the step, minus the part pushing into the wall.
+            var left = (1f - sweep.Fraction) * step;
+            var normal = sweep.HitNormal;
+            var into = (dirX * left * normal.X) + (dirY * left * normal.Y);
+            var slideX = (dirX * left) - (normal.X * into);
+            var slideY = (dirY * left) - (normal.Y * into);
+            if ((slideX * slideX) + (slideY * slideY) > 0.01f)
+            {
+                var slide = Core.Trace.TracePlayerBBox(moved, new Vector(moved.X + slideX, moved.Y + slideY, moved.Z), ChickenBounds, trace);
+                if (!slide.StartInSolid)
+                {
+                    moved = slide.EndPos;
+                }
+            }
+        }
+
+        var drop = Core.Trace.TracePlayerBBox(moved, new Vector(moved.X, moved.Y, moved.Z - StepHeight - (FallSpeed * dt) - 2f), ChickenBounds, trace);
+        var landed = drop.StartInSolid ? moved : drop.EndPos;
 
         chicken.DesiredActivity = EChickenActivity.Run;
-        chicken.Teleport(next, new QAngle(0f, MathF.Atan2(dy, dx) * 180f / MathF.PI, 0f), null);
+        chicken.Teleport(landed, new QAngle(0f, MathF.Atan2(dirY, dirX) * 180f / MathF.PI, 0f), null);
     }
 
-    /// <summary>C4-style countdown: each beep comes sooner than the last (1s apart at release, 0.1s at the end), with a red flash on every one.</summary>
-    private void Beep(LiveChicken live, CChicken chicken, float now)
+    /// <summary>C4-style countdown: each beep comes sooner than the last (1s apart at release, 0.1s at the end), with the C4's red blink on every one.</summary>
+    private void Beep(LiveChicken live, CChicken chicken, Vector position, float now)
     {
-        if (now >= live.NextBeepAt)
+        if (now < live.NextBeepAt)
         {
-            using (var beep = new SoundEvent(Cfg.BeepSoundEventName, Cfg.BeepVolume, 1f) { SourceEntityIndex = (int)chicken.Index })
+            return;
+        }
+
+        using (var beep = new SoundEvent(Cfg.BeepSoundEventName, Cfg.BeepVolume, 1f) { SourceEntityIndex = (int)chicken.Index })
+        {
+            beep.Recipients.AddAllPlayers();
+            beep.Emit();
+        }
+
+        var remaining = Math.Clamp((live.ExplodeAt - now) / Math.Max(0.5f, Cfg.FuseSeconds), 0f, 1f);
+        live.NextBeepAt = now + 0.1f + (0.9f * MathF.Pow(remaining, 1.5f));
+
+        foreach (var path in BlinkParticlePaths)
+        {
+            SpawnBlink(path, chicken, new Vector(position.X, position.Y, position.Z + BlinkHeight), now);
+        }
+    }
+
+    /// <summary>MasterZeus's spawn recipe (empty keyvalues, Teleport, Start), then parented so the blink rides along with the chicken.</summary>
+    private void SpawnBlink(string path, CChicken chicken, Vector at, float now)
+    {
+        var particle = Core.EntitySystem.CreateEntityByDesignerName<CParticleSystem>("info_particle_system");
+        particle.EffectName = path;
+        particle.StartActive = true;
+        using (var keyValues = new CEntityKeyValues())
+        {
+            particle.DispatchSpawn(keyValues);
+        }
+
+        if (!CSRollUtils.IsUsableHandle(particle))
+        {
+            return;
+        }
+
+        particle.Teleport(at, null, null);
+        particle.AcceptInput("SetParent", "!activator", chicken, chicken);
+        particle.AcceptInput("Start", "", null, null, 0);
+        _blinks.Add((Core.EntitySystem.GetRefEHandle(particle), now + BlinkSeconds));
+    }
+
+    /// <summary>Removes the blink effects due by now (all of them for float.MaxValue).</summary>
+    private void RemoveBlinks(float now)
+    {
+        for (var i = _blinks.Count - 1; i >= 0; i--)
+        {
+            var (handle, removeAt) = _blinks[i];
+            if (now < removeAt)
             {
-                beep.Recipients.AddAllPlayers();
-                beep.Emit();
+                continue;
             }
 
-            var remaining = Math.Clamp((live.ExplodeAt - now) / Math.Max(0.5f, Cfg.FuseSeconds), 0f, 1f);
-            live.NextBeepAt = now + 0.1f + (0.9f * MathF.Pow(remaining, 1.5f));
-            SetFlash(chicken, true);
-            live.FlashOffAt = now + FlashSeconds;
-            return;
+            _blinks.RemoveAt(i);
+            if (handle.IsValid && handle.Value is { } particle && CSRollUtils.IsUsableHandle(particle) && particle.DesignerName == "info_particle_system")
+            {
+                particle.Despawn();
+            }
         }
-
-        if (live.FlashOffAt > 0f && now >= live.FlashOffAt)
-        {
-            SetFlash(chicken, false);
-            live.FlashOffAt = 0f;
-        }
-    }
-
-    private static void SetFlash(CChicken chicken, bool on)
-    {
-        var glow = chicken.Glow;
-        if (!CSRollUtils.IsUsableHandle(glow))
-        {
-            return;
-        }
-
-        glow.GlowType = on ? GlowTypeOutline : GlowTypeOff;
-        glow.GlowTypeUpdated();
     }
 
     private void Explode(LiveChicken live, CChicken chicken, Vector position, float now)

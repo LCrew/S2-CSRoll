@@ -739,15 +739,22 @@ public class KamikazeChickensConfig
     /// <summary>Volume of each beep.</summary>
     public float BeepVolume { get; set; } = 1f;
 
-    /// <summary>How far away (units) the red flash on each beep can be seen - it shows through walls within this range.</summary>
-    public float GlowRange { get; set; } = 800f;
+    /// <summary>The C4 timer-light effect spawned on the chicken with every beep. Empty disables it.</summary>
+    public string BlinkParticlePath { get; set; } = "particles/explosions_fx/c4_timer_light_child01.vpcf";
+
+    /// <summary>A second effect layered with BlinkParticlePath on every beep - the C4 light's other half. Empty disables it.</summary>
+    public string BlinkSecondaryParticlePath { get; set; } = "particles/explosions_fx/c4_timer_light_child02.vpcf";
+
+    /// <summary>Running speed (units/second) in "Direct" steering. A player with a knife runs 250.</summary>
+    public float RunSpeed { get; set; } = 300f;
 
     /// <summary>
-    /// How chickens chase their target: "Leader" makes the target the chicken's leader, so its own AI
-    /// runs after them along the nav mesh; "Direct" moves the chicken toward the target every tick
-    /// instead, for maps or builds where following a leader doesn't work.
+    /// How chickens chase their target: "Direct" moves each chicken straight at its target every tick
+    /// at RunSpeed, stepping up ledges and sliding along walls; "Leader" makes the target the chicken's
+    /// leader so its own AI chases them instead - at its own speed, and live testing saw some of those
+    /// run in circles.
     /// </summary>
-    public string SteeringMode { get; set; } = "Leader";
+    public string SteeringMode { get; set; } = "Direct";
 
     /// <summary>Also call the engine's grenade Detonate function directly when a chicken blows, in case writing the fuse alone leaves the normal ~1.5s HE delay. Experimental.</summary>
     public bool DetonateViaInvoke { get; set; } = false;

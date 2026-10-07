@@ -380,6 +380,11 @@ def stylesheet(icon_names: list[str]) -> str:
     # Source-file references, Panorama's documented form: compiling the stylesheet compiles each
     # referenced PNG as a child resource and rewrites the path - resourcecompiler can't compile a
     # PNG on its own ("Failed to find compiler").
+    # The generic icon under every slot, so a modifier newer than the addon a player has installed
+    # shows it instead of an empty tile. The per-icon rules below have one class more and win.
+    w(f'.CsrGaugeIco {{ background-image: url("file://{{images}}/custom_game/csroll_png/x32/{FALLBACK_ICON}.png"); }}')
+    w(f'.CsrRowIco, .CsrTileIco {{ background-image: url("file://{{images}}/custom_game/csroll_png/x64/{FALLBACK_ICON}.png"); }}')
+    w(f'.CsrCardIco {{ background-image: url("file://{{images}}/custom_game/csroll_png/x160/{FALLBACK_ICON}.png"); }}')
     for name in icon_names:
         w(f'.CsrGaugeIco.ico-{name} {{ background-image: url("file://{{images}}/custom_game/csroll_png/x32/{name}.png"); }}')
         w(f'.CsrRowIco.ico-{name}, .CsrTileIco.ico-{name} {{ background-image: url("file://{{images}}/custom_game/csroll_png/x64/{name}.png"); }}')
