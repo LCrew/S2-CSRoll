@@ -30,7 +30,8 @@ namespace CSRoll.Modifiers;
 /// NativeCarry (experimental) is for that first-person view: the client draws the real carry - the
 /// hostage over the shoulder and the carry icon - itself, keyed on the pawn's CarriedHostage. A real
 /// hostage_entity is spawned for it and set there - sent to the carrier alone (everyone else's client
-/// drew it kneeling inside the carrier) and EF_NODRAW_BUT_TRANSMIT for them - non-solid, undamageable and inside
+/// drew it kneeling inside the carrier), EF_NODRAW_BUT_TRANSMIT and shrunk to nothing for them (their
+/// own client still drew it kneeling on maps without hostages) - non-solid, undamageable and inside
 /// the carrier (so it stays in their PVS and the handle resolves on their client), with its AI think
 /// cancelled so it never walks off or calls for help. CarriedHostageProp is left alone: the client
 /// may cast whatever it points at to its own carriable-prop class.
@@ -50,6 +51,9 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
     private const string PropDesignerName = "prop_dynamic";
     private const string HostageDesignerName = "hostage_entity";
     private const string HostageModel = "models/hostage/hostage.vmdl";
+
+    /// <summary>The hidden hostage is shrunk to this - on maps without hostages, its carrier's client still drew it kneeling despite EF_NODRAW_BUT_TRANSMIT.</summary>
+    private const float HiddenHostageScale = 0.01f;
     private const string CarryModel = "models/hostage/hostage_carry.vmdl";
     private const float MaintainIntervalSeconds = 0.5f;
 
@@ -172,6 +176,10 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
             if (ResolveReal(handle) is { } hidden)
             {
                 SendOnlyToCarrier(hidden, slot);
+                if ((hidden.CBodyComponent?.SceneNode?.Scale ?? 1f) > HiddenHostageScale * 2f)
+                {
+                    hidden.SetScale(HiddenHostageScale);
+                }
             }
         }
 
@@ -295,6 +303,7 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         // hostages are drawn by their own client code; this is the flag the engine provides for it.
         hostage.Effects |= (uint)EntityEffects_t.EF_NODRAW_BUT_TRANSMIT;
         hostage.EffectsUpdated();
+        hostage.SetScale(HiddenHostageScale);
         hostage.RenderMode = RenderMode_t.kRenderNone;
         hostage.RenderModeUpdated();
         hostage.TakesDamage = false;
