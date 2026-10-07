@@ -792,9 +792,9 @@ public class HumanShieldConfig
     public bool VisibleToCarrier { get; set; } = false;
 
     /// <summary>
-    /// Experimental: also spawns a hidden, frozen, undamageable real hostage and sets it as the player's
-    /// carried hostage, so the game itself may draw its first-person carry view and carry icon. Off if it
-    /// shows nothing or misbehaves (bots chasing hostages, hostage rules kicking in).
+    /// Also spawns a hidden, frozen, undamageable real hostage and sets it as the player's carried
+    /// hostage, so the game itself draws its first-person carry view and carry icon. Never applied on
+    /// hostage maps (cs_ maps), where that hostage would count as a real one for rescues and round wins.
     /// </summary>
     public bool NativeCarry { get; set; } = true;
 }

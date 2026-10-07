@@ -34,6 +34,12 @@ namespace CSRoll.Modifiers;
 /// cancelled so it never walks off or calls for help. CarriedHostageProp is left alone: the client
 /// may cast whatever it points at to its own carriable-prop class.
 ///
+/// Never on hostage maps: there the hidden hostage counts as a real one - carrying it into a rescue
+/// zone ended the round live on cs_office, a CT carrier winning it and a T carrier handing CT the win -
+/// and a CT "carrying" it couldn't pick up a real hostage. The rescue-zone touch hook only names the
+/// zone, not what touched it, so it can't spare ours alone; the map is checked once per activation
+/// instead (rescue zones, hostage spawn points, or a hostage that isn't ours).
+///
 /// The props are maintained, not just placed once: twice a second every living assigned player is
 /// checked, and one whose hostage has gone (a death, a respawn, the engine cleaning it up) gets a new
 /// chain, while dead players lose theirs. That covers spawns and deaths without hooking either.
@@ -53,6 +59,9 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
 
     /// <summary>NativeCarry's hidden real hostages, by carrier slot.</summary>
     private readonly Dictionary<int, CHandle<CHostage>> _realHostages = [];
+
+    /// <summary>False on hostage maps, decided when the modifier activates - see the class comment.</summary>
+    private bool _nativeCarryAllowed;
     private float _nextMaintainAt;
 
     public GameModifierHumanShield()
@@ -96,6 +105,12 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         Core.GameHooks.Entities.TakeDamage.Pre += OnTakeDamage;
         Core.GameHooks.Datamaps.CHostage.HostageThink.Pre += OnHostageThink;
         _nextMaintainAt = 0f;
+
+        _nativeCarryAllowed = !IsHostageMap();
+        if (Cfg.NativeCarry && !_nativeCarryAllowed)
+        {
+            Core.Logger.LogInformation("[CSRoll] HumanShield: hostage map - native carry is off, the hostage only shows on player models.");
+        }
     }
 
     protected override void OnSlotsRemoved(IReadOnlyCollection<int> slots)
@@ -206,7 +221,7 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
 
         _props[player.Slot] = (Core.EntitySystem.GetRefEHandle(relay), Core.EntitySystem.GetRefEHandle(hostage));
 
-        if (Cfg.NativeCarry)
+        if (Cfg.NativeCarry && _nativeCarryAllowed)
         {
             AttachRealHostage(player, pawn, origin);
         }
@@ -246,7 +261,8 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
     /// <summary>NativeCarry: a real hostage, hidden inside the carrier, set as their CarriedHostage so the client may draw the native first-person carry and icon.</summary>
     private void AttachRealHostage(IPlayer player, CCSPlayerPawn pawn, Vector origin)
     {
-        if (pawn.HostageServices is not { } services || !CSRollUtils.IsUsableHandle(services))
+        // Already carrying something - never overwrite it.
+        if (pawn.HostageServices is not { } services || !CSRollUtils.IsUsableHandle(services) || services.CarriedHostage.IsValid)
         {
             return;
         }
@@ -290,6 +306,13 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
 
         Core.Logger.LogInformation("[CSRoll] HumanShield: native carry - hidden hostage #{Index} set as slot {Slot}'s CarriedHostage.", hostage.Index, player.Slot);
     }
+
+    /// <summary>Rescue zones, hostage spawn points, or a hostage that isn't one of ours.</summary>
+    private bool IsHostageMap() =>
+        Core.EntitySystem.GetAllEntitiesByDesignerName<CBaseEntity>("func_hostage_rescue").Any() ||
+        Core.EntitySystem.GetAllEntitiesByDesignerName<CBaseEntity>("info_hostage_spawn").Any() ||
+        Core.EntitySystem.GetAllEntitiesByDesignerName<CBaseEntity>(HostageDesignerName)
+            .Any(hostage => !_realHostages.Values.Any(ours => ours.EntityIndex == hostage.Index));
 
     private static CHostage? ResolveReal(CHandle<CHostage> handle) =>
         handle.IsValid && handle.Value is { } hostage && CSRollUtils.IsUsableHandle(hostage) && hostage.DesignerName == HostageDesignerName ? hostage : null;
