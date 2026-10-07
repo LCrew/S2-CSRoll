@@ -29,7 +29,8 @@ namespace CSRoll.Modifiers;
 ///
 /// NativeCarry (experimental) is for that first-person view: the client draws the real carry - the
 /// hostage over the shoulder and the carry icon - itself, keyed on the pawn's CarriedHostage. A real
-/// hostage_entity is spawned for it and set there, kept hidden (EF_NODRAW_BUT_TRANSMIT), non-solid, undamageable and inside
+/// hostage_entity is spawned for it and set there - sent to the carrier alone (everyone else's client
+/// drew it kneeling inside the carrier) and EF_NODRAW_BUT_TRANSMIT for them - non-solid, undamageable and inside
 /// the carrier (so it stays in their PVS and the handle resolves on their client), with its AI think
 /// cancelled so it never walks off or calls for help. CarriedHostageProp is left alone: the client
 /// may cast whatever it points at to its own carriable-prop class.
@@ -165,6 +166,15 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
 
         _nextMaintainAt = now + MaintainIntervalSeconds;
 
+        // Refreshed, not set once, so players who joined since are covered too.
+        foreach (var (slot, handle) in _realHostages)
+        {
+            if (ResolveReal(handle) is { } hidden)
+            {
+                SendOnlyToCarrier(hidden, slot);
+            }
+        }
+
         foreach (var player in GetAssignedPlayers())
         {
             if (!player.IsAlive)
@@ -299,12 +309,39 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
             hostage.Collision.SolidTypeUpdated();
         }
 
+        SendOnlyToCarrier(hostage, player.Slot);
+
         var handle = Core.EntitySystem.GetRefEHandle(hostage);
         services.CarriedHostage = new CHandle<CBaseEntity>(handle.Raw);
         services.CarriedHostageUpdated();
         _realHostages[player.Slot] = handle;
 
         Core.Logger.LogInformation("[CSRoll] HumanShield: native carry - hidden hostage #{Index} set as slot {Slot}'s CarriedHostage.", hostage.Index, player.Slot);
+    }
+
+    /// <summary>The hidden hostage is only for its carrier's client - everyone else's drew it kneeling inside them.</summary>
+    private void SendOnlyToCarrier(CHostage hostage, int carrierSlot)
+    {
+        foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
+        {
+            viewer.ShouldBlockTransmitEntity((int)hostage.Index, viewer.Slot != carrierSlot);
+        }
+    }
+
+    /// <summary>Lifts every viewer's block on the hidden hostage, then removes it - indices get recycled, and a block left behind would hide whatever inherits this one.</summary>
+    private void DespawnReal(CHandle<CHostage> handle)
+    {
+        if (ResolveReal(handle) is not { } hostage)
+        {
+            return;
+        }
+
+        foreach (var viewer in Core.PlayerManager.GetAllValidPlayers())
+        {
+            viewer.ShouldBlockTransmitEntity((int)hostage.Index, false);
+        }
+
+        hostage.Despawn();
     }
 
     /// <summary>Rescue zones, hostage spawn points, or a hostage that isn't one of ours.</summary>
@@ -374,7 +411,7 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
             services.CarriedHostageUpdated();
         }
 
-        ResolveReal(handle)?.Despawn();
+        DespawnReal(handle);
     }
 
     /// <summary>Hits from another player standing behind the carrier land on the hostage first.</summary>
@@ -425,7 +462,7 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
         // The carrier is gone, so there's no transmit block left to lift and no pawn to clear - just the entities.
         if (_realHostages.Remove(@event.PlayerId, out var real))
         {
-            ResolveReal(real)?.Despawn();
+            DespawnReal(real);
         }
 
         if (_props.Remove(@event.PlayerId, out var chain))
