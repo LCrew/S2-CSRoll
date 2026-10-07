@@ -742,11 +742,18 @@ public class KamikazeChickensConfig
     /// <summary>Volume of each beep.</summary>
     public float BeepVolume { get; set; } = 1f;
 
-    /// <summary>The C4 timer-light effect spawned on the chicken with every beep. Empty disables it.</summary>
-    public string BlinkParticlePath { get; set; } = "particles/explosions_fx/c4_timer_light_child01.vpcf";
+    /// <summary>
+    /// The C4 timer-light effect spawned on the chicken with every beep. Empty disables it. child02 is
+    /// meant to be the light's red glow - child01, layered on top in an earlier test build, read as a
+    /// white flash.
+    /// </summary>
+    public string BlinkParticlePath { get; set; } = "particles/explosions_fx/c4_timer_light_child02.vpcf";
 
-    /// <summary>A second effect layered with BlinkParticlePath on every beep - the C4 light's other half. Empty disables it.</summary>
-    public string BlinkSecondaryParticlePath { get; set; } = "particles/explosions_fx/c4_timer_light_child02.vpcf";
+    /// <summary>An optional second effect layered with BlinkParticlePath on every beep, e.g. "particles/explosions_fx/c4_timer_light_child01.vpcf" (the white flash). Empty disables it.</summary>
+    public string BlinkSecondaryParticlePath { get; set; } = "";
+
+    /// <summary>Height above the chicken's feet the blink appears at (units).</summary>
+    public float BlinkHeight { get; set; } = 10f;
 
     /// <summary>Running speed (units/second) in "Direct" steering - 250 is a player running with a knife out.</summary>
     public float RunSpeed { get; set; } = 250f;

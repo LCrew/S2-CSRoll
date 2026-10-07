@@ -33,7 +33,7 @@ namespace CSRoll.Modifiers;
 ///
 /// The blink is the C4's own timer-light effect, spawned per beep and parented to the chicken. The
 /// planted bomb's c4_timer_light is a composite effect, and composites never render when a plugin
-/// spawns them (see MasterZeus) - so its two children are spawned directly instead.
+/// spawns them (see MasterZeus) - so one of its children, the red glow, is spawned directly instead.
 ///
 /// The explosion is a real hegrenade_projectile from Core.Game.EmitHEGrenade - hand-built grenades
 /// never went off (see ClusterGrenades). Its fuse is forced to "now" three times over: inside
@@ -66,9 +66,6 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
 
     /// <summary>How long each beep's blink effect lives before it is removed.</summary>
     private const float BlinkSeconds = 0.4f;
-
-    /// <summary>Height above the chicken's feet the blink appears at - about its back.</summary>
-    private const float BlinkHeight = 18f;
 
     /// <summary>Direct steering: the tallest ledge a chicken steps up, and how fast it falls off one.</summary>
     private const float StepHeight = 18f;
@@ -531,7 +528,7 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
 
         foreach (var path in BlinkParticlePaths)
         {
-            SpawnBlink(path, chicken, new Vector(position.X, position.Y, position.Z + BlinkHeight), now);
+            SpawnBlink(path, chicken, new Vector(position.X, position.Y, position.Z + Cfg.BlinkHeight), now);
         }
     }
 
