@@ -29,7 +29,7 @@ namespace CSRoll.Modifiers;
 ///
 /// NativeCarry (experimental) is for that first-person view: the client draws the real carry - the
 /// hostage over the shoulder and the carry icon - itself, keyed on the pawn's CarriedHostage. A real
-/// hostage_entity is spawned for it and set there, kept hidden, non-solid, undamageable and inside
+/// hostage_entity is spawned for it and set there, kept hidden (EF_NODRAW_BUT_TRANSMIT), non-solid, undamageable and inside
 /// the carrier (so it stays in their PVS and the handle resolves on their client), with its AI think
 /// cancelled so it never walks off or calls for help. CarriedHostageProp is left alone: the client
 /// may cast whatever it points at to its own carriable-prop class.
@@ -264,6 +264,11 @@ public sealed class GameModifierHumanShield : GameModifierVelocity
             return;
         }
 
+        // Hidden but still networked, so the carrier's client can resolve CarriedHostage. A render
+        // mode alone didn't hide it live - the hostage was drawn kneeling inside the carrier - since
+        // hostages are drawn by their own client code; this is the flag the engine provides for it.
+        hostage.Effects |= (uint)EntityEffects_t.EF_NODRAW_BUT_TRANSMIT;
+        hostage.EffectsUpdated();
         hostage.RenderMode = RenderMode_t.kRenderNone;
         hostage.RenderModeUpdated();
         hostage.TakesDamage = false;
