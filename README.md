@@ -10,6 +10,15 @@ Each round all players roll a random modifiers that apply for a round.
 |--|--|
 | ![demo](./demo.gif) | ![demo](./demo2.gif) |
 
+## Requirements
+
+- [SwiftlyS2](https://swiftlys2.net) on your CS2 server.
+- For the custom HUD (case-style roll reel, modifier list, gauges - on by default):
+  - the **[CSRoll HUD Workshop addon](https://steamcommunity.com/sharedfiles/filedetails/?id=3791730390)** (Workshop ID `3791730390`), and
+  - [AddonsManager](https://github.com/SwiftlyS2-Plugins/AddonsManager), which mounts the addon on the server and makes players download it when they connect.
+
+  Without them, set `CustomHud.Enabled` to `false` in `config.jsonc` to keep everyone on the classic centre-text reveal (see Installation, step 5).
+
 ## Modifier List
 
 | Modifier | Description |
@@ -122,8 +131,17 @@ A weight is the tier's share of every pick, however many modifiers it holds - Go
    (i.e. the `SwiftlyS2/Plugins` folder for your server - the exact path depends on your SwiftlyS2 installation).
 3. Restart the server, or use SwiftlyS2's plugin reload command if supported.
 4. Tune behavior in the generated `config.jsonc` and `resources/translations/en.jsonc` files - both support editing without a rebuild (see comments inside each file for hot-reload behavior).
+5. Set up the custom HUD:
+   - Install [AddonsManager](https://github.com/SwiftlyS2-Plugins/AddonsManager).
+   - Add the [CSRoll HUD Workshop addon](https://steamcommunity.com/sharedfiles/filedetails/?id=3791730390) to `addons/swiftlys2/configs/plugins/AddonsManager/config.jsonc`:
+     ```jsonc
+     "Main": {
+       "Addons": [ "3791730390" ]
+     }
+     ```
+   - Restart the server. Players download the addon on connect, and can switch back to the centre text with `!hud`.
 
-Requires [SwiftlyS2](https://swiftlys2.net) to be installed on your CS2 server.
+   The HUD is on for everyone by default (`CustomHud.Mode: "Everyone"`). A player who doesn't have the addon sees no reveal at all, so on a server without AddonsManager either set `"Mode": "OptIn"` (players with the addon opt in with `!hud`) or `"Enabled": false`. The full HUD setup and options are in [`hud/README.md`](hud/README.md).
 
 ## Credits
 
