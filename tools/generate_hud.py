@@ -33,6 +33,9 @@ CONTRACT = ROOT / "src/Hud/HudLayout.g.cs"
 ROWS = 6            # active-modifier rows in the left list
 GAUGES = 3          # floating gauges above the bottom HUD
 GAUGE_WIDTH = 420   # px
+# px from the screen's bottom edge to the gauge stack's bottom: one gauge sits in the gap between CS2's
+# hint line ("You picked up the bomb", ~y 881-894 @1080p) and its health/ammo row (~y 998).
+GAUGE_BOTTOM = 104
 FILL_STEPS = 100    # bar resolution: 1% per step, driven by clip from the server every tick (width resets when text updates)
 LIST_OFFSETS = [360, 400, 440, 480, 520]   # list top margins (px @1080p) - radar scale varies per player
 
@@ -528,7 +531,7 @@ def stylesheet(icon_names: list[str]) -> str:
 	width: {GAUGE_WIDTH}px;
 	horizontal-align: center;
 	vertical-align: bottom;
-	margin-bottom: 180px;
+	margin-bottom: {GAUGE_BOTTOM}px;
 }}
 
 .CsrGauge
