@@ -30,6 +30,7 @@ public static class HudCatalog
 
         ["WalkingGrenadier"] = "util", ["LongerFlashes"] = "util", ["ChineseGrenades"] = "util", ["ClusterGrenades"] = "util",
         ["PoisonousSmoke"] = "util", ["AtomicExplosions"] = "util", ["PlantAnywhere"] = "util", ["SuicideBomber"] = "util",
+        ["KamikazeChickens"] = "util",
 
         ["Juggernaut"] = "surv", ["RandomHealth"] = "surv", ["Vampire"] = "surv", ["HardHead"] = "surv",
         ["SteelBody"] = "surv", ["Revive"] = "surv", ["Saint"] = "surv", ["HeavyBoots"] = "surv",

@@ -65,6 +65,7 @@ public static partial class HudLayout
         "InfiniteRoll",
         "Jetpack",
         "Juggernaut",
+        "KamikazeChickens",
         "LongerFlashes",
         "MasterZeus",
         "Mimic",
@@ -97,6 +98,9 @@ public static partial class HudLayout
 
     public static readonly string[] Categories = ["move", "weap", "util", "surv", "stealth", "chaos"];
 
+    /// <summary>Rarity keys with stylesheet rules; RarityClass("off") is deliberately unstyled.</summary>
+    public static readonly string[] Rarities = ["milspec", "restricted", "classified", "covert", "gold"];
+
     public static string Row(int i) => $"csr_row{i}";
     public static string RowIcon(int i) => $"csr_row{i}_ico";
     public static string RowName(int i) => $"csr_row{i}_name";
@@ -110,6 +114,7 @@ public static partial class HudLayout
 
     public static string IconClass(string icon) => $"ico-{icon}";
     public static string CategoryClass(string category) => $"cat-{category}";
+    public static string RarityClass(string rarity) => $"rar-{rarity}";
     public static string FillClass(int step) => $"f{step}";
     public static string CoarseClass(int step) => $"c{step}";
     public static string FineClass(int step) => $"h{step}";

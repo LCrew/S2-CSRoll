@@ -155,6 +155,12 @@ public class CSRollConfig
     /// <summary>Tunables for the Flanker modifier (Inspect-Weapon-triggered teleport behind a random enemy, on a cooldown).</summary>
     public FlankerConfig Flanker { get; set; } = new();
 
+    /// <summary>Tunables for the KamikazeChickens modifier (Inspect-Weapon-triggered wave of beeping chickens that run at the nearest enemy and explode as HE grenades, on a cooldown).</summary>
+    public KamikazeChickensConfig KamikazeChickens { get; set; } = new();
+
+    /// <summary>Rarity tiers (CS case style): how often each tier rolls, and which modifier sits in which tier.</summary>
+    public RarityConfig Rarity { get; set; } = new();
+
     /// <summary>
     /// Modifiers excluded from a player's random roll unless THEIR OWN team has at least 2 players.
     ///
@@ -573,13 +579,12 @@ public class SuicideBomberConfig
 public class ReviveConfig
 {
     /// <summary>
-    /// Minimum/maximum starting percent chance to revive instead of dying. A single value is rolled
-    /// from this range once per activation (not per revive, not per life) and used as the reset
-    /// point every spawn. Deliberately high by design - see the multiplicative decay below for why
-    /// this doesn't make Revive overpowered.
+    /// Percent chance to revive instead of dying, at the start of every life. Each successful revive
+    /// then multiplies it by a random 0.1-0.9, so it starts near-certain and gets less reliable the
+    /// more times it has saved you this life. Replaces the old MinBasePercent/MaxBasePercent range
+    /// (renamed so existing config files pick up this default instead of keeping their old 70-90).
     /// </summary>
-    public float MinBasePercent { get; set; } = 70f;
-    public float MaxBasePercent { get; set; } = 90f;
+    public float StartChancePercent { get; set; } = 95f;
 
     /// <summary>Health the player is set to immediately after a successful revive.</summary>
     public int HealthAfterRevive { get; set; } = 50;
@@ -703,6 +708,72 @@ public class FlankerConfig
 
     /// <summary>Height above the landing spot the player is dropped from - a short, harmless fall so landing makes an audible thud, rather than a completely silent zero-warning appearance right behind the target.</summary>
     public float DropHeight { get; set; } = 48f;
+}
+
+public class KamikazeChickensConfig
+{
+    /// <summary>Seconds before the first wave can be released at the start of each round/life.</summary>
+    public float RoundStartCooldownSeconds { get; set; } = 10f;
+
+    /// <summary>Seconds before another wave can be released after one goes out.</summary>
+    public float CooldownSeconds { get; set; } = 25f;
+
+    /// <summary>Chickens released per Inspect press.</summary>
+    public int ChickensPerWave { get; set; } = 3;
+
+    /// <summary>Seconds between one chicken of a wave and the next.</summary>
+    public float SpawnGapSeconds { get; set; } = 0.12f;
+
+    /// <summary>Seconds a chicken runs before it explodes on its own.</summary>
+    public float FuseSeconds { get; set; } = 6f;
+
+    /// <summary>A chicken explodes once it is this close to any living enemy (horizontal distance, units).</summary>
+    public float ContactRadius { get; set; } = 96f;
+
+    /// <summary>Seconds after release before shooting a chicken sets it off - so the owner can't blow themselves up by firing the instant it leaves their feet.</summary>
+    public float ArmDelaySeconds { get; set; } = 0.5f;
+
+    /// <summary>Sound event played from each chicken on every beep. A wrong name is silent rather than an error - change it here and !rollreload to try another.</summary>
+    public string BeepSoundEventName { get; set; } = "C4.PlantSound";
+
+    /// <summary>Volume of each beep.</summary>
+    public float BeepVolume { get; set; } = 1f;
+
+    /// <summary>How far away (units) the red flash on each beep can be seen - it shows through walls within this range.</summary>
+    public float GlowRange { get; set; } = 800f;
+
+    /// <summary>
+    /// How chickens chase their target: "Leader" makes the target the chicken's leader, so its own AI
+    /// runs after them along the nav mesh; "Direct" moves the chicken toward the target every tick
+    /// instead, for maps or builds where following a leader doesn't work.
+    /// </summary>
+    public string SteeringMode { get; set; } = "Leader";
+
+    /// <summary>Also call the engine's grenade Detonate function directly when a chicken blows, in case writing the fuse alone leaves the normal ~1.5s HE delay. Experimental.</summary>
+    public bool DetonateViaInvoke { get; set; } = false;
+}
+
+public class RarityConfig
+{
+    /// <summary>Off: every modifier is equally likely, and the HUD shows category colours only.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Each tier's share of every pick, like a case's odds: a tier is chosen by these weights (among
+    /// tiers that have something eligible), then a modifier inside it uniformly. They don't have to
+    /// add up to 100. Gold at 4 comes up for a player about once every 24 rounds.
+    /// </summary>
+    public float MilSpec { get; set; } = 34f;
+    public float Restricted { get; set; } = 30f;
+    public float Classified { get; set; } = 20f;
+    public float Covert { get; set; } = 12f;
+    public float Gold { get; set; } = 4f;
+
+    /// <summary>
+    /// Moves modifiers between tiers: modifier name -> "MilSpec", "Restricted", "Classified", "Covert"
+    /// or "Gold", e.g. { "Drunk": "Gold" }. Anything not listed keeps its built-in tier.
+    /// </summary>
+    public Dictionary<string, string> Overrides { get; set; } = new();
 }
 
 public class SpinRevealConfig

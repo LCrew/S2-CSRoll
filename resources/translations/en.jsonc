@@ -52,8 +52,9 @@
   "RandomHealth.Description": "Random health: [green]{hp}[default] HP",
   "RandomHealth.Short": "Spawned with {hp} HP",
 
-  // FlashingBullets/DisarmingBullets/Revive/Saint each roll their chance fresh per activation (from
-  // their own Min/Max config range) rather than using a fixed number - the literal token "{rand%}"
+  // FlashingBullets/DisarmingBullets/Saint each roll their chance fresh per activation (from their
+  // own Min/Max config range), and Revive starts every life at Revive.StartChancePercent and drops
+  // after each save - rather than using a fixed number in the text, the literal token "{rand%}"
   // below gets substituted with that live value (e.g. "23.7%", or the configured range like
   // "10-40%" before this has ever been rolled) every time the description is displayed. In the
   // custom HUD, Revive shows the player's current chance, which shrinks with each revive. Reword the
@@ -210,6 +211,11 @@
   "Flanker.DisplayName": "Flanker",
   "Flanker.Description": "Press [green]Inspect[default] to teleport behind an enemy",
   "Flanker.Short": "Inspect to get behind an enemy",
+
+  // "{count}" is KamikazeChickens.ChickensPerWave and "{fuse}" its FuseSeconds, both from config.jsonc.
+  "KamikazeChickens.DisplayName": "Kamikaze Chickens",
+  "KamikazeChickens.Description": "Press [green]Inspect[default] to release {count} beeping chickens that explode on the nearest enemy",
+  "KamikazeChickens.Short": "Inspect: {count} exploding chickens",
 
   "Regeneration.DisplayName": "Regeneration",
   "Regeneration.Description": "Heals over time - faster standing still",

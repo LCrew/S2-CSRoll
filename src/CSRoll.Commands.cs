@@ -61,6 +61,7 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("randomroundsreroll", Debounce("randomroundsreroll", OnRandomRoundsReRoll), registerRaw: true, permission: AdminPermission, helpText: "Re-roll the current random round modifiers and apply them to the current round."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollmode", Debounce("rollmode", OnRollMode), registerRaw: true, permission: AdminPermission, helpText: "[player|team|game] - How random rounds hand out modifiers: each player their own, one per team, or one for everyone. Saved to config.jsonc."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollmethod", Debounce("rollmethod", OnRollMode), registerRaw: true, permission: AdminPermission, helpText: "[player|team|game] - Same as !rollmode."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rollsim", Debounce("rollsim", OnRollSim), registerRaw: true, permission: AdminPermission, helpText: "[rolls] - Simulates that many single picks (default 10000) and prints how often each rarity tier came up."));
         _commandGuids.Add(Core.Command.RegisterCommand("rolldebug", Debounce("rolldebug", OnRollDebug), registerRaw: true, permission: AdminPermission, helpText: "Toggle whether per-player random-round assignments are reported to admins in chat."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollreload", Debounce("rollreload", OnRollReload), registerRaw: true, permission: AdminPermission, helpText: "Reload config.jsonc from disk without restarting the plugin or resetting active modifiers."));
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
@@ -402,6 +403,45 @@ public partial class CSRoll
         if (!saved)
         {
             CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Couldn't save it to config.jsonc ({error}) - it lasts until the config reloads.");
+        }
+    }
+
+    /// <summary>
+    /// Runs the real weighted picker many times over the per-player pool and prints each tier's share,
+    /// so the rarity weights can be checked without playing a few hundred rounds. Single picks only -
+    /// cooldowns and incompatibilities, which shift a real roll a little, aren't simulated.
+    /// </summary>
+    public void OnRollSim(ICommandContext context)
+    {
+        var rolls = context.Args.Length > 0 && int.TryParse(context.Args[0], out var requested) ? Math.Clamp(requested, 100, 100_000) : 10_000;
+        var pool = Runtime.RegisteredModifiers.Where(m => m.SupportsPerPlayerRandomization).ToList();
+        if (pool.Count == 0)
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, "No modifiers are registered to simulate.");
+            return;
+        }
+
+        var rarity = Config.Rarity;
+        var counts = ModifierRarity.Tiers.ToDictionary(tier => tier, _ => 0);
+        var random = new Random();
+        for (var i = 0; i < rolls; i++)
+        {
+            counts[ModifierRarity.Resolve(ModifierRarity.PickWeighted(pool, rarity, random)!, rarity)]++;
+        }
+
+        CSRollUtils.PrintTitleToChat(Core, context.Sender, $"{rolls} simulated picks{(rarity.Enabled ? "" : " (rarity is off - uniform)")}:");
+        foreach (var tier in ModifierRarity.Tiers.Reverse())
+        {
+            var members = pool.Count(m => ModifierRarity.Resolve(m, rarity) == tier);
+            var line = $"• {ModifierRarity.ChatToken(tier)}{ModifierRarity.Label(tier)}[default]: {100.0 * counts[tier] / rolls:0.0}%  ({members} modifiers, weight {ModifierRarity.Weight(tier, rarity):0.#})";
+            if (context.Sender is { } sender)
+            {
+                sender.SendChat(SwiftlyS2.Shared.Helper.Colored(line));
+            }
+            else
+            {
+                Core.Logger.LogInformation("[CSRoll] {Line}", line);
+            }
         }
     }
 

@@ -93,6 +93,9 @@
 .CsrGaugeIco.ico-Juggernaut { background-image: url("file://{images}/custom_game/csroll_png/x32/Juggernaut.png"); }
 .CsrRowIco.ico-Juggernaut, .CsrTileIco.ico-Juggernaut { background-image: url("file://{images}/custom_game/csroll_png/x64/Juggernaut.png"); }
 .CsrCardIco.ico-Juggernaut { background-image: url("file://{images}/custom_game/csroll_png/x160/Juggernaut.png"); }
+.CsrGaugeIco.ico-KamikazeChickens { background-image: url("file://{images}/custom_game/csroll_png/x32/KamikazeChickens.png"); }
+.CsrRowIco.ico-KamikazeChickens, .CsrTileIco.ico-KamikazeChickens { background-image: url("file://{images}/custom_game/csroll_png/x64/KamikazeChickens.png"); }
+.CsrCardIco.ico-KamikazeChickens { background-image: url("file://{images}/custom_game/csroll_png/x160/KamikazeChickens.png"); }
 .CsrGaugeIco.ico-LongerFlashes { background-image: url("file://{images}/custom_game/csroll_png/x32/LongerFlashes.png"); }
 .CsrRowIco.ico-LongerFlashes, .CsrTileIco.ico-LongerFlashes { background-image: url("file://{images}/custom_game/csroll_png/x64/LongerFlashes.png"); }
 .CsrCardIco.ico-LongerFlashes { background-image: url("file://{images}/custom_game/csroll_png/x160/LongerFlashes.png"); }
@@ -1265,6 +1268,27 @@
 .CsrTile.won.cat-chaos { border-color: #ed64a6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ed64a633 ), to( #ed64a673 ) ); box-shadow: #ed64a680 0px 0px 12px 0px; }
 .CsrCard.cat-chaos { border-top-color: #ed64a6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #251723d1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
 .CsrCard.cat-chaos .CsrCardCat { color: #ed64a6; }
+
+.CsrStrip .CsrTile.rar-milspec { border-bottom-color: #4b69ff; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #4b69ff38 ) ); }
+.CsrStrip .CsrTile.won.rar-milspec { border-color: #4b69ff; background-color: gradient( linear, 0% 0%, 0% 100%, from( #4b69ff33 ), to( #4b69ff73 ) ); box-shadow: #4b69ff80 0px 0px 12px 0px; }
+.CsrCardClip .CsrCard.rar-milspec { border-top-color: #4b69ff; background-color: gradient( linear, 0% 0%, 0% 100%, from( #12182ed1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
+.CsrCardClip .CsrCard.rar-milspec .CsrCardCat { color: #4b69ff; }
+.CsrStrip .CsrTile.rar-restricted { border-bottom-color: #8847ff; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #8847ff38 ) ); }
+.CsrStrip .CsrTile.won.rar-restricted { border-color: #8847ff; background-color: gradient( linear, 0% 0%, 0% 100%, from( #8847ff33 ), to( #8847ff73 ) ); box-shadow: #8847ff80 0px 0px 12px 0px; }
+.CsrCardClip .CsrCard.rar-restricted { border-top-color: #8847ff; background-color: gradient( linear, 0% 0%, 0% 100%, from( #19142ed1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
+.CsrCardClip .CsrCard.rar-restricted .CsrCardCat { color: #8847ff; }
+.CsrStrip .CsrTile.rar-classified { border-bottom-color: #d32ce6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #d32ce638 ) ); }
+.CsrStrip .CsrTile.won.rar-classified { border-color: #d32ce6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #d32ce633 ), to( #d32ce673 ) ); box-shadow: #d32ce680 0px 0px 14px 0px; }
+.CsrCardClip .CsrCard.rar-classified { border-top-color: #d32ce6; background-color: gradient( linear, 0% 0%, 0% 100%, from( #22112bd1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
+.CsrCardClip .CsrCard.rar-classified .CsrCardCat { color: #d32ce6; }
+.CsrStrip .CsrTile.rar-covert { border-bottom-color: #eb4b4b; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #eb4b4b38 ) ); }
+.CsrStrip .CsrTile.won.rar-covert { border-color: #eb4b4b; background-color: gradient( linear, 0% 0%, 0% 100%, from( #eb4b4b33 ), to( #eb4b4b73 ) ); box-shadow: #eb4b4b80 0px 0px 16px 0px; }
+.CsrCardClip .CsrCard.rar-covert { border-top-color: #eb4b4b; background-color: gradient( linear, 0% 0%, 0% 100%, from( #251418d1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
+.CsrCardClip .CsrCard.rar-covert .CsrCardCat { color: #eb4b4b; }
+.CsrStrip .CsrTile.rar-gold { border-bottom-color: #e4ae39; background-color: gradient( linear, 0% 0%, 0% 100%, from( #ffffff0d ), color-stop( 0.50, #ffffff08 ), to( #e4ae3938 ) ); }
+.CsrStrip .CsrTile.won.rar-gold { border-color: #e4ae39; background-color: gradient( linear, 0% 0%, 0% 100%, from( #e4ae3933 ), to( #e4ae3973 ) ); box-shadow: #e4ae3980 0px 0px 20px 0px; }
+.CsrCardClip .CsrCard.rar-gold { border-top-color: #e4ae39; background-color: gradient( linear, 0% 0%, 0% 100%, from( #242016d1 ), color-stop( 0.60, #0d1015d5 ), to( #0a0d11d9 ) ); }
+.CsrCardClip .CsrCard.rar-gold .CsrCardCat { color: #e4ae39; }
 
 /* ---------- reveal timelines (one class per tick on csr_roll) ---------- */
 .CsrRoll.on.in0 { opacity: 0; transform: translatey( 14px ); }
