@@ -362,8 +362,11 @@ public class SmallPlayersConfig
 
 public class HeavyBootsConfig
 {
-    /// <summary>Movement speed multiplier (VelocityModifier mechanism) - below 1.0 to feel "heavy".</summary>
-    public float SpeedMultiplier { get; set; } = 0.5f;
+    /// <summary>
+    /// Movement speed multiplier (VelocityModifier mechanism) - below 1.0 to feel "heavy". Replaces the
+    /// old SpeedMultiplier (0.5), renamed so existing config files pick up this faster default.
+    /// </summary>
+    public float RunSpeedMultiplier { get; set; } = 0.8f;
 
     /// <summary>Armor value granted (full kevlar+helmet) to compensate for the reduced mobility.</summary>
     public int ArmorValue { get; set; } = 100;

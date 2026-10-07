@@ -210,7 +210,7 @@ public sealed class GameModifierHeavyBoots : GameModifierVelocity
         IncompatibleModifiers = ["Speedhack"];
     }
 
-    protected override float GetSpeedMultiplier() => Runtime.Config.HeavyBoots.SpeedMultiplier;
+    protected override float GetSpeedMultiplier() => Runtime.Config.HeavyBoots.RunSpeedMultiplier;
 
     protected override void OnRegistered()
     {
