@@ -267,7 +267,8 @@ public sealed class GameModifierButterflyEffect : GameModifierBase
         var spin = new SpinState
         {
             FrameIndex = 0,
-            Target = candidates.Count > 0 ? candidates[Random.Shared.Next(candidates.Count)] : null,
+            // Weighted like a real roll, so a Gold lands here as rarely as it does at round start.
+            Target = ModifierRarity.PickWeighted(candidates, Runtime.Config.Rarity, Random.Shared),
             NextFrameTime = now,
         };
 

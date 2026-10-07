@@ -29,22 +29,59 @@ public abstract class GameModifierVelocity : GameModifierBase
     protected abstract float GetSpeedMultiplier();
 
     /// <summary>
-    /// Whether to zero CCSPlayer_MovementServices.Stamina every tick. Opt-in per subclass rather than
-    /// on by default: Stamina is CS2's jump/land fatigue value (rises on jump and landing, reduces
-    /// max speed until it decays), so clearing it removes the "jumping strips the speed bonus away"
-    /// effect - desirable for Speedhack, but it would quietly buff HeavyBoots, whose whole point is
-    /// being slow. Same mechanism GameModifierBunnyHop used to defeat CS2's anti-bhop slowdown.
+    /// Per-player convars that keep the boosted speed through jumps, or null for none. Opt-in per
+    /// subclass: Speedhack wants them, but they would quietly buff HeavyBoots, whose whole point is
+    /// being slow. Applied through Runtime.ConVarOverrides, the same path BunnyHop uses, so the server
+    /// and the player's own client simulate the jump with the same values.
     /// </summary>
-    protected virtual bool ShouldRemoveJumpStaminaPenalty() => false;
+    protected virtual IReadOnlyList<(string Name, string Value)>? JumpConVarOverrides() => null;
+
+    private Guid _overrideSpawnHookId;
 
     protected override void OnEnabled()
     {
         Core.Event.OnTick += ApplyToAllPlayers;
+
+        if (JumpConVarOverrides() is { } overrides)
+        {
+            foreach (var player in GetAssignedPlayers())
+            {
+                Runtime.ConVarOverrides.Set(this, player.Slot, overrides);
+            }
+
+            _overrideSpawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnOverrideSpawn);
+        }
+    }
+
+    protected override void OnSlotsAdded(IReadOnlyCollection<int> slots)
+    {
+        if (JumpConVarOverrides() is { } overrides)
+        {
+            foreach (var slot in slots)
+            {
+                Runtime.ConVarOverrides.Set(this, slot, overrides);
+            }
+        }
+    }
+
+    protected override void OnSlotsRemoved(IReadOnlyCollection<int> slots)
+    {
+        foreach (var slot in slots)
+        {
+            Runtime.ConVarOverrides.Remove(this, slot);
+        }
     }
 
     protected override void OnDisabled()
     {
         Core.Event.OnTick -= ApplyToAllPlayers;
+        if (_overrideSpawnHookId != Guid.Empty)
+        {
+            Core.GameEvent.Unhook(_overrideSpawnHookId);
+            _overrideSpawnHookId = Guid.Empty;
+        }
+
+        Runtime.ConVarOverrides.RemoveAll(this);
 
         foreach (var player in GetAssignedPlayers())
         {
@@ -52,10 +89,20 @@ public abstract class GameModifierVelocity : GameModifierBase
         }
     }
 
+    /// <summary>A player joining mid-round while this is active globally (no assigned slots - !rolltoggle) is in scope but was never handed the overrides. Set() is idempotent for players who already have them.</summary>
+    private HookResult OnOverrideSpawn(EventPlayerSpawn @event)
+    {
+        if (@event.UserIdPlayer is { IsValid: true } player && IsAssignedTo(player.Slot) && JumpConVarOverrides() is { } overrides)
+        {
+            Runtime.ConVarOverrides.Set(this, player.Slot, overrides);
+        }
+
+        return HookResult.Continue;
+    }
+
     private void ApplyToAllPlayers()
     {
         var runMultiplier = GetSpeedMultiplier();
-        var removeStaminaPenalty = ShouldRemoveJumpStaminaPenalty();
         foreach (var player in GetAssignedPlayers())
         {
             if (player.PlayerPawn is { IsValid: true } pawn)
@@ -79,17 +126,6 @@ public abstract class GameModifierVelocity : GameModifierBase
                 }
 
                 SetSpeedMultiplier(player, multiplier);
-
-                // Jumping otherwise strips the speed bonus away: Stamina rises on every jump and
-                // landing and reduces max speed until it decays. Zeroed per tick so it can never
-                // accumulate - the same fix GameModifierBunnyHop used to apply against the identical
-                // mechanic. Skipped while walking, so shift-walking keeps vanilla fatigue for the
-                // same reason the multiplier itself is skipped there.
-                if (removeStaminaPenalty && multiplier != 1.0f && pawn.MovementServices is { IsValid: true } movementServices)
-                {
-                    movementServices.Stamina = 0f;
-                    movementServices.StaminaUpdated();
-                }
             }
         }
     }
@@ -121,9 +157,20 @@ public sealed class GameModifierSpeedhack : GameModifierVelocity
         IncompatibleModifiers = ["HeavyBoots"];
     }
 
-    protected override float GetSpeedMultiplier() => Runtime.Config.Speedhack.SpeedMultiplier;
+    protected override float GetSpeedMultiplier() => Runtime.Config.Speedhack.RunSpeedMultiplier;
 
-    protected override bool ShouldRemoveJumpStaminaPenalty() => Runtime.Config.Speedhack.RemoveJumpStaminaPenalty;
+    /// <summary>
+    /// Jumping used to strip the speed bonus away, two ways. CS2's anti-bunnyhop check clamps speed on
+    /// every jump to about 1.1x the NORMAL max speed - VelocityModifier isn't part of it - which
+    /// sv_enablebunnyhopping lifts; and jump/landing fatigue (stamina) slows the next steps, which the
+    /// stamina trio zeroes. Zeroing the pawn's Stamina field every tick, the old fix, raced the
+    /// movement code and never reached the player's own client (see BunnyHop). Unlike BunnyHop there's
+    /// no autobhop or air-accelerate here: jumps keep their speed, they don't build it.
+    /// </summary>
+    protected override IReadOnlyList<(string Name, string Value)>? JumpConVarOverrides() =>
+        Runtime.Config.Speedhack.KeepSpeedWhenJumping
+            ? [("sv_enablebunnyhopping", "1"), ("sv_staminamax", "0"), ("sv_staminajumpcost", "0"), ("sv_staminalandcost", "0")]
+            : null;
 }
 
 /// <summary>
@@ -163,7 +210,7 @@ public sealed class GameModifierHeavyBoots : GameModifierVelocity
         IncompatibleModifiers = ["Speedhack"];
     }
 
-    protected override float GetSpeedMultiplier() => Runtime.Config.HeavyBoots.SpeedMultiplier;
+    protected override float GetSpeedMultiplier() => Runtime.Config.HeavyBoots.RunSpeedMultiplier;
 
     protected override void OnRegistered()
     {

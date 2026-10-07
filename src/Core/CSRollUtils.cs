@@ -640,7 +640,8 @@ public static partial class CSRollUtils
     /// progress instead, which is what the reveal's scramble animation drives frame by frame - the
     /// title and modifier names are identical either way, so only the description lines move.
     /// </param>
-    public static string BuildActivatingModifiersHtml(ISwiftlyCore core, IReadOnlyCollection<GameModifierBase> modifiers, SpinRevealConfig? spinReveal = null, float? descriptionProgress = null)
+    /// <param name="rarity">When given and enabled, each name is drawn in its tier's colour instead of gold.</param>
+    public static string BuildActivatingModifiersHtml(ISwiftlyCore core, IReadOnlyCollection<GameModifierBase> modifiers, SpinRevealConfig? spinReveal = null, float? descriptionProgress = null, RarityConfig? rarity = null)
     {
         var title = modifiers.Count == 1 ? "Activating Modifier:" : "Activating Modifiers:";
         var lines = new List<string>();
@@ -654,7 +655,8 @@ public static partial class CSRollUtils
 
         foreach (var modifier in modifiers)
         {
-            lines.Add($"<span color=\"gold\" class=\"fontWeight-Bold\">{GetModifierDisplayName(core, modifier)}</span>");
+            var colour = rarity is { Enabled: true } ? ModifierRarity.Hex(ModifierRarity.Resolve(modifier, rarity)) : "gold";
+            lines.Add($"<span color=\"{colour}\" class=\"fontWeight-Bold\">{GetModifierDisplayName(core, modifier)}</span>");
 
             if (!(spinReveal?.ShowDescription ?? false))
             {
@@ -894,10 +896,10 @@ public static partial class CSRollUtils
     /// red-title/gold-name styling and sizing as BuildActivatingModifiersHtml, so the spin reads as
     /// part of the same reveal rather than a visually distinct effect that then gets swapped out.
     /// </summary>
-    public static string BuildSpinFrameHtml(string name)
+    public static string BuildSpinFrameHtml(string name, string colour = "gold")
     {
         return "<span color=\"red\" class=\"fontWeight-Bold\">Rolling...</span><br/>" +
-               $"<span color=\"gold\" class=\"fontWeight-Bold\">{name}</span>";
+               $"<span color=\"{colour}\" class=\"fontWeight-Bold\">{name}</span>";
     }
 
     /// <summary>

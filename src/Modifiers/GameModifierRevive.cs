@@ -17,13 +17,12 @@ namespace CSRoll.Modifiers;
 /// point that runs before the engine applies damage, unlike EventPlayerHurt/EventPlayerDeath which
 /// fire after death is already underway.
 ///
-/// Redesigned per explicit request: the starting chance is rolled once per activation (fresh each
-/// time this modifier is applied to a player) from a high Config.Revive.Min/MaxBasePercent range
-/// (70-90% by default) instead of a low fixed value - but instead of escalating UP with each
-/// successful revive (the original design), the chance now shrinks multiplicatively: after each
-/// revive, chance = chance * a fresh random factor between 0.1 and 0.9. So it starts generous but
-/// gets progressively less reliable the more times it's already saved you this life, rather than
-/// becoming increasingly overpowered the longer you survive.
+/// Every life starts at Config.Revive.StartChancePercent (95% by default; it used to be rolled from
+/// a 70-90% range per activation) - but instead of escalating UP with each successful revive (the
+/// original design), the chance shrinks multiplicatively: after each revive, chance = chance * a
+/// fresh random factor between 0.1 and 0.9. So it starts near-certain but gets progressively less
+/// reliable the more times it's already saved you this life, rather than becoming increasingly
+/// overpowered the longer you survive.
 /// </summary>
 public sealed class GameModifierRevive : GameModifierBase
 {
@@ -33,9 +32,7 @@ public sealed class GameModifierRevive : GameModifierBase
     private float? _rolledBasePercent;
     private Guid _spawnHookId;
 
-    private string RollText => _rolledBasePercent is { } percent
-        ? $"{percent:0.#}%"
-        : $"{Runtime.Config.Revive.MinBasePercent:0.#}-{Runtime.Config.Revive.MaxBasePercent:0.#}%";
+    private string RollText => $"{_rolledBasePercent ?? Runtime.Config.Revive.StartChancePercent:0.#}%";
 
     public override IReadOnlyDictionary<string, string>? DynamicTextTokens => new Dictionary<string, string> { ["rand%"] = RollText };
 
@@ -66,9 +63,7 @@ public sealed class GameModifierRevive : GameModifierBase
 
     protected override void OnEnabled()
     {
-        var min = Runtime.Config.Revive.MinBasePercent;
-        var max = Runtime.Config.Revive.MaxBasePercent;
-        _rolledBasePercent = min + (float)(Random.Shared.NextDouble() * (max - min));
+        _rolledBasePercent = Math.Clamp(Runtime.Config.Revive.StartChancePercent, 0f, 100f);
 
         Core.GameHooks.Entities.TakeDamage.Pre += OnTakeDamage;
         _spawnHookId = Core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);

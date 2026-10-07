@@ -82,6 +82,7 @@ public partial class CSRoll
         // failing several times, then reinstated once a working technique was found (see
         // GameModifierJetpack.cs's own class doc comment for the full history).)
         () => new GameModifierHeavyBoots(),
+        () => new GameModifierHumanShield(),
         () => new GameModifierJetpack(),
         () => new GameModifierBunnyHop(),
         () => new GameModifierInfiniteAmmo(),
@@ -98,6 +99,7 @@ public partial class CSRoll
         // New: Flanker (Inspect-Weapon-triggered teleport behind a random enemy, on a
         // cooldown - a from-scratch modifier, not a NavMesh-dependent bug fix).
         () => new GameModifierFlanker(),
+        () => new GameModifierKamikazeChickens(),
 
         // New: Regeneration, Bounty, WeaponRoulette.
         () => new GameModifierRegeneration(),

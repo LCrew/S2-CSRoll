@@ -47,7 +47,8 @@ Each round all players roll a random modifiers that apply for a round.
 | Wallhack | Free cheats, for free - VAC SAFE |
 | Random Loadout | Random loadout |
 | Walking Grenadier | No guns - unlimited HE grenades |
-| Heavy Boots | Much slower - armor, helmet and bonus health |
+| Heavy Boots | Slower - armor, helmet and bonus health |
+| Human Shield | You carry a hostage on your back: 25% slower, but hits from behind deal 30% less damage |
 | Jetpack | Hold jump in the air to thrust |
 | Bunny Hop | Hold jump to auto bunny-hop - every hop is faster |
 | Infinite Ammo | All weapons go brrrrrr... |
@@ -55,6 +56,7 @@ Each round all players roll a random modifiers that apply for a round.
 | Increased Spread | Your aim just got worse... |
 | Plant Anywhere | Plant anywhere after a delay (configurable) |
 | Flanker | Press Inspect Weapon to teleport behind an enemy |
+| Kamikaze Chickens | Press Inspect Weapon (30s cooldown) to release 3 beeping chickens that run at the nearest enemy and explode like HE grenades at 75% damage - on contact, after 6s, or when shot |
 | Regeneration | Heals over time - faster standing still |
 | Bounty | Damage enemies for bonus money |
 | Weapon Roulette | Random weapon, re-rolled often |
@@ -82,6 +84,7 @@ All commands are chat commands (prefix with `!`).
 | `!addrandommodifier` | Admin | Add a random modifier to be activated immediately. |
 | `!randomrounds` | Admin | Toggle random rounds on/off. |
 | `!randomroundsreroll` | Admin | Re-roll the current random round modifiers and apply them to the current round. |
+| `!rollsim [rolls]` | Admin | Simulates that many single picks (default 10000) and prints how often each rarity tier came up - a quick check of the `Rarity` weights. |
 | `!rollmode [player\|team\|game]` | Admin | How random rounds hand out modifiers (also `!rollmethod`): each player their own, one set per team, or one set for everyone. Saved to `config.jsonc`; with no argument it shows the current mode. |
 | `!rollreload` | Admin | Reload `config.jsonc` from disk without restarting the plugin or resetting active modifiers. |
 | `!rolldebug` | Admin | Toggle whether per-player random-round assignments are reported to admins in chat. |
@@ -91,6 +94,18 @@ All commands are chat commands (prefix with `!`).
 - `Player` (default) - every player rolls their own modifier(s).
 - `Team` - each team rolls one set that every teammate shares, with one rolled chance (e.g. Revive's %) per team. The two teams never get the same modifier.
 - `Game` - one set for everyone on both teams, with one rolled chance. The only mode that also rolls ConVar-driven modifiers, which change server-wide settings.
+
+**Rarity** (`Rarity` in `config.jsonc`; on by default). Every modifier sits in a CS case tier, and each roll picks a tier by its weight, then a modifier inside it:
+
+| Tier | Weight | Modifiers |
+| --- | --- | --- |
+| ★ Gold | 4 | Wallhack, Butterfly Effect, Mimic, Conditional Invisibility |
+| Covert | 12 | Juggernaut, Revive, Atomic Explosions, Jetpack, Kamikaze Chickens, Smoke Immunity, Vanish |
+| Classified | 20 | Speedhack, Flanker, Recall, No Recoil, Infinite Ammo, Vampire, Saint, Master Zeus, Cluster Grenades, Suicide Bomber, Bunny Hop, Small Players |
+| Restricted | 30 | More Damage, Regeneration, Hard Head, Steel Body, Poisonous Smoke, Walking Grenadier, Disarming Bullets, Flashing Bullets, Bounty, Heavy Boots, Swap On Death, Longer Flashes |
+| Mil-Spec | 34 | Everything else, including ConVar `.cfg` modifiers |
+
+A weight is the tier's share of every pick, however many modifiers it holds - Gold at 4 comes up for a player about once every 24 rounds. Move a modifier with `"Overrides": { "Drunk": "Gold" }`, set a weight to `0` to stop a tier rolling, or turn it all off with `"Enabled": false`. The custom HUD colours the reel, the winner and the card by tier (needs the current Workshop addon); the classic centre text and chat use the tier colours too. Servers upgrading from an older config get these defaults automatically, so rolls are weighted from the first round after the update.
 
 `MinRandomRounds`/`MaxRandomRounds` have no dedicated chat command - set them in `config.jsonc`, or adjust them at runtime via `!rollmenu` (menu changes are runtime-only and revert to the config file on the next full plugin reload). `Wallhack` is a regular modifier (manage it like any other via `!rolltoggle Wallhack` or `!memodifier`), not a dedicated command.
 

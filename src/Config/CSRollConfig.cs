@@ -155,6 +155,15 @@ public class CSRollConfig
     /// <summary>Tunables for the Flanker modifier (Inspect-Weapon-triggered teleport behind a random enemy, on a cooldown).</summary>
     public FlankerConfig Flanker { get; set; } = new();
 
+    /// <summary>Tunables for the KamikazeChickens modifier (Inspect-Weapon-triggered wave of beeping chickens that run at the nearest enemy and explode as HE grenades, on a cooldown).</summary>
+    public KamikazeChickensConfig KamikazeChickens { get; set; } = new();
+
+    /// <summary>Tunables for the HumanShield modifier (carrying a hostage: slower, but hits from behind deal less damage).</summary>
+    public HumanShieldConfig HumanShield { get; set; } = new();
+
+    /// <summary>Rarity tiers (CS case style): how often each tier rolls, and which modifier sits in which tier.</summary>
+    public RarityConfig Rarity { get; set; } = new();
+
     /// <summary>
     /// Modifiers excluded from a player's random roll unless THEIR OWN team has at least 2 players.
     ///
@@ -315,18 +324,18 @@ public class MimicConfig
 
 public class SpeedhackConfig
 {
-    /// <summary>Movement speed multiplier (VelocityModifier mechanism).</summary>
-    public float SpeedMultiplier { get; set; } = 2.0f;
+    /// <summary>
+    /// Movement speed multiplier (VelocityModifier mechanism). Replaces the old SpeedMultiplier (2.0),
+    /// renamed so existing config files pick up this 15% slower default instead of keeping 2.0.
+    /// </summary>
+    public float RunSpeedMultiplier { get; set; } = 1.7f;
 
     /// <summary>
-    /// Zeroes CCSPlayer_MovementServices.Stamina every tick, so jumping doesn't strip the speed
-    /// bonus away. Stamina is CS2's own jump/land fatigue value - it rises on every jump and landing
-    /// and reduces max speed until it decays, which is why a boosted player visibly slows the moment
-    /// they leave the ground. GameModifierBunnyHop used to zero it for exactly this reason (it now
-    /// zeroes the stamina convars per player instead); this applies the same fix to Speedhack. Turn
-    /// off to keep vanilla jump fatigue.
+    /// Keeps the boosted speed through jumps: lifts CS2's anti-bunnyhop jump speed cap and its
+    /// jump/landing fatigue for the Speedhack player only (per-player convars, like BunnyHop). Off:
+    /// jumping drops them back to about normal speed. Replaces RemoveJumpStaminaPenalty.
     /// </summary>
-    public bool RemoveJumpStaminaPenalty { get; set; } = true;
+    public bool KeepSpeedWhenJumping { get; set; } = true;
 }
 
 public class RandomHealthConfig
@@ -356,8 +365,11 @@ public class SmallPlayersConfig
 
 public class HeavyBootsConfig
 {
-    /// <summary>Movement speed multiplier (VelocityModifier mechanism) - below 1.0 to feel "heavy".</summary>
-    public float SpeedMultiplier { get; set; } = 0.5f;
+    /// <summary>
+    /// Movement speed multiplier (VelocityModifier mechanism) - below 1.0 to feel "heavy". Replaces the
+    /// old SpeedMultiplier (0.5), renamed so existing config files pick up this faster default.
+    /// </summary>
+    public float RunSpeedMultiplier { get; set; } = 0.75f;
 
     /// <summary>Armor value granted (full kevlar+helmet) to compensate for the reduced mobility.</summary>
     public int ArmorValue { get; set; } = 100;
@@ -573,13 +585,12 @@ public class SuicideBomberConfig
 public class ReviveConfig
 {
     /// <summary>
-    /// Minimum/maximum starting percent chance to revive instead of dying. A single value is rolled
-    /// from this range once per activation (not per revive, not per life) and used as the reset
-    /// point every spawn. Deliberately high by design - see the multiplicative decay below for why
-    /// this doesn't make Revive overpowered.
+    /// Percent chance to revive instead of dying, at the start of every life. Each successful revive
+    /// then multiplies it by a random 0.1-0.9, so it starts near-certain and gets less reliable the
+    /// more times it has saved you this life. Replaces the old MinBasePercent/MaxBasePercent range
+    /// (renamed so existing config files pick up this default instead of keeping their old 70-90).
     /// </summary>
-    public float MinBasePercent { get; set; } = 70f;
-    public float MaxBasePercent { get; set; } = 90f;
+    public float StartChancePercent { get; set; } = 95f;
 
     /// <summary>Health the player is set to immediately after a successful revive.</summary>
     public int HealthAfterRevive { get; set; } = 50;
@@ -703,6 +714,112 @@ public class FlankerConfig
 
     /// <summary>Height above the landing spot the player is dropped from - a short, harmless fall so landing makes an audible thud, rather than a completely silent zero-warning appearance right behind the target.</summary>
     public float DropHeight { get; set; } = 48f;
+}
+
+public class KamikazeChickensConfig
+{
+    /// <summary>Seconds before the first wave can be released at the start of each round/life.</summary>
+    public float RoundStartCooldownSeconds { get; set; } = 10f;
+
+    /// <summary>Seconds before another wave can be released after one goes out.</summary>
+    public float CooldownSeconds { get; set; } = 30f;
+
+    /// <summary>Chickens released per Inspect press.</summary>
+    public int ChickensPerWave { get; set; } = 3;
+
+    /// <summary>Seconds between one chicken of a wave and the next.</summary>
+    public float SpawnGapSeconds { get; set; } = 0.12f;
+
+    /// <summary>Seconds a chicken runs before it explodes on its own.</summary>
+    public float FuseSeconds { get; set; } = 6f;
+
+    /// <summary>A chicken explodes once it is this close to any living enemy (horizontal distance, units).</summary>
+    public float ContactRadius { get; set; } = 96f;
+
+    /// <summary>Seconds after release before shooting a chicken sets it off - so the owner can't blow themselves up by firing the instant it leaves their feet.</summary>
+    public float ArmDelaySeconds { get; set; } = 0.5f;
+
+    /// <summary>Sound event played from each chicken on every beep. A wrong name is silent rather than an error - change it here and !rollreload to try another.</summary>
+    public string BeepSoundEventName { get; set; } = "C4.PlantSound";
+
+    /// <summary>Volume of each beep.</summary>
+    public float BeepVolume { get; set; } = 1f;
+
+    /// <summary>
+    /// The C4 timer-light effect spawned on the chicken with every beep. Empty disables it. child02 is
+    /// meant to be the light's red glow - child01, layered on top in an earlier test build, read as a
+    /// white flash.
+    /// </summary>
+    public string BlinkParticlePath { get; set; } = "particles/explosions_fx/c4_timer_light_child02.vpcf";
+
+    /// <summary>An optional second effect layered with BlinkParticlePath on every beep, e.g. "particles/explosions_fx/c4_timer_light_child01.vpcf" (the white flash). Empty disables it.</summary>
+    public string BlinkSecondaryParticlePath { get; set; } = "";
+
+    /// <summary>Height above the chicken's feet the blink appears at (units).</summary>
+    public float BlinkHeight { get; set; } = 10f;
+
+    /// <summary>Running speed (units/second) in "Direct" steering - 250 is a player running with a knife out.</summary>
+    public float RunSpeed { get; set; } = 250f;
+
+    /// <summary>Each blast's damage as a share of a normal HE grenade's (0.75 = 75%).</summary>
+    public float DamageMultiplier { get; set; } = 0.75f;
+
+    /// <summary>
+    /// How chickens chase their target: "Direct" moves each chicken straight at its target every tick
+    /// at RunSpeed, stepping up ledges and sliding along walls; "Leader" makes the target the chicken's
+    /// leader so its own AI chases them instead - at its own speed, and live testing saw some of those
+    /// run in circles.
+    /// </summary>
+    public string SteeringMode { get; set; } = "Direct";
+
+    /// <summary>Also call the engine's grenade Detonate function directly when a chicken blows, in case writing the fuse alone leaves the normal ~1.5s HE delay. Experimental.</summary>
+    public bool DetonateViaInvoke { get; set; } = false;
+}
+
+public class HumanShieldConfig
+{
+    /// <summary>Movement speed multiplier while carrying the hostage (VelocityModifier mechanism, like HeavyBoots).</summary>
+    public float RunSpeedMultiplier { get; set; } = 0.75f;
+
+    /// <summary>Share of the damage the hostage takes off hits from behind (0.3 = 30% less).</summary>
+    public float BackDamageReduction { get; set; } = 0.3f;
+
+    /// <summary>
+    /// Whether the carrier sees the hostage model from their own camera. It's the same over-the-shoulder
+    /// model everyone else sees, seen from inside - off by default, since NativeCarry is meant to give
+    /// the carrier the game's own first-person carry instead. Turn it on if NativeCarry is off.
+    /// </summary>
+    public bool VisibleToCarrier { get; set; } = false;
+
+    /// <summary>
+    /// Also spawns a hidden, frozen, undamageable real hostage and sets it as the player's carried
+    /// hostage, so the game itself draws its first-person carry view and carry icon. Never applied on
+    /// hostage maps (cs_ maps), where that hostage would count as a real one for rescues and round wins.
+    /// </summary>
+    public bool NativeCarry { get; set; } = true;
+}
+
+public class RarityConfig
+{
+    /// <summary>Off: every modifier is equally likely, and the HUD shows category colours only.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Each tier's share of every pick, like a case's odds: a tier is chosen by these weights (among
+    /// tiers that have something eligible), then a modifier inside it uniformly. They don't have to
+    /// add up to 100. Gold at 4 comes up for a player about once every 24 rounds.
+    /// </summary>
+    public float MilSpec { get; set; } = 34f;
+    public float Restricted { get; set; } = 30f;
+    public float Classified { get; set; } = 20f;
+    public float Covert { get; set; } = 12f;
+    public float Gold { get; set; } = 4f;
+
+    /// <summary>
+    /// Moves modifiers between tiers: modifier name -> "MilSpec", "Restricted", "Classified", "Covert"
+    /// or "Gold", e.g. { "Drunk": "Gold" }. Anything not listed keeps its built-in tier.
+    /// </summary>
+    public Dictionary<string, string> Overrides { get; set; } = new();
 }
 
 public class SpinRevealConfig

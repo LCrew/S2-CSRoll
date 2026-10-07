@@ -203,6 +203,7 @@ public sealed class ModifierRuntime
         ConVarOverrides = new PlayerConVarOverrides(core);
         MinRandomRounds = config.MinRandomRounds;
         MaxRandomRounds = config.MaxRandomRounds;
+        ModifierRarity.Logger = core.Logger;
     }
 
     /// <summary>
@@ -621,7 +622,7 @@ public sealed class ModifierRuntime
         _core.Logger.LogInformation(
             "[CSRoll] ROLLED (per-{Mode}): {Roll}",
             mode == ModifierRollMode.Team ? "team" : "player",
-            string.Join(" | ", modifiersByPlayerSlot.Select(entry => $"slot {entry.Key}: {string.Join(", ", entry.Value.Select(m => m.Name))}")));
+            string.Join(" | ", modifiersByPlayerSlot.Select(entry => $"slot {entry.Key}: {string.Join(", ", entry.Value.Select(LogName))}")));
 
         if (DebugMode)
         {
@@ -711,9 +712,26 @@ public sealed class ModifierRuntime
             // Bug fix: the description was sent raw while only the display name went through
             // Helper.Colored(), so any "[green]"/"[default]" token inside a description printed as
             // literal text in chat instead of coloring it.
-            player.SendChat(SwiftlyS2.Shared.Helper.Colored($"• {CSRollUtils.GetModifierDisplayName(_core, modifier)} - {CSRollUtils.GetModifierDescription(_core, modifier, player.Slot)}"));
+            player.SendChat(SwiftlyS2.Shared.Helper.Colored($"• {ChatName(modifier)} - {CSRollUtils.GetModifierDescription(_core, modifier, player.Slot)}"));
         }
     }
+
+    /// <summary>A modifier's name for chat: in its tier's colour with the tier after it, or plain when rarity is off.</summary>
+    private string ChatName(GameModifierBase modifier)
+    {
+        var name = CSRollUtils.GetModifierDisplayName(_core, modifier);
+        if (!Config.Rarity.Enabled)
+        {
+            return name;
+        }
+
+        var tier = ModifierRarity.Resolve(modifier, Config.Rarity);
+        return $"{ModifierRarity.ChatToken(tier)}{name} ({ModifierRarity.Label(tier)})[default]";
+    }
+
+    /// <summary>A modifier's name for the ROLLED log lines, with its tier when rarity is on.</summary>
+    private string LogName(GameModifierBase modifier) =>
+        Config.Rarity.Enabled ? $"{modifier.Name} [{ModifierRarity.Resolve(modifier, Config.Rarity)}]" : modifier.Name;
 
     /// <summary>Modifiers listed in Config.RequiresMultiplePlayersPerTeam (e.g. Saint) are excluded unless the relevant team has at least 2 players - no point rolling a "revive a dead teammate" modifier in a 1v1 where there's never a teammate to revive.</summary>
     private bool MeetsTeamSizeRequirement(GameModifierBase modifier, int teamSize)
@@ -806,12 +824,29 @@ public sealed class ModifierRuntime
     /// Fix: shuffle first (so every modifier gets an equal starting chance), then greedily walk the
     /// shuffled order and only skip a candidate if it conflicts with something ALREADY picked - a far
     /// rarer event than "conflicts with anything anywhere in the whole pool".
+    ///
+    /// With rarity on, each pick is weighted instead: drop whatever conflicts with the picks so far,
+    /// then ModifierRarity.PickWeighted from what's left. Weighting per pick, rather than one weighted
+    /// order up front, keeps every tier at its configured share on the second and third pick too.
     /// </summary>
-    private static List<GameModifierBase> PickCompatibleRandomModifiers(List<GameModifierBase> eligiblePool, int count, Random random)
+    private List<GameModifierBase> PickCompatibleRandomModifiers(List<GameModifierBase> eligiblePool, int count, Random random)
     {
         if (count <= 0 || eligiblePool.Count == 0)
         {
             return [];
+        }
+
+        if (Config.Rarity.Enabled)
+        {
+            var weighted = new List<GameModifierBase>();
+            var remaining = new List<GameModifierBase>(eligiblePool);
+            while (weighted.Count < count && ModifierRarity.PickWeighted(remaining, Config.Rarity, random) is { } pick)
+            {
+                weighted.Add(pick);
+                remaining.RemoveAll(m => m == pick || m.CheckIfIncompatible(pick) || pick.CheckIfIncompatible(m));
+            }
+
+            return weighted;
         }
 
         var shuffled = new List<GameModifierBase>(eligiblePool);
@@ -849,7 +884,7 @@ public sealed class ModifierRuntime
                 continue;
             }
 
-            _core.PlayerManager.GetPlayer(slot)?.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal), 6000);
+            _core.PlayerManager.GetPlayer(slot)?.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, rarity: Config.Rarity), 6000);
         }
     }
 
@@ -966,7 +1001,7 @@ public sealed class ModifierRuntime
 
             if (Config.ShowCentreMsg && _core.PlayerManager.GetPlayer(slot) is { IsValid: true } player)
             {
-                player.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, [modifier], Config.SpinReveal), 6000);
+                player.SendCenterHTML(CSRollUtils.BuildActivatingModifiersHtml(_core, [modifier], Config.SpinReveal, rarity: Config.Rarity), 6000);
             }
         }
 
@@ -1500,7 +1535,7 @@ public sealed class ModifierRuntime
         // showed up as having received them in the debug output because there simply wasn't any.
         // See the per-player twin above - unconditional console record of the selection, written
         // before activation, covering the gap between the roll and the deferred reveal.
-        _core.Logger.LogInformation("[CSRoll] ROLLED (global): {Roll}", string.Join(", ", addedModifiers.Select(m => m.Name)));
+        _core.Logger.LogInformation("[CSRoll] ROLLED (global): {Roll}", string.Join(", ", addedModifiers.Select(LogName)));
 
         if (DebugMode)
         {
@@ -1541,7 +1576,7 @@ public sealed class ModifierRuntime
 
         if (Config.ShowCentreMsg)
         {
-            CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal), 6000);
+            CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, rarity: Config.Rarity), 6000);
         }
 
         foreach (var player in _core.PlayerManager.GetAllValidPlayers())
@@ -1703,9 +1738,9 @@ public sealed class ModifierRuntime
             }
 
             PlaySpinThenRevealAll(
-                () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal),
+                () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, rarity: Config.Rarity),
                 Reveal,
-                progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress));
+                progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress, Config.Rarity));
         }
         else
         {
@@ -1776,15 +1811,26 @@ public sealed class ModifierRuntime
             {
                 PlaySpinThenReveal(
                     slot,
-                    () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal),
+                    () => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, rarity: Config.Rarity),
                     Reveal,
-                    progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress));
+                    progress => CSRollUtils.BuildActivatingModifiersHtml(_core, modifiers, Config.SpinReveal, progress, Config.Rarity));
             }
             else
             {
                 Reveal();
             }
         }
+    }
+
+    /// <summary>
+    /// One flicker of the classic spin: a random modifier name in its tier's colour, picked with the same
+    /// weights as the real roll so Gold names flash past about as rarely as they land.
+    /// </summary>
+    private string BuildRandomSpinFrame()
+    {
+        var modifier = ModifierRarity.PickWeighted(_registeredModifiers, Config.Rarity, Random.Shared)!;
+        var colour = Config.Rarity.Enabled ? ModifierRarity.Hex(ModifierRarity.Resolve(modifier, Config.Rarity)) : "gold";
+        return CSRollUtils.BuildSpinFrameHtml(CSRollUtils.GetModifierDisplayName(_core, modifier), colour);
     }
 
     /// <summary>
@@ -1863,9 +1909,8 @@ public sealed class ModifierRuntime
             return;
         }
 
-        var randomName = CSRollUtils.GetModifierDisplayName(_core, _registeredModifiers[Random.Shared.Next(_registeredModifiers.Count)]);
         var interval = GetSpinFrameIntervalSeconds(frameIndex, totalFrames);
-        current.SendCenterHTML(CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
+        current.SendCenterHTML(BuildRandomSpinFrame(), (int)(interval * 1000) + 50);
         CSRollUtils.PlaySoundToPlayer(current, Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume);
 
         _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrame(slot, frameIndex + 1, totalFrames, buildFinalHtml, onRevealed, buildDescriptionFrame));
@@ -1968,9 +2013,8 @@ public sealed class ModifierRuntime
             return;
         }
 
-        var randomName = CSRollUtils.GetModifierDisplayName(_core, _registeredModifiers[Random.Shared.Next(_registeredModifiers.Count)]);
         var interval = GetSpinFrameIntervalSeconds(frameIndex, totalFrames);
-        ShowCentreToClassicHud(CSRollUtils.BuildSpinFrameHtml(randomName), (int)(interval * 1000) + 50);
+        ShowCentreToClassicHud(BuildRandomSpinFrame(), (int)(interval * 1000) + 50);
         PlaySoundToClassicHud(Config.SpinReveal.TickSoundEventName, Config.SpinReveal.TickSoundVolume);
 
         _core.Scheduler.DelayBySeconds(interval, () => PlayNextSpinFrameAll(frameIndex + 1, totalFrames, buildFinalHtml, onRevealed, buildDescriptionFrame));

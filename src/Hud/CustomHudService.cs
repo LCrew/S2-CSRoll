@@ -100,6 +100,12 @@ public sealed class CustomHudService
 
     private CustomHudConfig Cfg => _runtime.Config.CustomHud;
 
+    private RarityConfig Rarity => _runtime.Config.Rarity;
+
+    /// <summary>The tier class for a tile or the card - "rar-off" (no rules) when rarity is off, so the category colours show instead.</summary>
+    private string RarityClass(GameModifierBase modifier) =>
+        HudLayout.RarityClass(Rarity.Enabled ? ModifierRarity.CssKey(ModifierRarity.Resolve(modifier, Rarity)) : "off");
+
     private bool EveryoneMode => string.Equals(Cfg.Mode, "Everyone", StringComparison.OrdinalIgnoreCase);
 
     private bool Live => _installed && Cfg.Enabled && _layout is { IsValid: true };
@@ -268,6 +274,7 @@ public sealed class CustomHudService
         SetFlag(slot, state, HudLayout.Card, HudLayout.On, false);
         SetExclusive(slot, state, HudLayout.TileIcon(HudLayout.WinTile), "icon", HudLayout.IconClass(HudCatalog.Icon(primary)));
         SetExclusive(slot, state, HudLayout.Tile(HudLayout.WinTile), "cat", HudLayout.CategoryClass(HudCatalog.Category(primary)));
+        SetExclusive(slot, state, HudLayout.Tile(HudLayout.WinTile), "rar", RarityClass(primary));
 
         var brand = Cfg.BrandText?.Trim() ?? "";
         SetText(slot, state, HudLayout.BrandText, HudLayout.VarBrand, brand.Length > 64 ? brand[..64] : brand);
@@ -392,12 +399,18 @@ public sealed class CustomHudService
         var modifier = roll.Primary;
         var category = HudCatalog.Category(modifier);
         var label = HudCatalog.CategoryLabel(category);
+        if (Rarity.Enabled)
+        {
+            label = $"{ModifierRarity.Label(ModifierRarity.Resolve(modifier, Rarity))}  ·  {label}";
+        }
+
         if (roll.Count > 1)
         {
             label += $"  ·  +{roll.Count - 1} more";
         }
 
         SetExclusive(slot, state, HudLayout.Card, "cat", HudLayout.CategoryClass(category));
+        SetExclusive(slot, state, HudLayout.Card, "rar", RarityClass(modifier));
         SetExclusive(slot, state, HudLayout.CardIcon, "icon", HudLayout.IconClass(HudCatalog.Icon(modifier)));
         SetText(slot, state, HudLayout.CardCategory, HudLayout.VarCategory, label);
         SetText(slot, state, HudLayout.CardName, HudLayout.VarName, CSRollUtils.GetModifierDisplayName(_core, modifier));
@@ -429,15 +442,19 @@ public sealed class CustomHudService
                 continue;
             }
 
-            var pick = pool[Random.Shared.Next(pool.Count)];
-            while (pool.Count > 1 && pick == previous)
+            // Weighted like the real roll, so the reel shows a case's mix - mostly blue and purple, a
+            // rare flash of gold. The retries are bounded: with all the weight on one modifier, "anything
+            // but the previous tile" may never come up.
+            var pick = ModifierRarity.PickWeighted(pool, Rarity, Random.Shared)!;
+            for (var retry = 0; retry < 8 && pool.Count > 1 && pick == previous; retry++)
             {
-                pick = pool[Random.Shared.Next(pool.Count)];
+                pick = ModifierRarity.PickWeighted(pool, Rarity, Random.Shared)!;
             }
 
             previous = pick;
             SetGlobalExclusive(HudLayout.TileIcon(i), "icon", HudLayout.IconClass(HudCatalog.Icon(pick)));
             SetGlobalExclusive(HudLayout.Tile(i), "cat", HudLayout.CategoryClass(HudCatalog.Category(pick)));
+            SetGlobalExclusive(HudLayout.Tile(i), "rar", RarityClass(pick));
         }
     }
 
