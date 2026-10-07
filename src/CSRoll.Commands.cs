@@ -1,9 +1,12 @@
+using System.Text.RegularExpressions;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 using SwiftlyS2.Shared.Commands;
 using SwiftlyS2.Shared.Misc;
 
+using CSRoll.Config;
 using CSRoll.Core;
 using CSRoll.Hud;
 using CSRoll.Modifiers;
@@ -56,6 +59,8 @@ public partial class CSRoll
         _commandGuids.Add(Core.Command.RegisterCommand("disablemodifier", Debounce("disablemodifier", OnDisableModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Deactivate a modifier and remove it from the registered pool so it can't be added/rolled again until re-enabled (!rollmenu) or the plugin reloads."));
         _commandGuids.Add(Core.Command.RegisterCommand("randomrounds", Debounce("randomrounds", OnRandomRounds), registerRaw: true, permission: AdminPermission, helpText: "Toggle random rounds on/off."));
         _commandGuids.Add(Core.Command.RegisterCommand("randomroundsreroll", Debounce("randomroundsreroll", OnRandomRoundsReRoll), registerRaw: true, permission: AdminPermission, helpText: "Re-roll the current random round modifiers and apply them to the current round."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rollmode", Debounce("rollmode", OnRollMode), registerRaw: true, permission: AdminPermission, helpText: "[player|team|game] - How random rounds hand out modifiers: each player their own, one per team, or one for everyone. Saved to config.jsonc."));
+        _commandGuids.Add(Core.Command.RegisterCommand("rollmethod", Debounce("rollmethod", OnRollMode), registerRaw: true, permission: AdminPermission, helpText: "[player|team|game] - Same as !rollmode."));
         _commandGuids.Add(Core.Command.RegisterCommand("rolldebug", Debounce("rolldebug", OnRollDebug), registerRaw: true, permission: AdminPermission, helpText: "Toggle whether per-player random-round assignments are reported to admins in chat."));
         _commandGuids.Add(Core.Command.RegisterCommand("rollreload", Debounce("rollreload", OnRollReload), registerRaw: true, permission: AdminPermission, helpText: "Reload config.jsonc from disk without restarting the plugin or resetting active modifiers."));
         _commandGuids.Add(Core.Command.RegisterCommand("memodifier", Debounce("memodifier", OnMeModifier), registerRaw: true, permission: AdminPermission, helpText: "<modifier name> - Apply a modifier scoped to just yourself, without affecting anyone else."));
@@ -361,6 +366,102 @@ public partial class CSRoll
             var coloredCommand = SwiftlyS2.Shared.Helper.Colored($"[orange]!{command.CommandName}[default]");
             context.Sender?.SendChat($"{coloredCommand}{adminTag} - {command.HelpText}");
         }
+    }
+
+    public void OnRollMode(ICommandContext context)
+    {
+        var current = Runtime.RollMode;
+        if (context.Args.Length == 0)
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Roll mode: {current} - {DescribeRollMode(current)}. Change it with !rollmode player, team or game.");
+            return;
+        }
+
+        if (!CSRollConfig.TryParseRollMode(context.Args[0], out var mode))
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Unknown roll mode \"{context.Args[0]}\" - use player, team or game.");
+            return;
+        }
+
+        if (mode == current)
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Roll mode is already {mode}.");
+            return;
+        }
+
+        var saved = SaveRollMode(mode, out var error);
+        if (!saved)
+        {
+            // Couldn't write the file - still switch for now, and say so.
+            Config.RollMode = mode.ToString();
+            Config.RandomizePlayers = null;
+            Core.Logger.LogWarning("[CSRoll] !rollmode couldn't save to config.jsonc: {Error}", error);
+        }
+
+        CSRollUtils.PrintTitleToChatAll(Core, $"Roll mode set to {mode} - {DescribeRollMode(mode)}. Takes effect from the next roll.");
+        if (!saved)
+        {
+            CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Couldn't save it to config.jsonc ({error}) - it lasts until the config reloads.");
+        }
+    }
+
+    private static string DescribeRollMode(ModifierRollMode mode) => mode switch
+    {
+        ModifierRollMode.Team => "each team shares one roll",
+        ModifierRollMode.Game => "everyone gets the same roll",
+        _ => "every player rolls their own",
+    };
+
+    /// <summary>
+    /// Writes RollMode into config.jsonc by editing that one value in the text, so the admin's comments
+    /// and formatting survive, then reloads the config so it applies straight away.
+    /// </summary>
+    private bool SaveRollMode(ModifierRollMode mode, out string error)
+    {
+        try
+        {
+            var path = Core.Configuration.GetConfigPath("config.jsonc");
+            var text = File.ReadAllText(path);
+            var entry = $"\"RollMode\": \"{mode}\"";
+
+            var existing = new Regex("\"RollMode\"\\s*:\\s*\"[^\"]*\"");
+            if (existing.IsMatch(text))
+            {
+                text = existing.Replace(text, entry, 1);
+            }
+            else if (Regex.Match(text, "\"Main\"\\s*:\\s*\\{") is { Success: true } main)
+            {
+                // A config written before 1.40 has no RollMode yet.
+                text = text.Insert(main.Index + main.Length, $"\n    {entry},");
+            }
+            else
+            {
+                error = "no \"Main\" section found";
+                return false;
+            }
+
+            // An older config's RandomizePlayers: false would turn "Player" back into "Game".
+            text = Regex.Replace(text, "\"RandomizePlayers\"\\s*:\\s*false", "\"RandomizePlayers\": true");
+
+            var temp = path + ".tmp";
+            File.WriteAllText(temp, text);
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+
+        // Apply now rather than waiting on the file watcher.
+        if (Core.Configuration.Manager is IConfigurationRoot configRoot)
+        {
+            configRoot.Reload();
+        }
+
+        ReloadConfigFromManager();
+        error = "";
+        return true;
     }
 
     public void OnRollDebug(ICommandContext context)

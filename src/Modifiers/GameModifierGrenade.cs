@@ -131,7 +131,7 @@ public sealed class GameModifierRandomGrenadeTime : GameModifierBase
         // write - but CBaseCSGrenadeProjectile.Thrower isn't reliably populated yet at the exact
         // instant OnEntitySpawned fires, so GetThrowerPlayer() returned null and IsAssignedTo(-1)
         // failed for every grenade whenever this modifier was scoped to specific player(s) (the
-        // default RandomizePlayers=true mode) - timers silently never randomized for anyone. In
+        // default per-player RollMode) - timers silently never randomized for anyone. In
         // global mode (SupportsPerPlayerRandomization=false) this never showed up
         // since an empty AssignedSlots makes IsAssignedTo always true regardless of thrower
         // resolution - that's why global-mode modifiers worked and this didn't. The check now happens inside

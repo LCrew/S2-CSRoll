@@ -44,6 +44,9 @@ public sealed class ModifierRuntime
     /// </summary>
     public bool DebugMode { get; set; }
 
+    /// <summary>How random rounds hand out modifiers, read live from config (see CSRollConfig.RollMode).</summary>
+    public ModifierRollMode RollMode => Config.ResolveRollMode();
+
     /// <summary>
     /// Every modifier CSRoll knows how to construct, by name - both classic modifiers and cvar-file
     /// modifiers, keyed on the name each produces. A superset of _registeredModifiers: this also
@@ -63,7 +66,7 @@ public sealed class ModifierRuntime
     /// Activate()'d - see the bug-fix note on PlaySpinThenRevealActiveModifiersBanner for why
     /// activation is deferred until each reveal actually lands instead of happening immediately.
     /// Exactly one of _pendingGlobalModifiers/_pendingModifiersByPlayerSlot is populated at a time,
-    /// mirroring the RandomizePlayers on/off branches in ApplyRandomRoundsForRound.
+    /// mirroring the RollMode branches in ApplyRandomRoundsForRound ("Game" vs "Player"/"Team").
     /// </summary>
     private List<GameModifierBase>? _pendingGlobalModifiers;
     private Dictionary<GameModifierBase, List<int>>? _pendingAssignedSlotsByModifier;
@@ -504,16 +507,17 @@ public sealed class ModifierRuntime
         // Bug fix: this used to also run a supplementary global-only roll every round, originally
         // added so ConditionalInvisibility/Vanish (which used to opt out of per-player
         // randomization, picking their own random target internally instead of using the runtime's
-        // assignment) still got a chance while RandomizePlayers was on. That secondary global roll is
+        // assignment) still got a chance during the per-player roll. That secondary global roll is
         // removed entirely per explicit instruction: no automatic global/shared activation happens
         // alongside the per-player roll anymore. ConditionalInvisibility/Vanish now support
         // per-player randomization directly instead (see their own files), so they lose nothing by
         // this removal - only modifiers that are still genuinely global-only (PlantAnywhere, etc.)
         // are excluded from the automatic rotation now; they're still fully usable via an explicit
         // admin !rolltoggle.
-        if (Config.RandomizePlayers)
+        var mode = RollMode;
+        if (mode != ModifierRollMode.Game)
         {
-            appliedAnything = AssignRandomModifiersPerPlayer(showBanner);
+            appliedAnything = AssignRandomModifiersPerPlayer(showBanner, mode);
         }
         else
         {
@@ -554,8 +558,11 @@ public sealed class ModifierRuntime
     /// correct there for a different reason: those activate with an EMPTY AssignedSlots (global/
     /// "everyone"), so a new global modifier genuinely does overlap every existing active modifier's
     /// slots, whoever they belong to.
+    ///
+    /// RollMode "Team" uses the same slot-based path with one set per team instead of one per player -
+    /// see PickRandomModifiersForTeams.
     /// </summary>
-    public bool AssignRandomModifiersPerPlayer(bool showBanner = true)
+    public bool AssignRandomModifiersPerPlayer(bool showBanner = true, ModifierRollMode mode = ModifierRollMode.Player)
     {
         var pool = _registeredModifiers.Where(m => m.SupportsPerPlayerRandomization).ToList();
         // Bug fix: GetAllValidPlayers() includes spectators, so a spectator could get assigned (and
@@ -571,10 +578,13 @@ public sealed class ModifierRuntime
         var random = new Random();
         var assignedSlotsByModifier = new Dictionary<GameModifierBase, List<int>>();
         var modifiersByPlayerSlot = new Dictionary<int, List<GameModifierBase>>();
+        var teamPicks = mode == ModifierRollMode.Team ? PickRandomModifiersForTeams(pool, random) : null;
 
         foreach (var player in players)
         {
-            var picked = PickRandomModifiersForPlayer(pool, random, player);
+            var picked = teamPicks is null
+                ? PickRandomModifiersForPlayer(pool, random, player)
+                : player.Controller is { IsValid: true } controller && teamPicks.TryGetValue(controller.Team, out var teamSet) ? [.. teamSet] : [];
             if (picked.Count == 0)
             {
                 continue;
@@ -609,7 +619,8 @@ public sealed class ModifierRuntime
         // crash in the window between the roll and the reveal would otherwise leave nothing at all
         // naming the modifiers that were in flight. This line closes that gap.
         _core.Logger.LogInformation(
-            "[CSRoll] ROLLED (per-player): {Roll}",
+            "[CSRoll] ROLLED (per-{Mode}): {Roll}",
+            mode == ModifierRollMode.Team ? "team" : "player",
             string.Join(" | ", modifiersByPlayerSlot.Select(entry => $"slot {entry.Key}: {string.Join(", ", entry.Value.Select(m => m.Name))}")));
 
         if (DebugMode)
@@ -622,7 +633,7 @@ public sealed class ModifierRuntime
             // there watching the server die, so it has to be visible to whoever is testing.
             // DebugMode is off by default and is an explicit opt-in via !rolldebug, so broadcasting
             // while it is on costs a normal match nothing.
-            CSRollUtils.PrintTitleToChatAll(_core, "Rolled modifiers (randomized per player):");
+            CSRollUtils.PrintTitleToChatAll(_core, mode == ModifierRollMode.Team ? "Rolled modifiers (one set per team):" : "Rolled modifiers (randomized per player):");
             foreach (var (slot, modifiers) in modifiersByPlayerSlot)
             {
                 var player = _core.PlayerManager.GetPlayer(slot);
@@ -720,6 +731,49 @@ public sealed class ModifierRuntime
 
         return _lastRoundAssignedPerPlayer.TryGetValue((player.SessionId, modifier.Name), out var lastRound) &&
             _roundNumber - lastRound < Config.PerPlayerRepeatCooldownRounds;
+    }
+
+    /// <summary>
+    /// RollMode "Team": one set per team, which every teammate then gets - so a team shares one
+    /// activation, and with it one rolled chance. Both teams get the same number of modifiers, and
+    /// never the same modifier: a shared instance would also share its rolled chance across teams.
+    /// A modifier is skipped while any teammate is on PerPlayerRepeatCooldownRounds for it, unless
+    /// that leaves too few to choose from.
+    /// </summary>
+    private Dictionary<Team, List<GameModifierBase>> PickRandomModifiersForTeams(List<GameModifierBase> pool, Random random)
+    {
+        var count = RollRandomRoundCount(random);
+        var picks = new Dictionary<Team, List<GameModifierBase>>();
+        if (count <= 0)
+        {
+            return picks;
+        }
+
+        var taken = new HashSet<GameModifierBase>();
+
+        // Random order, so neither team always gets first choice of the pool.
+        foreach (var team in random.Next(2) == 0 ? new[] { Team.T, Team.CT } : [Team.CT, Team.T])
+        {
+            var members = _core.PlayerManager.GetInTeam(team).ToList();
+            if (members.Count == 0)
+            {
+                continue;
+            }
+
+            var eligible = pool.Where(m => !taken.Contains(m) && MeetsTeamSizeRequirement(m, members.Count)).ToList();
+            var fresh = eligible.Where(m => !members.Any(member => IsOnPlayerCooldown(member, m))).ToList();
+
+            var picked = PickCompatibleRandomModifiers(fresh, count, random);
+            if (picked.Count < count)
+            {
+                picked = PickCompatibleRandomModifiers(eligible, count, random);
+            }
+
+            picks[team] = picked;
+            taken.UnionWith(picked);
+        }
+
+        return picks;
     }
 
     private List<GameModifierBase> PickRandomModifiersForPlayer(List<GameModifierBase> pool, Random random, IPlayer player)
@@ -1559,38 +1613,37 @@ public sealed class ModifierRuntime
         // Bug fix: any active modifier with an EMPTY AssignedSlots is global in scope (e.g. an admin
         // !rolltoggle on something that doesn't support per-player randomization like
         // PlantAnywhere) - live testing confirmed these were taking effect completely
-        // silently under RandomizePlayers=true: no chat, no spin, not even in the !rolldebug listing,
+        // silently in the per-player roll mode: no chat, no spin, not even in the !rolldebug listing,
         // since the per-player branch below only ever iterates each modifier's AssignedSlots, which
         // contributes nothing for a global-scope one. These now always get their own broadcast
-        // reveal, regardless of RandomizePlayers.
+        // reveal, whatever the roll mode.
         var globalModifiers = _activeModifiers.Where(m => m.AssignedSlots.Count == 0).ToList();
         if (globalModifiers.Count > 0)
         {
             RevealGlobalModifiers(globalModifiers, commitOnReveal: false);
         }
 
-        if (Config.RandomizePlayers)
+        // Slot-scoped modifiers get each owner's own reveal, whatever the roll mode - in "Game" mode
+        // these can only come from an admin (!memodifier), and used to go unrevealed.
+        var modifiersByPlayerSlot = new Dictionary<int, List<GameModifierBase>>();
+        foreach (var modifier in _activeModifiers)
         {
-            var modifiersByPlayerSlot = new Dictionary<int, List<GameModifierBase>>();
-            foreach (var modifier in _activeModifiers)
+            foreach (var slot in modifier.AssignedSlots)
             {
-                foreach (var slot in modifier.AssignedSlots)
+                if (!modifiersByPlayerSlot.TryGetValue(slot, out var modifiers))
                 {
-                    if (!modifiersByPlayerSlot.TryGetValue(slot, out var modifiers))
-                    {
-                        modifiers = [];
-                        modifiersByPlayerSlot[slot] = modifiers;
-                    }
-
-                    modifiers.Add(modifier);
+                    modifiers = [];
+                    modifiersByPlayerSlot[slot] = modifiers;
                 }
-            }
 
-            RevealPerPlayerModifiers(modifiersByPlayerSlot, assignedSlotsByModifier: null);
+                modifiers.Add(modifier);
+            }
         }
 
-        // Non-RandomizePlayers mode: everything is already global in scope, so globalModifiers above
-        // already covers the whole active set - nothing further to reveal here.
+        if (modifiersByPlayerSlot.Count > 0)
+        {
+            RevealPerPlayerModifiers(modifiersByPlayerSlot, assignedSlotsByModifier: null);
+        }
     }
 
     /// <summary>Broadcast reveal for a global-scope set of modifiers. When commitOnReveal is true (a deferred round-start roll), activation happens at the exact moment the reveal lands rather than beforehand.</summary>
@@ -1866,7 +1919,7 @@ public sealed class ModifierRuntime
         _core.Scheduler.DelayBySeconds(interval, () => PlayDescriptionScrambleFrame(slot, frameIndex + 1, totalFrames, buildDescriptionFrame, buildFinalHtml));
     }
 
-    /// <summary>Broadcast counterpart to PlaySpinThenReveal, used for the shared/global (non-RandomizePlayers) activation path where every player sees the same spin land on the same result.</summary>
+    /// <summary>Broadcast counterpart to PlaySpinThenReveal, used for the shared/global (RollMode "Game") activation path where every player sees the same spin land on the same result.</summary>
     private void PlaySpinThenRevealAll(Func<string> buildFinalHtml, Action onRevealed, Func<float, string>? buildDescriptionFrame = null)
     {
         // Claim the center-HTML surface for the whole animation plus the reveal it lands on, so

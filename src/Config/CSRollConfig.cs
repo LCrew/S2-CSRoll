@@ -1,4 +1,19 @@
+using System.Text.Json.Serialization;
+
 namespace CSRoll.Config;
+
+/// <summary>How a random round hands out modifiers - see CSRollConfig.RollMode.</summary>
+public enum ModifierRollMode
+{
+    /// <summary>Every player rolls their own modifier(s).</summary>
+    Player,
+
+    /// <summary>Each team rolls one set that all its players share.</summary>
+    Team,
+
+    /// <summary>One set for everyone on both teams.</summary>
+    Game,
+}
 
 public class CSRollConfig
 {
@@ -6,11 +21,11 @@ public class CSRollConfig
     public bool DisableRandomRoundsInWarmup { get; set; } = true;
     public bool ShowCentreMsg { get; set; } = true;
 
-    /// <summary>Whole-server "don't repeat" for the non-RandomizePlayers shared/global roll only - the same set from last round can't be picked again as a whole. Unrelated to PerPlayerRepeatCooldownRounds below, which is per-player and applies to the per-player roll.</summary>
+    /// <summary>Whole-server "don't repeat" for the RollMode "Game" roll only - the same set from last round can't be picked again as a whole. Unrelated to PerPlayerRepeatCooldownRounds below, which is per-player and applies to the per-player roll.</summary>
     public bool CanRepeat { get; set; } = false;
 
     /// <summary>
-    /// Per-player, per-modifier cooldown for the RandomizePlayers roll: once a specific player rolls
+    /// Per-player, per-modifier cooldown for the RollMode "Player" and "Team" rolls: once a specific player rolls
     /// a specific modifier, that SAME player can't roll that SAME modifier again for this many
     /// rounds - a different player is entirely unaffected and can still roll it next round. 0 disables
     /// this cooldown entirely (a player could roll the same modifier again as soon as next round).
@@ -33,12 +48,49 @@ public class CSRollConfig
     public string[] DisabledModifiers { get; set; } = [];
 
     /// <summary>
-    /// When true, random rounds assign each connected player their own independent random
-    /// modifier(s) (from modifiers with SupportsPerPlayerRandomization=true) instead of one
-    /// shared set applied to everyone. ConVar-driven modifiers never participate in this mode -
-    /// they touch server-wide cvars and can't hold a different value per player.
+    /// How a random round hands out modifiers (changeable in game with !rollmode, which saves it here):
+    /// "Player" (default) - every player rolls their own modifier(s).
+    /// "Team" - each team rolls one set that all its players share, with one rolled chance (Revive's
+    ///   70-90% and the like) per team; the two teams never get the same modifier.
+    /// "Game" - one set for everyone on both teams, with one rolled chance.
+    /// "Player" and "Team" draw from modifiers that can apply to single players; ConVar-driven ones
+    /// change server-wide settings, so only "Game" rolls them.
     /// </summary>
-    public bool RandomizePlayers { get; set; } = true;
+    public string RollMode { get; set; } = nameof(ModifierRollMode.Player);
+
+    /// <summary>
+    /// Replaced by RollMode in 1.40. Still read from older configs, where false meant one shared roll
+    /// for everyone - that maps to "Game" while RollMode is left at "Player". Not written to new configs.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? RandomizePlayers { get; set; }
+
+    /// <summary>The roll mode in effect: RollMode, or "Game" for an older config that set RandomizePlayers to false.</summary>
+    public ModifierRollMode ResolveRollMode()
+    {
+        var mode = TryParseRollMode(RollMode, out var parsed) ? parsed : ModifierRollMode.Player;
+        return mode == ModifierRollMode.Player && RandomizePlayers == false ? ModifierRollMode.Game : mode;
+    }
+
+    /// <summary>Reads a roll mode by name, case-insensitively, with a few obvious aliases.</summary>
+    public static bool TryParseRollMode(string? text, out ModifierRollMode mode)
+    {
+        switch (text?.Trim().ToLowerInvariant())
+        {
+            case "player" or "players" or "perplayer" or "default":
+                mode = ModifierRollMode.Player;
+                return true;
+            case "team" or "teams" or "perteam":
+                mode = ModifierRollMode.Team;
+                return true;
+            case "game" or "global" or "all" or "everyone":
+                mode = ModifierRollMode.Game;
+                return true;
+            default:
+                mode = ModifierRollMode.Player;
+                return false;
+        }
+    }
 
     /// <summary>Tunables for the RandomHealth modifier (health set to a random number in this range each activation).</summary>
     public RandomHealthConfig RandomHealth { get; set; } = new();
@@ -681,7 +733,7 @@ public class SpinRevealConfig
     /// Budgeted against a standard 15s freeze time: 1s initial delay (ScheduleFreezeTimeBanner) + 4s
     /// spin + 10s reveal hold = 15s, so the popup clears exactly as the round goes live.
     ///
-    /// Note this is per-player when RandomizePlayers is on - each assigned player runs their own
+    /// Note this is per-player when RollMode is "Player" - each assigned player runs their own
     /// spin, so the message count scales with player count.
     /// </summary>
     public int SpinCount { get; set; } = 52;

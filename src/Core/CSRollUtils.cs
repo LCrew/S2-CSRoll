@@ -1084,7 +1084,7 @@ public static partial class CSRollUtils
     /// !rollactive's listing: unlike PrintModifiersToChat (used for the registered-modifier list,
     /// where scope is meaningless), each active modifier now also shows WHO it currently applies to -
     /// "Global" or specific player name(s) - since most modifiers are per-player-assigned by default
-    /// (Config.RandomizePlayers), a flat name/description list with no scope was misleading.
+    /// (Config.RollMode "Player" and "Team"), a flat name/description list with no scope was misleading.
     /// </summary>
     public static void PrintActiveModifiersToChat(ISwiftlyCore core, SwiftlyS2.Shared.Players.IPlayer? player, IReadOnlyCollection<GameModifierBase> modifiers)
     {

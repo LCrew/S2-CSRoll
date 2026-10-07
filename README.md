@@ -82,8 +82,15 @@ All commands are chat commands (prefix with `!`).
 | `!addrandommodifier` | Admin | Add a random modifier to be activated immediately. |
 | `!randomrounds` | Admin | Toggle random rounds on/off. |
 | `!randomroundsreroll` | Admin | Re-roll the current random round modifiers and apply them to the current round. |
+| `!rollmode [player\|team\|game]` | Admin | How random rounds hand out modifiers (also `!rollmethod`): each player their own, one set per team, or one set for everyone. Saved to `config.jsonc`; with no argument it shows the current mode. |
 | `!rollreload` | Admin | Reload `config.jsonc` from disk without restarting the plugin or resetting active modifiers. |
 | `!rolldebug` | Admin | Toggle whether per-player random-round assignments are reported to admins in chat. |
+
+**Roll modes** (`RollMode` in `config.jsonc`, or `!rollmode`; takes effect from the next roll):
+
+- `Player` (default) - every player rolls their own modifier(s).
+- `Team` - each team rolls one set that every teammate shares, with one rolled chance (e.g. Revive's %) per team. The two teams never get the same modifier.
+- `Game` - one set for everyone on both teams, with one rolled chance. The only mode that also rolls ConVar-driven modifiers, which change server-wide settings.
 
 `MinRandomRounds`/`MaxRandomRounds` have no dedicated chat command - set them in `config.jsonc`, or adjust them at runtime via `!rollmenu` (menu changes are runtime-only and revert to the config file on the next full plugin reload). `Wallhack` is a regular modifier (manage it like any other via `!rolltoggle Wallhack` or `!memodifier`), not a dedicated command.
 

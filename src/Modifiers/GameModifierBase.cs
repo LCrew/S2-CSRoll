@@ -44,7 +44,7 @@ public abstract class GameModifierBase
     public virtual HashSet<string> IncompatibleModifiers { get; protected set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Opt-in flag for ModifierRuntime.AssignRandomModifiersPerPlayer() (RandomizePlayers=true).
+    /// Opt-in flag for ModifierRuntime.AssignRandomModifiersPerPlayer() (RollMode "Player" and "Team").
     /// ConVar-driven modifiers and any modifier whose semantics don't map to "one owning player"
     /// leave this false.
     /// </summary>
