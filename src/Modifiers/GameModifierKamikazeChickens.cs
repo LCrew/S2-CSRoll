@@ -21,9 +21,9 @@ namespace CSRoll.Modifiers;
 /// Player-triggered ability on Flanker's Inspect-Weapon pattern (cooldown, gauge, status HTML):
 /// pressing Inspect releases a wave of ChickensPerWave chickens, SpawnGapSeconds apart, that run at
 /// the nearest living enemy. Each one beeps like a planted C4 - faster and faster as its FuseSeconds
-/// run out, with the C4's red timer blink on every beep - and blows up as a normal HE grenade thrown
-/// by the owner (so the owner gets the kill) when it reaches an enemy, when the fuse runs out, or
-/// when shot.
+/// run out, with the C4's red timer blink on every beep - and blows up as an HE grenade thrown by the
+/// owner (so the owner gets the kill), dealing DamageMultiplier of its normal damage, when it reaches
+/// an enemy, when the fuse runs out, or when shot.
 ///
 /// Steering: "Direct" (default) moves the chicken itself, every tick, straight at its target at
 /// RunSpeed - stepping up ledges, sliding along walls and dropping to the ground with hull traces.
@@ -130,7 +130,7 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
         SupportsPerPlayerRandomization = true;
 
         // ChineseGrenades would re-roll the instant fuse and ClusterGrenades would split the blast;
-        // AtomicExplosions would scale it - the chickens are meant to hit like one normal HE.
+        // AtomicExplosions would scale it on top of DamageMultiplier.
         IncompatibleModifiers = ["ClusterGrenades", "ChineseGrenades", "AtomicExplosions"];
     }
 
@@ -660,8 +660,17 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
     private void OnTakeDamage(ref TakeDamageEntityPreContext ctx)
     {
         var entity = ctx.Params.Entity;
+        var damageType = ctx.Params.Info.DamageType;
+        var fromOurGrenade = (damageType & DamageTypes_t.DMG_BLAST) != 0 && _ourGrenades.ContainsKey(ctx.Params.Info.Inflictor.Raw);
+
         if (entity is not { IsValid: true } || entity.DesignerName != ChickenDesignerName)
         {
+            // Anything else a chicken's blast reaches takes DamageMultiplier of a normal HE's damage.
+            if (fromOurGrenade)
+            {
+                ctx.Params.Info.Damage *= Math.Max(0f, Cfg.DamageMultiplier);
+            }
+
             return;
         }
 
@@ -673,8 +682,6 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
             return;
         }
 
-        var damageType = ctx.Params.Info.DamageType;
-        var fromOurGrenade = (damageType & DamageTypes_t.DMG_BLAST) != 0 && _ourGrenades.ContainsKey(ctx.Params.Info.Inflictor.Raw);
         ctx.Params.Info.Damage = 0f;
 
         if (fromOurGrenade || Core.Engine.GlobalVars.CurrentTime < live.ArmedAt || (damageType & DetonatingDamage) == 0)

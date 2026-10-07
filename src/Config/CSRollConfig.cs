@@ -716,7 +716,7 @@ public class KamikazeChickensConfig
     public float RoundStartCooldownSeconds { get; set; } = 10f;
 
     /// <summary>Seconds before another wave can be released after one goes out.</summary>
-    public float CooldownSeconds { get; set; } = 25f;
+    public float CooldownSeconds { get; set; } = 30f;
 
     /// <summary>Chickens released per Inspect press.</summary>
     public int ChickensPerWave { get; set; } = 3;
@@ -745,8 +745,11 @@ public class KamikazeChickensConfig
     /// <summary>A second effect layered with BlinkParticlePath on every beep - the C4 light's other half. Empty disables it.</summary>
     public string BlinkSecondaryParticlePath { get; set; } = "particles/explosions_fx/c4_timer_light_child02.vpcf";
 
-    /// <summary>Running speed (units/second) in "Direct" steering. A player with a knife runs 250.</summary>
-    public float RunSpeed { get; set; } = 300f;
+    /// <summary>Running speed (units/second) in "Direct" steering - 250 is a player running with a knife out.</summary>
+    public float RunSpeed { get; set; } = 250f;
+
+    /// <summary>Each blast's damage as a share of a normal HE grenade's (0.75 = 75%).</summary>
+    public float DamageMultiplier { get; set; } = 0.75f;
 
     /// <summary>
     /// How chickens chase their target: "Direct" moves each chicken straight at its target every tick
