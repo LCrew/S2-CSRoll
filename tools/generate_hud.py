@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 import pathlib
 import sys
+from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ICON_DIR = ROOT / "hud/icons"   # SVG sources - the HUD draws the PNGs made from them (tools/rasterize_icons.py)
@@ -231,6 +232,7 @@ def layout() -> str:
       <Label class="CsrPromptTitle" text="NEW HUD READY" />
       <Label class="CsrPromptText" text="Type !hud in chat to switch from the centre text to this HUD." />
     </Panel>
+{admin_layout(2, "  ")}
   </Panel>
 </root>
 '''
@@ -1098,6 +1100,7 @@ def stylesheet(icon_names: list[str]) -> str:
 	color: #ffffffd9;
 }}
 """)
+    w(admin_stylesheet())
     return "\n".join(out)
 
 
@@ -1200,8 +1203,1907 @@ public static partial class HudLayout
     public const string Won = "won";
     public const string Landed = "landed";
     public const string Brand = "brand";
+
+{admin_contract()}
 }}
 '''
+
+
+# ---------------------------------------------------------------------------------------------------
+# Admin panel (!rolladmin)
+#
+# A clickable window the plugin shows to one admin at a time: tabs down the left, settings as segmented
+# Buttons and steppers, the modifier list as 14 re-filled slot rows. It reuses what the HUD already
+# interns - `on`, cat-*, rar-* / rar-off, ico-*, f0..f100, and the val / name / short variables.
+#
+#     admin_layout()      -> XML, the LAST child of CsrScreen (after csr_prompt), so it paints on top
+#     admin_stylesheet()  -> CSS, appended after everything the HUD emits
+#     admin_contract()    -> C# lines inside HudLayout
+# ---------------------------------------------------------------------------------------------------
+ADM_W = 1120            # px @1080p - centred, so x 400-1520
+ADM_H = 704             # px - y 188-892
+ADM_NAV_W = 224         # left tab column, border included
+ADM_HEAD_H = 56
+ADM_FOOT_H = 56
+ADM_PAD_X = 28          # main area side padding
+ADM_CONTENT_W = ADM_W - ADM_NAV_W - 2 * ADM_PAD_X          # 840
+ADM_COLS = 2            # modifier rows: two columns...
+ADM_ROWS = 7            # ...of seven - every category fits one page, "All" is 4 pages
+ADM_SLOTS = ADM_COLS * ADM_ROWS
+ADM_COL_GAP = 16
+ADM_COL_W = (ADM_CONTENT_W - ADM_COL_GAP) // ADM_COLS       # 412
+ADM_ROW_H = 54
+ADM_ROW_GAP = 6
+ADM_SET_H = 48          # a setting row
+ADM_TIER_H = 56         # a rarity tier row
+ADM_CFG_LINES = 8       # unsaved-change lines on the Config page
+ERR = "#eb4b4b"         # covert red, for destructive and error states
+OK = "#9ccf4f"
+WARN = "#f6ad55"
+
+ADM_PAGES = [  # (key, tab label, static sub-label - None means the server writes it)
+    ("gen", "General", "Rolls & rounds"),
+    ("mod", "Modifiers", None),
+    ("rar", "Rarity", "Case odds"),
+    ("hud", "Display", "Reveal & HUD"),
+    ("cfg", "Config", None),
+]
+ADM_FILTERS = [("all", "All"), ("move", "Movement"), ("weap", "Weapons"), ("util", "Grenades"),
+               ("surv", "Survival"), ("stealth", "Stealth"), ("chaos", "Chaos")]
+ADM_TIERS = [("milspec", "Mil-Spec"), ("restricted", "Restricted"), ("classified", "Classified"),
+             ("covert", "Covert"), ("gold", "★ Gold")]
+
+BOOL = [("on", "Enabled", None), ("off", "Disabled", None)]   # v0 = enabled, v1 = disabled
+
+# A page's rows, top to bottom. A bare string is a section heading. A row is
+# (key, label, hint, control): control "step", "text" (read-only), or a list of segment options
+# (id suffix, label, hint shown while that option is the selected one, or None).
+ADM_SETTINGS: dict[str, list] = {
+    "gen": [
+        ("rr", "Random rounds", "Roll modifiers as each round starts", BOOL),
+        ("mode", "Roll mode", None, [("player", "Player", "Every player rolls their own"),
+                                     ("team", "Team", "Each team shares one roll"),
+                                     ("game", "Game", "One roll for the whole server")]),
+        ("min", "Fewest per roll", "Modifiers a roll hands out, at least", "step"),
+        ("max", "Most per roll", "Modifiers a roll hands out, at most", "step"),
+        ("cd", "Repeat cooldown", "Rounds before a player can roll the same modifier again", "step"),
+        ("rep", "Repeat last set", "Game mode: the same set may come up two rounds running", BOOL),
+        ("warm", "Roll in warmup", "Random rounds while warmup is running", BOOL),
+    ],
+    "hud": [
+        "Reveal",
+        ("reveal", "Roll reveal", "Show each roll on screen - the reel, or centre text", BOOL),
+        ("spin", "Centre-text spin", "Spin through names before the result. The HUD reel always spins", BOOL),
+        ("spec", "Spectator panel", "Centre-text list of the watched player's modifiers", BOOL),
+        "Workshop HUD",
+        ("hud", "Workshop HUD", "Reel, list and gauges for players with the addon", BOOL),
+        ("hudmode", "HUD mode", None, [("optin", "Opt-in", "Players switch it on with !hud"),
+                                       ("everyone", "Everyone", "On for everyone - !hud switches back")]),
+        ("hudspec", "Spectator team", "Players on the spectator team get the HUD too", BOOL),
+        ("listy", "List position", "0 sits highest - lower it if the radar covers the list", "step"),
+        ("brand", "Brand caption", "Read-only here - edit CustomHud.BrandText in config.jsonc", "text"),
+    ],
+    "rar": [
+        ("rar", "Rarity tiers", "Pick a tier by weight, then a modifier inside it", BOOL),
+    ],
+}
+
+
+def attr(text: str) -> str:
+    return escape(text, {'"': "&quot;"})
+
+
+# ---------------------------------------------------------------------------------------------------
+# Layout
+# ---------------------------------------------------------------------------------------------------
+class E:
+    """A layout element. Children-only-leaves elements print on one line, like the generator's tiles."""
+
+    def __init__(self, tag: str, cls: str | None = None, id: str | None = None, text: str | None = None,
+                 hittest: bool | None = None, kids: list["E"] | None = None):
+        self.tag, self.cls, self.id, self.text, self.hittest, self.kids = tag, cls, id, text, hittest, kids or []
+
+    def open(self) -> str:
+        a = (f' id="{self.id}"' if self.id else "") + (f' class="{self.cls}"' if self.cls else "")
+        a += "" if self.hittest is None else f' hittest="{str(self.hittest).lower()}"'
+        a += f' text="{attr(self.text)}"' if self.text is not None else ""
+        return f"<{self.tag}{a}"
+
+    def inline(self) -> str:
+        if not self.kids:
+            return self.open() + " />"
+        return self.open() + ">" + "".join(k.inline() for k in self.kids) + f"</{self.tag}>"
+
+    def lines(self, depth: int, ind: str) -> list[str]:
+        flat = self.inline()
+        if not self.kids or (all(not k.kids or k.tag == "Button" for k in self.kids) and len(flat) <= 210) \
+                or (self.tag == "Button" and len(flat) <= 240):
+            return [ind * depth + flat]
+        out = [ind * depth + self.open() + ">"]
+        for k in self.kids:
+            out += k.lines(depth + 1, ind)
+        return out + [ind * depth + f"</{self.tag}>"]
+
+
+def P(cls=None, id=None, kids=None, hittest=None):
+    return E("Panel", cls, id, None, hittest, kids)
+
+
+def L(cls, text, id=None, btn=False):
+    """A Label; inside a Button it is hittest="false", so the Button is always the hit target."""
+    return E("Label", cls, id, text, False if btn else None)
+
+
+def B(id, cls, kids):
+    return E("Button", cls, id, None, None, kids)
+
+
+def deco(cls):
+    """A decorative panel inside a button."""
+    return E("Panel", cls, None, None, False)
+
+
+def _setting(key: str, label: str, hint: str | None, control) -> E:
+    rid = f"csr_adm_s_{key}"
+    text = [L("AdmSetName", label)] + ([L("AdmSetHint", hint)] if hint else [])
+    if isinstance(control, list):
+        text += [L(f"AdmSetHint AdmHintV AdmHintV{n}", h) for n, (_, _, h) in enumerate(control) if h]
+    kids = [P("AdmSetText", kids=text)]
+    if control == "step":
+        kids.append(P("AdmStep", kids=[
+            B(f"{rid}_dec", "AdmStepBtn AdmStepDec", [L("AdmStepGlyph", "−", btn=True)]),
+            P("AdmStepVal", kids=[L("AdmStepNum", "{s:val}", f"{rid}_val")]),
+            B(f"{rid}_inc", "AdmStepBtn AdmStepInc", [L("AdmStepGlyph", "+", btn=True)])]))
+    elif control == "text":
+        kids.append(P("AdmReadonly", kids=[L("AdmReadonlyTxt", "{s:val}", f"{rid}_val")]))
+    else:
+        kids.append(P("AdmSeg", kids=[B(f"{rid}_{oid}", f"AdmOpt AdmOpt{n}", [L("AdmOptTxt", t, btn=True)])
+                                      for n, (oid, t, _) in enumerate(control)]))
+    return P("AdmSet", None if control == "text" else rid, kids)
+
+
+def _section(title: str, meta: E | None = None) -> E:
+    return P("AdmSection", kids=[L("AdmKicker", title), P("AdmSectionRule")] + ([meta] if meta else []))
+
+
+def _page_head(title: str, note: str | None = None, extra: list[E] | None = None) -> list[E]:
+    tail = extra if extra is not None else [L("AdmPageNote", note)]
+    return [P("AdmPageHead", kids=[L("AdmPageTitle", title)] + tail), P("AdmPageRule")]
+
+
+def _settings(page: str) -> list[E]:
+    return [_section(r) if isinstance(r, str) else _setting(*r) for r in ADM_SETTINGS[page]]
+
+
+def _button(pid: str, cls: str, text: str, arm_text: str | None = None) -> E:
+    kids = [L("AdmBtnTxt", text, btn=True)] + ([L("AdmBtnArm", arm_text, btn=True)] if arm_text else [])
+    return B(pid, cls, kids)
+
+
+def _mod_slot(i: int) -> E:
+    m = f"csr_adm_m{i}"
+    return P("AdmMod", m, [
+        P("AdmModRail"),
+        P("AdmModBody", kids=[
+            P("AdmTile", kids=[P("CsrIco CsrRowIco", f"{m}_ico")]),
+            P("AdmModText", kids=[
+                L("AdmModName", "{s:name}", f"{m}_name"),
+                P("AdmModLine", kids=[
+                    B(f"{m}_tier", "AdmRar", [L("AdmRarTxt", "{s:rar}", f"{m}_rar", btn=True), deco("AdmRarOvr")]),
+                    L("AdmModShort", "{s:short}", f"{m}_short")])]),
+            P("AdmDirty"),
+            B(f"{m}_tog", "AdmTog", [deco("AdmTogKnob")])])])
+
+
+def _tier_row(t: str, label: str) -> E:
+    w = f"csr_adm_w_{t}"
+    return P(f"AdmTier rar-{t}", w, [
+        P("AdmTierText", kids=[L("AdmTierName", label), L("AdmTierInfo", "{s:val}", f"{w}_info")]),
+        P("AdmDirty"),
+        P("AdmStep", kids=[
+            B(f"{w}_dec5", "AdmStepBtn AdmStepDec AdmStepBig", [L("AdmStepGlyph", "−5", btn=True)]),
+            B(f"{w}_dec", "AdmStepBtn AdmStepDec", [L("AdmStepGlyph", "−", btn=True)]),
+            P("AdmStepVal", kids=[L("AdmStepNum", "{s:val}", f"{w}_val")]),
+            B(f"{w}_inc", "AdmStepBtn AdmStepInc", [L("AdmStepGlyph", "+", btn=True)]),
+            B(f"{w}_inc5", "AdmStepBtn AdmStepInc AdmStepBig", [L("AdmStepGlyph", "+5", btn=True)])]),
+        P("AdmShare", kids=[P("AdmShareBar", kids=[P("AdmShareFill")]), L("AdmSharePct", "{s:val}", f"{w}_pct")])])
+
+
+def admin_tree() -> E:
+    tabs = []
+    for key, name, sub in ADM_PAGES:
+        sub_label = L("AdmTabSub", sub, btn=True) if sub else L("AdmTabSub", "{s:val}", f"csr_adm_tab_{key}_sub", btn=True)
+        tabs.append(B(f"csr_adm_tab_{key}", f"AdmTab AdmTab-{key}", [
+            deco("AdmTabBar"), E("Panel", "AdmTabText", None, None, False, [L("AdmTabName", name, btn=True), sub_label]),
+            deco("AdmDirty AdmTabDot"), deco("AdmTabNotch")]))
+
+    gen = _page_head("General", "How random rounds hand out modifiers") + _settings("gen")
+    hud = _page_head("Display", "What players see when a roll lands") + _settings("hud")
+
+    chips = [B(f"csr_adm_flt_{k}", f"AdmChip AdmChip-{k}", ([] if k == "all" else [deco("AdmChipDot")]) + [L("AdmChipTxt", t, btn=True)])
+             for k, t in ADM_FILTERS]
+    # Column-major: an alphabetical list reads down the left column, then the right.
+    cols = [P(f"AdmCol AdmCol{c}" if c else "AdmCol", kids=[_mod_slot(c * ADM_ROWS + r) for r in range(ADM_ROWS)]) for c in range(ADM_COLS)]
+    mod = _page_head("Modifiers", extra=[
+        L("AdmPageMeta", "{s:val}", "csr_adm_mod_count"), P("AdmHeadFill"),
+        _button("csr_adm_mod_allon", "AdmBtn AdmBtnSm", "All on"),
+        _button("csr_adm_mod_alloff", "AdmBtn AdmBtnSm", "All off", "Again to confirm")]) + [
+        P("AdmFilter", "csr_adm_flt", chips),
+        P("AdmGrid", kids=cols),
+        P("AdmFootRow", kids=[
+            L("AdmLegend", "Lit tile = active this round  ·  Click a tier to move the modifier up a tier"),
+            P("AdmPager", "csr_adm_pager", [
+                B("csr_adm_prev", "AdmPageBtn AdmPrev", [L("AdmPageBtnTxt", "‹  Prev", btn=True)]),
+                L("AdmPageInfo", "{s:val}", "csr_adm_page"),
+                B("csr_adm_next", "AdmPageBtn AdmNext", [L("AdmPageBtnTxt", "Next  ›", btn=True)])])])]
+
+    rar = _page_head("Rarity", "Each tier's share of every pick, like a case's odds") + _settings("rar") + [
+        _section("Case odds"),
+        P("AdmDist", kids=[P(f"AdmDistSeg rar-{t}", f"csr_adm_dist_{t}") for t, _ in ADM_TIERS]),
+        L("AdmRarOffNote", "Rarity is off - every enabled modifier is equally likely"),
+        P("AdmTierList", kids=[_tier_row(t, label) for t, label in ADM_TIERS]),
+        P("AdmOvrRow", kids=[L("AdmOvrInfo", "{s:val}", "csr_adm_ovr_info"),
+                             _button("csr_adm_ovr_reset", "AdmBtn AdmBtnSm", "Reset tiers", "Again to confirm")]),
+        L("AdmFootnote", "Weights needn't add up to 100: a tier's share is its weight over the total of the tiers that have an enabled modifier.")]
+
+    def action(pid, cls, title, armed, sub):
+        return B(pid, cls, [L("AdmActionTitle", title, btn=True), L("AdmActionArm", armed, btn=True), L("AdmActionSub", sub, btn=True)])
+
+    cfg = _page_head("Config", "Changes apply live - Save keeps them") + [
+        P("AdmCols", kids=[
+            P("AdmColBox", kids=[
+                _section("Unsaved changes", L("AdmSectionMeta", "{s:val}", "csr_adm_cfg_count")),
+                P("AdmList", kids=[L("AdmLine", "{s:val}", f"csr_adm_cfg_l{n}") for n in range(ADM_CFG_LINES)]),
+                L("AdmFootnote", "Save or discard them with the buttons below.")]),
+            P("AdmColBox AdmColBoxR", kids=[
+                _section("Round actions"),
+                action("csr_adm_reroll", "AdmAction", "Re-roll now", "Click again to re-roll",
+                       "Strip every active modifier and roll again, with the reel"),
+                action("csr_adm_clear", "AdmAction AdmActionDanger", "Remove all active", "Click again to remove",
+                       "Strip every active modifier until the next roll"),
+                _section("Server"),
+                L("AdmInfo", "{s:val}", "csr_adm_cfg_live"),
+                L("AdmInfo AdmInfoPath", "{s:val}", "csr_adm_cfg_path"),
+                L("AdmInfo AdmInfoWarn", "{s:val}", "csr_adm_cfg_cvar")])])]
+
+    pages = [P(f"AdmPage AdmPage-{k}", kids=body) for k, body in
+             (("gen", gen), ("mod", mod), ("rar", rar), ("hud", hud), ("cfg", cfg))]
+
+    return P("AdmRoot", "csr_adm", hittest=False, kids=[
+        P("AdmDim"),
+        P("AdmWin", kids=[
+            P("AdmHead", kids=[
+                P("AdmMark"), L("AdmTitle", "CSRoll"), L("AdmTitle AdmTitleGold", "Admin"),
+                L("AdmVer", "{s:val}", "csr_adm_ver"), P("AdmHeadFill"),
+                P("AdmUnsaved", kids=[P("AdmDirty"), L("AdmUnsavedTxt", "{s:val}", "csr_adm_unsaved")]),
+                B("csr_adm_close", "AdmClose", [L("AdmCloseX", "✕", btn=True)])]),
+            P("AdmRule"),
+            P("AdmBody", kids=[
+                P("AdmNav", kids=tabs + [P("AdmNavFill"), L("AdmNavHint", "Changes apply live."),
+                                         L("AdmNavHint", "!rolladmin or F6 closes this.")]),
+                P("AdmMain", kids=pages)]),
+            P("AdmFoot", kids=[
+                L("AdmStatus", "{s:val}", "csr_adm_status"),
+                _button("csr_adm_reload", "AdmBtn", "Reload from disk", "Again to discard changes"),
+                _button("csr_adm_save", "AdmBtn AdmBtnSave", "Save to config")])])])
+
+
+def admin_layout(depth: int = 2, ind: str = "  ") -> str:
+    """The admin panel's XML at the given depth - 2 matches csr_hud / csr_prompt inside CsrScreen."""
+    return "\n".join(admin_tree().lines(depth, ind))
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stylesheet
+# ---------------------------------------------------------------------------------------------------
+def _light(colour: str, amount: float = 0.3) -> str:
+    """A tier/category colour lifted toward white, for small text on the dark plate (AA at 10-16px)."""
+    return mix(colour, "#ffffff", amount)
+
+
+def admin_stylesheet() -> str:
+    out: list[str] = []
+    w = out.append
+
+    plate = fade([(0, "#11151af2"), (1, f"{SHADE}f7")], vertical=True)
+    dim = fade([(0, "#05070ab3"), (1, "#05070ad9")], vertical=True)
+    # The reel's rail, laid along the window: brightening to a gold glint where the nav meets the page.
+    head_rail = fade([(0, "#ffffff0f"), (0.17, "#ffffff26"), (0.195, "#ffffff40"), (0.20, GOLD),
+                      (0.205, "#ffffff40"), (0.23, "#ffffff26"), (1, "#ffffff0a")])
+    page_rule = fade([(0, GOLD), (0.12, f"{GOLD}66"), (0.35, "#ffffff1f"), (1, "#ffffff00")])   # = CsrListRule
+    section_rule = fade([(0, "#ffffff1f"), (1, "#ffffff00")])
+    row_rail = fade([(0, "#ffffff1f"), (0.6, "#ffffff0a"), (1, "#ffffff00")])                   # = CsrRowRail
+    row_plate = lambda base: fade([(0, f"{base}b3"), (0.55, f"{SHADE}66"), (1, f"{SHADE}00")])  # = CsrRow plate
+    tile = fade([(0, "#ffffff0f"), (1, "#ffffff05")], vertical=True)
+    set_plate = fade([(0, "#ffffff0d"), (0.6, "#ffffff05"), (1, "#ffffff02")])
+    set_dirty = fade([(0, f"{GOLD}1f"), (0.6, "#ffffff05"), (1, "#ffffff02")])
+    selected = fade([(0, f"{GOLD}14"), (1, f"{GOLD}3d")], vertical=True)
+    gold_fill = fade([(0, mix(GOLD, "#ffffff", 0.22)), (1, GOLD)], vertical=True)
+    track = fade([(0, "#ffffff38"), (1, "#ffffff17")], vertical=True)                              # = CsrBar
+    tab_active = fade([(0, f"{GOLD}29"), (1, f"{GOLD}00")])
+    tog_on = fade([(0, "#ffffff4d"), (1, "#ffffff2e")], vertical=True)
+
+    w(f"""
+/* ================================================================================================
+   Admin panel (!rolladmin). Shown per player with `on` on csr_adm; one page at a time by a pg-* class
+   on the same panel. Nothing here transitions or animates: server class writes don't start them, so
+   every state is drawn to look right the moment it switches. :hover / :active are client-side and do
+   work, so they carry the instant feedback.
+   ================================================================================================ */
+.AdmRoot
+{{
+	width: 100%;
+	height: 100%;
+	visibility: collapse;
+}}
+
+.AdmRoot.on
+{{
+	visibility: visible;
+}}
+
+/* The game behind, pushed back. Hit-testable (the default), so a stray click outside does nothing. */
+.AdmDim
+{{
+	width: 100%;
+	height: 100%;
+	background-color: {dim};
+}}
+
+/* The window: the reel's plate made opaque enough to read on, with the reveal card's gold top edge. */
+.AdmWin
+{{
+	flow-children: down;
+	width: {ADM_W}px;
+	height: {ADM_H}px;
+	horizontal-align: center;
+	vertical-align: center;
+	border-top: 2px solid {GOLD};
+	border-radius: 2px;
+	background-color: {plate};
+	box-shadow: #000000b3 0px 24px 64px 0px;
+}}
+
+/* ---------- header ---------- */
+.AdmHead
+{{
+	flow-children: right;
+	width: 100%;
+	height: {ADM_HEAD_H}px;
+	padding: 0px 10px 0px 22px;
+}}
+
+/* The reel's marker, standing on its point. */
+.AdmMark
+{{
+	width: 8px;
+	height: 8px;
+	margin-right: 14px;
+	vertical-align: center;
+	background-color: {GOLD};
+	transform: rotatez( 45deg );
+}}
+
+.AdmTitle
+{{
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 18px;
+	letter-spacing: 4px;
+	text-transform: uppercase;
+	color: #ffffff;
+}}
+
+.AdmTitleGold
+{{
+	margin-left: 8px;
+	color: {GOLD};
+}}
+
+.AdmVer
+{{
+	vertical-align: center;
+	margin-left: 14px;
+	padding: 2px 6px;
+	border: 1px solid #ffffff1f;
+	border-radius: 2px;
+	font-family: {FONT_BODY};
+	font-size: 12px;
+	letter-spacing: 1px;
+	color: #ffffff80;
+}}
+
+.AdmHeadFill
+{{
+	width: fill-parent-flow( 1.0 );
+	height: 1px;
+}}
+
+/* "3 UNSAVED" - only while the live settings differ from config.jsonc. */
+.AdmUnsaved
+{{
+	flow-children: right;
+	height: 26px;
+	vertical-align: center;
+	margin-right: 10px;
+	padding: 0px 10px 0px 10px;
+	border: 1px solid {GOLD}80;
+	border-radius: 2px;
+	background-color: {GOLD}1a;
+	visibility: collapse;
+}}
+
+.AdmRoot.dirty .AdmUnsaved
+{{
+	visibility: visible;
+}}
+
+.AdmUnsavedTxt
+{{
+	vertical-align: center;
+	margin-left: 8px;
+	font-family: {FONT_BOLD};
+	font-size: 12px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: {GOLD};
+}}
+
+.AdmClose
+{{
+	width: 36px;
+	height: 36px;
+	vertical-align: center;
+	border-radius: 2px;
+}}
+
+.AdmClose:hover
+{{
+	background-color: {ERR}38;
+}}
+
+.AdmCloseX
+{{
+	horizontal-align: center;
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 18px;
+	color: #ffffff8c;
+}}
+
+.AdmClose:hover .AdmCloseX
+{{
+	color: #ffffff;
+}}
+
+.AdmRule
+{{
+	width: 100%;
+	height: 1px;
+	background-color: {head_rail};
+}}
+
+/* The gold diamond that marks anything unsaved: a tab, a modifier row, a tier row, the header pill.
+   Kept in the flow at opacity 0, so nothing shifts when it appears. */
+.AdmDirty
+{{
+	width: 6px;
+	height: 6px;
+	vertical-align: center;
+	background-color: {GOLD};
+	transform: rotatez( 45deg );
+}}
+
+/* ---------- body: tab column + page ---------- */
+.AdmBody
+{{
+	flow-children: right;
+	width: 100%;
+	height: fill-parent-flow( 1.0 );
+}}
+
+.AdmNav
+{{
+	flow-children: down;
+	width: {ADM_NAV_W}px;
+	height: 100%;
+	padding: 10px 0px 14px 0px;
+	border-right: 1px solid #ffffff12;
+	background-color: #0000002e;
+}}
+
+/* A tab overlays its parts (no flow): a 3px bar at the left, the text, the dirty diamond, the notch. */
+.AdmTab
+{{
+	width: 100%;
+	height: 56px;
+	overflow: clip clip;
+}}
+
+.AdmTab:hover
+{{
+	background-color: #ffffff0a;
+}}
+
+.AdmTabBar
+{{
+	width: 3px;
+	height: 100%;
+}}
+
+.AdmTabText
+{{
+	flow-children: down;
+	vertical-align: center;
+	margin-left: 22px;
+}}
+
+.AdmTabName
+{{
+	font-family: {FONT_BOLD};
+	font-size: 14px;
+	letter-spacing: 2.5px;
+	text-transform: uppercase;
+	color: #ffffffa6;
+}}
+
+.AdmTab:hover .AdmTabName
+{{
+	color: #ffffffd9;
+}}
+
+.AdmTabSub
+{{
+	margin-top: 1px;
+	font-family: {FONT_BODY};
+	font-size: 12px;
+	color: #ffffff80;
+}}
+
+.AdmTabDot
+{{
+	horizontal-align: right;
+	margin-right: 22px;
+	opacity: 0;
+}}
+
+.AdmTab.dirty .AdmTabDot
+{{
+	opacity: 1;
+}}
+
+/* The reel's notch on the column's edge, half-clipped by the tab into a gold triangle that points at
+   the open tab. */
+.AdmTabNotch
+{{
+	width: 10px;
+	height: 10px;
+	horizontal-align: right;
+	vertical-align: center;
+	margin-right: -5px;
+	background-color: {GOLD};
+	transform: rotatez( 45deg );
+	opacity: 0;
+}}
+
+.AdmNavFill
+{{
+	width: 100%;
+	height: fill-parent-flow( 1.0 );
+}}
+
+.AdmNavHint
+{{
+	margin: 4px 16px 0px 22px;
+	font-family: {FONT_BODY};
+	font-size: 12px;
+	color: #ffffff80;
+}}
+
+/* Pages overlay each other (no flow); the pg-* class on csr_adm shows one and lights its tab. */
+.AdmMain
+{{
+	width: fill-parent-flow( 1.0 );
+	height: 100%;
+	padding: 18px {ADM_PAD_X}px 16px {ADM_PAD_X}px;
+}}
+
+.AdmPage
+{{
+	flow-children: down;
+	width: 100%;
+	height: 100%;
+	visibility: collapse;
+}}
+""")
+    for key, _, _ in ADM_PAGES:
+        w(f".AdmRoot.pg-{key} .AdmPage-{key} {{ visibility: visible; }}")
+        w(f".AdmRoot.pg-{key} .AdmTab-{key} {{ background-color: {tab_active}; }}")
+        w(f".AdmRoot.pg-{key} .AdmTab-{key} .AdmTabBar {{ background-color: {GOLD}; }}")
+        w(f".AdmRoot.pg-{key} .AdmTab-{key} .AdmTabName {{ color: #ffffff; }}")
+        w(f".AdmRoot.pg-{key} .AdmTab-{key} .AdmTabSub {{ color: #ffffffb3; }}")
+        w(f".AdmRoot.pg-{key} .AdmTab-{key} .AdmTabNotch {{ opacity: 1; }}")
+    w(f"""
+/* ---------- page furniture ---------- */
+.AdmPageHead
+{{
+	flow-children: right;
+	width: 100%;
+	height: 30px;
+}}
+
+.AdmPageTitle
+{{
+	vertical-align: bottom;
+	font-family: {FONT_BOLD};
+	font-size: 22px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #ffffff;
+}}
+
+.AdmPageMeta
+{{
+	vertical-align: bottom;
+	margin-left: 14px;
+	margin-bottom: 3px;
+	font-family: {FONT_BOLD};
+	font-size: 12px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: {GOLD};
+}}
+
+.AdmPageNote
+{{
+	width: fill-parent-flow( 1.0 );
+	vertical-align: bottom;
+	margin-bottom: 3px;
+	text-align: right;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffff80;
+}}
+
+/* The modifier list's title rule: a gold glint at the left fading out. */
+.AdmPageRule
+{{
+	width: 100%;
+	height: 1px;
+	margin-top: 8px;
+	margin-bottom: 12px;
+	background-color: {page_rule};
+}}
+
+.AdmSection
+{{
+	flow-children: right;
+	width: 100%;
+	margin-top: 6px;
+	margin-bottom: 6px;
+}}
+
+.AdmKicker
+{{
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 12px;
+	letter-spacing: 3px;
+	text-transform: uppercase;
+	color: #ffffffb3;
+}}
+
+.AdmSectionRule
+{{
+	width: fill-parent-flow( 1.0 );
+	height: 1px;
+	vertical-align: center;
+	margin-left: 12px;
+	background-color: {section_rule};
+}}
+
+.AdmSectionMeta
+{{
+	vertical-align: center;
+	margin-left: 12px;
+	font-family: {FONT_BOLD};
+	font-size: 12px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: {GOLD};
+}}
+
+.AdmFootnote
+{{
+	width: 100%;
+	margin-top: 8px;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffff80;
+}}
+
+/* ---------- setting row: the list row's language - 2px edge, plate fading right ---------- */
+.AdmSet
+{{
+	flow-children: right;
+	width: 100%;
+	height: {ADM_SET_H}px;
+	margin-bottom: 4px;
+	padding: 0px 10px 0px 14px;
+	border-left: 2px solid #ffffff1f;
+	background-color: {set_plate};
+}}
+
+/* Differs from config.jsonc: the edge turns gold and the plate warms. */
+.AdmSet.dirty
+{{
+	border-left-color: {GOLD};
+	background-color: {set_dirty};
+}}
+
+/* Doesn't apply right now (e.g. the repeat cooldown in Game mode). Still clickable. */
+.AdmSet.na
+{{
+	opacity: 0.45;
+}}
+
+.AdmSetText
+{{
+	flow-children: down;
+	width: fill-parent-flow( 1.0 );
+	vertical-align: center;
+}}
+
+.AdmSetName
+{{
+	font-family: {FONT_BOLD};
+	font-size: 15px;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+	color: #ffffff;
+}}
+
+.AdmSetHint
+{{
+	width: 100%;
+	margin-top: 1px;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffff80;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}}
+
+/* A choice's hint follows the selected option: one static label per option, shown by v0/v1/v2. */
+.AdmHintV
+{{
+	visibility: collapse;
+}}
+
+.AdmSet.v0 .AdmHintV0, .AdmSet.v1 .AdmHintV1, .AdmSet.v2 .AdmHintV2
+{{
+	visibility: visible;
+}}
+
+/* ---------- segmented choice: every option is its own button, so a click sets, never flips ---------- */
+.AdmSeg
+{{
+	flow-children: right;
+	height: 32px;
+	vertical-align: center;
+	border: 1px solid #ffffff1f;
+	border-radius: 2px;
+	background-color: #00000040;
+}}
+
+.AdmOpt
+{{
+	width: 100px;
+	height: 100%;
+	border-left: 1px solid #ffffff14;
+}}
+
+.AdmOpt0
+{{
+	border-left-width: 0px;
+}}
+
+.AdmOpt:hover
+{{
+	background-color: #ffffff0f;
+}}
+
+.AdmOpt:active
+{{
+	background-color: {GOLD}1f;
+}}
+
+.AdmOptTxt
+{{
+	horizontal-align: center;
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 12px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #ffffff8c;
+}}
+
+.AdmOpt:hover .AdmOptTxt
+{{
+	color: #ffffffd9;
+}}
+
+/* Selected: the item card's 2px bar, in gold, over a gold wash. */
+.AdmSet.v0 .AdmOpt0, .AdmSet.v1 .AdmOpt1, .AdmSet.v2 .AdmOpt2
+{{
+	border-bottom: 2px solid {GOLD};
+	background-color: {selected};
+}}
+
+.AdmSet.v0 .AdmOpt0 .AdmOptTxt, .AdmSet.v1 .AdmOpt1 .AdmOptTxt, .AdmSet.v2 .AdmOpt2 .AdmOptTxt
+{{
+	color: #ffffff;
+}}
+
+/* ---------- stepper ---------- */
+.AdmStep
+{{
+	flow-children: right;
+	height: 32px;
+	vertical-align: center;
+}}
+
+.AdmStepBtn
+{{
+	width: 32px;
+	height: 32px;
+	margin-left: 4px;
+	border: 1px solid #ffffff26;
+	border-radius: 2px;
+	background-color: #ffffff0a;
+}}
+
+.AdmStepBtn:hover
+{{
+	border: 1px solid #ffffff59;
+	background-color: #ffffff1f;
+}}
+
+.AdmStepBtn:active
+{{
+	background-color: {GOLD}33;
+}}
+
+.AdmStepBig
+{{
+	width: 40px;
+}}
+
+.AdmStepGlyph
+{{
+	horizontal-align: center;
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 18px;
+	color: #ffffffb3;
+}}
+
+.AdmStepBig .AdmStepGlyph
+{{
+	font-size: 13px;
+	letter-spacing: 1px;
+}}
+
+.AdmStepBtn:hover .AdmStepGlyph
+{{
+	color: #ffffff;
+}}
+
+/* The value sits on an item-card tile with a gold bar. */
+.AdmStepVal
+{{
+	width: 64px;
+	height: 32px;
+	margin-left: 4px;
+	border-radius: 2px;
+	border-top: 1px solid #ffffff1a;
+	border-bottom: 2px solid {GOLD}99;
+	background-color: {tile};
+}}
+
+.AdmStepNum
+{{
+	horizontal-align: center;
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 17px;
+	letter-spacing: 1px;
+	color: #ffffff;
+}}
+
+/* At a bound the button stays clickable (the server ignores it) but reads as spent. */
+.AdmSet.min .AdmStepDec, .AdmSet.max .AdmStepInc, .AdmTier.min .AdmStepDec, .AdmTier.max .AdmStepInc
+{{
+	opacity: 0.3;
+}}
+
+/* ---------- read-only value ---------- */
+.AdmReadonly
+{{
+	width: 360px;
+	height: 32px;
+	vertical-align: center;
+	padding: 0px 12px;
+	border: 1px solid #ffffff1a;
+	border-radius: 2px;
+	background-color: #00000040;
+}}
+
+/* As written - no text-transform, the same as the brand bar over the reel. */
+.AdmReadonlyTxt
+{{
+	width: 100%;
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 14px;
+	letter-spacing: 1px;
+	color: #ffffffc2;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}}
+
+/* ---------- buttons ---------- */
+.AdmBtn
+{{
+	height: 36px;
+	padding: 0px 18px;
+	margin-left: 8px;
+	vertical-align: center;
+	border: 1px solid #ffffff2e;
+	border-radius: 2px;
+	background-color: #ffffff0a;
+}}
+
+.AdmBtn:hover
+{{
+	border: 1px solid #ffffff59;
+	background-color: #ffffff1a;
+}}
+
+.AdmBtn:active
+{{
+	brightness: 0.8;
+}}
+
+.AdmBtnTxt, .AdmBtnArm
+{{
+	horizontal-align: center;
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 13px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #ffffffcc;
+}}
+
+.AdmBtnSm
+{{
+	height: 28px;
+	padding: 0px 12px;
+	margin-left: 6px;
+}}
+
+.AdmBtnSm .AdmBtnTxt, .AdmBtnSm .AdmBtnArm
+{{
+	font-size: 11px;
+}}
+
+/* Destructive buttons ask twice: the first click arms (`arm`), the label swaps, a second click within
+   3s does it. */
+.AdmBtnArm
+{{
+	color: #ffb4a8;
+	visibility: collapse;
+}}
+
+.AdmBtn.arm
+{{
+	border: 1px solid {ERR};
+	background-color: {ERR}2e;
+}}
+
+.AdmBtn.arm .AdmBtnTxt
+{{
+	visibility: collapse;
+}}
+
+.AdmBtn.arm .AdmBtnArm
+{{
+	visibility: visible;
+}}
+
+/* Save is quiet while there's nothing to save, and turns gold the moment there is. */
+.AdmBtnSave .AdmBtnTxt
+{{
+	color: #ffffff8c;
+}}
+
+.AdmRoot.dirty .AdmBtnSave
+{{
+	border: 1px solid {GOLD};
+	background-color: {gold_fill};
+	box-shadow: {GOLD}4d 0px 0px 14px 0px;
+}}
+
+.AdmRoot.dirty .AdmBtnSave .AdmBtnTxt
+{{
+	color: {SHADE};
+}}
+
+.AdmRoot.dirty .AdmBtnSave:hover
+{{
+	brightness: 1.12;
+}}
+
+/* ---------- footer: status line + Reload + Save, on every page ---------- */
+.AdmFoot
+{{
+	flow-children: right;
+	width: 100%;
+	height: {ADM_FOOT_H}px;
+	padding: 0px 12px 0px 22px;
+	border-top: 1px solid #ffffff12;
+	background-color: #00000033;
+}}
+
+.AdmStatus
+{{
+	width: fill-parent-flow( 1.0 );
+	vertical-align: center;
+	font-family: {FONT_BODY};
+	font-size: 14px;
+	color: #ffffff80;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}}
+
+.AdmRoot.dirty .AdmStatus
+{{
+	color: {GOLD};
+}}
+
+/* A message outranks the dirty colour: same specificity, emitted later. */
+.AdmFoot .AdmStatus.ok
+{{
+	color: {OK};
+}}
+
+.AdmFoot .AdmStatus.warn
+{{
+	color: {WARN};
+}}
+
+.AdmFoot .AdmStatus.err
+{{
+	color: {ERR};
+}}
+
+/* ---------- Modifiers: filter chips ---------- */
+.AdmFilter
+{{
+	flow-children: right;
+	width: 100%;
+	height: 30px;
+	margin-bottom: 10px;
+}}
+
+.AdmChip
+{{
+	flow-children: right;
+	height: 30px;
+	padding: 0px 12px;
+	margin-right: 6px;
+	border: 1px solid #ffffff1f;
+	border-radius: 2px;
+	background-color: #ffffff05;
+}}
+
+.AdmChip:hover
+{{
+	border: 1px solid #ffffff40;
+	background-color: #ffffff12;
+}}
+
+.AdmChipDot
+{{
+	width: 6px;
+	height: 6px;
+	vertical-align: center;
+	margin-right: 8px;
+	transform: rotatez( 45deg );
+}}
+
+.AdmChipTxt
+{{
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 12px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #ffffff8c;
+}}
+
+.AdmChip:hover .AdmChipTxt
+{{
+	color: #ffffffd9;
+}}
+
+.AdmFilter.cat-all .AdmChip-all
+{{
+	border: 1px solid {GOLD};
+	border-bottom: 2px solid {GOLD};
+	background-color: {selected};
+}}
+
+.AdmFilter.cat-all .AdmChip-all .AdmChipTxt
+{{
+	color: #ffffff;
+}}
+""")
+    for cat, colour in CATEGORIES.items():
+        wash = fade([(0, f"{colour}14"), (1, f"{colour}3d")], vertical=True)
+        w(f".AdmChip-{cat} .AdmChipDot {{ background-color: {colour}; }}")
+        w(f".AdmFilter.cat-{cat} .AdmChip-{cat} {{ border: 1px solid {colour}; border-bottom: 2px solid {colour}; background-color: {wash}; }}")
+        w(f".AdmFilter.cat-{cat} .AdmChip-{cat} .AdmChipTxt {{ color: #ffffff; }}")
+    w(f"""
+/* ---------- Modifiers: the grid of slot rows ---------- */
+.AdmGrid
+{{
+	flow-children: right;
+	width: 100%;
+	height: {ADM_ROWS * (ADM_ROW_H + ADM_ROW_GAP)}px;
+}}
+
+.AdmCol
+{{
+	flow-children: down;
+	width: {ADM_COL_W}px;
+	height: 100%;
+}}
+
+.AdmCol1
+{{
+	margin-left: {ADM_COL_GAP}px;
+}}
+
+/* A slot row is the HUD list's row: 2px category edge, a plate fading right, a hairline on top, the
+   item-card tile. It overlays its hairline and body (no flow), like CsrRow. */
+.AdmMod
+{{
+	width: 100%;
+	height: {ADM_ROW_H}px;
+	margin-bottom: {ADM_ROW_GAP}px;
+	border-left: 2px solid #ffffff66;
+	background-color: {row_plate("#11151a")};
+}}
+
+.AdmMod.empty
+{{
+	visibility: collapse;
+}}
+
+.AdmModRail
+{{
+	width: 100%;
+	height: 1px;
+	vertical-align: top;
+	background-color: {row_rail};
+}}
+
+.AdmModBody
+{{
+	flow-children: right;
+	width: 100%;
+	height: 100%;
+	padding: 0px 12px 0px 8px;
+}}
+
+.AdmTile
+{{
+	width: 40px;
+	height: 40px;
+	vertical-align: center;
+	margin-right: 10px;
+	border-radius: 2px;
+	border-top: 1px solid #ffffff1a;
+	border-bottom: 2px solid #ffffff40;
+	background-color: {tile};
+}}
+
+.AdmModText
+{{
+	flow-children: down;
+	width: fill-parent-flow( 1.0 );
+	vertical-align: center;
+}}
+
+.AdmModName
+{{
+	width: 100%;
+	font-family: {FONT_BOLD};
+	font-size: 15px;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	color: #ffffff;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}}
+
+.AdmModLine
+{{
+	flow-children: right;
+	width: 100%;
+	margin-top: 3px;
+}}
+
+/* The tier chip is a button: each click moves the modifier one tier up, Gold wraps to Mil-Spec. */
+.AdmRar
+{{
+	width: 88px;
+	height: 18px;
+	border: 1px solid #ffffff33;
+	border-radius: 2px;
+	background-color: #ffffff0a;
+}}
+
+.AdmRar:hover
+{{
+	brightness: 1.4;
+}}
+
+.AdmRar:active
+{{
+	brightness: 0.8;
+}}
+
+.AdmRarTxt
+{{
+	horizontal-align: center;
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 10px;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+	color: #ffffffb3;
+}}
+
+/* Moved off its built-in tier (Rarity.Overrides): a small white diamond inside the chip. */
+.AdmRarOvr
+{{
+	width: 4px;
+	height: 4px;
+	horizontal-align: right;
+	vertical-align: center;
+	margin-right: 5px;
+	background-color: #ffffff;
+	transform: rotatez( 45deg );
+	visibility: collapse;
+}}
+
+.AdmMod.ovr .AdmRarOvr
+{{
+	visibility: visible;
+}}
+
+.AdmModShort
+{{
+	width: fill-parent-flow( 1.0 );
+	vertical-align: center;
+	margin-left: 8px;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffffa6;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}}
+
+.AdmMod .AdmDirty, .AdmTier .AdmDirty
+{{
+	margin-left: 8px;
+	opacity: 0;
+}}
+
+.AdmMod.dirty .AdmDirty, .AdmTier.dirty .AdmDirty
+{{
+	opacity: 1;
+}}
+
+/* The switch: knob right on a lit track = enabled. Deliberately not gold - forty gold switches would drown
+   the gold that means "selected" and "unsaved". Base state is enabled; `off` on the row flips it. */
+.AdmTog
+{{
+	width: 44px;
+	height: 22px;
+	vertical-align: center;
+	margin-left: 10px;
+	border: 1px solid #ffffff59;
+	border-radius: 11px;
+	background-color: {tog_on};
+}}
+
+.AdmTog:hover
+{{
+	brightness: 1.3;
+}}
+
+.AdmTogKnob
+{{
+	width: 16px;
+	height: 16px;
+	margin: 0px 2px;
+	horizontal-align: right;
+	vertical-align: center;
+	border-radius: 8px;
+	background-color: #ffffff;
+	box-shadow: #00000080 0px 1px 3px 0px;
+}}
+""")
+    for cat, colour in CATEGORIES.items():
+        wash = fade([(0, "#ffffff0d"), (0.5, "#ffffff08"), (1, f"{colour}38")], vertical=True)
+        won = fade([(0, f"{colour}33"), (1, f"{colour}73")], vertical=True)
+        w(f".AdmMod.cat-{cat} {{ border-left-color: {colour}; background-color: {row_plate(premix(colour))}; }}")
+        w(f".AdmMod.cat-{cat} .AdmTile {{ border-bottom-color: {colour}; background-color: {wash}; }}")
+        # Active this round: the tile lights up like a ready gauge's tile.
+        w(f".AdmMod.live.cat-{cat} .AdmTile {{ border: 1px solid {colour}; border-bottom: 2px solid {colour}; background-color: {won}; box-shadow: {colour}80 0px 0px 8px 0px; }}")
+    w("")
+    for rar, (colour, _) in RARITIES.items():
+        wash = fade([(0, f"{colour}1a"), (1, f"{colour}47")], vertical=True)
+        w(f".AdmMod.rar-{rar} .AdmRar {{ border: 1px solid {colour}b3; background-color: {wash}; }}")
+        w(f".AdmMod.rar-{rar} .AdmRarTxt {{ color: {_light(colour)}; }}")
+    w(f"""
+/* Four classes: beats the two-class .cat-* .CsrIco tint, like the reel's winner. */
+.AdmMod.live .AdmTile .CsrIco
+{{
+	wash-color: #ffffff;
+}}
+
+/* Disabled: struck out and greyed. Emitted after the per-category rules, which have the same
+   specificity, so these win. */
+.AdmMod.off
+{{
+	border-left-color: #ffffff1f;
+	background-color: {row_plate("#11151a")};
+}}
+
+.AdmMod.off .AdmTile
+{{
+	border-bottom-color: #ffffff1f;
+	background-color: {tile};
+	opacity: 0.55;
+}}
+
+.AdmMod.off .CsrIco
+{{
+	wash-color: #ffffff59;
+}}
+
+.AdmMod.off .AdmModName
+{{
+	color: #ffffff66;
+	text-decoration: line-through;
+}}
+
+.AdmMod.off .AdmModShort
+{{
+	color: #ffffff47;
+}}
+
+.AdmMod.off .AdmRar
+{{
+	opacity: 0.45;
+	saturation: 0.2;
+}}
+
+.AdmMod.off .AdmTog
+{{
+	border: 1px solid #ffffff1f;
+	background-color: #00000059;
+}}
+
+.AdmMod.off .AdmTogKnob
+{{
+	horizontal-align: left;
+	background-color: #ffffff4d;
+	box-shadow: #00000000 0px 0px 0px 0px;
+}}
+
+/* Rarity off: tiers still edit, but read as dormant everywhere. */
+.AdmRoot.rar-off .AdmRar
+{{
+	saturation: 0;
+	opacity: 0.55;
+}}
+
+/* ---------- Modifiers: legend + pager ---------- */
+.AdmFootRow
+{{
+	flow-children: right;
+	width: 100%;
+	height: 30px;
+	margin-top: 10px;
+}}
+
+.AdmLegend
+{{
+	width: fill-parent-flow( 1.0 );
+	vertical-align: center;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffff80;
+}}
+
+.AdmPager
+{{
+	flow-children: right;
+	height: 30px;
+}}
+
+.AdmPageBtn
+{{
+	height: 30px;
+	padding: 0px 14px;
+	border: 1px solid #ffffff26;
+	border-radius: 2px;
+	background-color: #ffffff0a;
+}}
+
+.AdmPageBtn:hover
+{{
+	border: 1px solid #ffffff59;
+	background-color: #ffffff1f;
+}}
+
+.AdmPageBtnTxt
+{{
+	vertical-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 12px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #ffffffb3;
+}}
+
+.AdmPageInfo
+{{
+	width: 150px;
+	vertical-align: center;
+	text-align: center;
+	font-family: {FONT_BOLD};
+	font-size: 12px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #ffffff8c;
+}}
+
+.AdmPager.min .AdmPrev, .AdmPager.max .AdmNext
+{{
+	opacity: 0.3;
+}}
+
+/* ---------- Rarity ---------- */
+/* Case odds: one strip, five segments sized by f0..f100 (width; nothing transitions here). */
+.AdmDist
+{{
+	flow-children: right;
+	width: 100%;
+	height: 8px;
+	margin-bottom: 14px;
+	border-radius: 1px;
+	overflow: clip clip;
+	background-color: #ffffff12;
+}}
+
+.AdmDistSeg
+{{
+	width: 0%;
+	height: 100%;
+}}
+
+.AdmRarOffNote
+{{
+	margin-bottom: 14px;
+	font-family: {FONT_BOLD};
+	font-size: 13px;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	color: #ffffff8c;
+	visibility: collapse;
+}}
+
+.AdmRoot.rar-off .AdmRarOffNote
+{{
+	visibility: visible;
+}}
+
+.AdmRoot.rar-off .AdmDist
+{{
+	visibility: collapse;
+}}
+
+.AdmRoot.rar-off .AdmTierList
+{{
+	opacity: 0.4;
+	saturation: 0.2;
+}}
+
+.AdmTierList
+{{
+	flow-children: down;
+	width: 100%;
+}}
+
+/* A tier row is a list row in the tier's colour: 3px edge, a plate tinted by the tier. */
+.AdmTier
+{{
+	flow-children: right;
+	width: 100%;
+	height: {ADM_TIER_H}px;
+	margin-bottom: 4px;
+	padding: 0px 14px;
+	border-left: 3px solid #ffffff66;
+}}
+
+/* No enabled modifier in this tier - it never rolls. */
+.AdmTier.na
+{{
+	opacity: 0.45;
+}}
+
+.AdmTierText
+{{
+	flow-children: down;
+	width: fill-parent-flow( 1.0 );
+	vertical-align: center;
+}}
+
+.AdmTierName
+{{
+	font-family: {FONT_BOLD};
+	font-size: 16px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #ffffff;
+}}
+
+.AdmTierInfo
+{{
+	margin-top: 2px;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffff80;
+}}
+
+.AdmShare
+{{
+	flow-children: right;
+	width: 284px;
+	height: 32px;
+	vertical-align: center;
+	margin-left: 24px;
+}}
+
+/* The gauge's track and clipped fill (clip survives text updates; width doesn't). */
+.AdmShareBar
+{{
+	width: 200px;
+	height: 4px;
+	vertical-align: center;
+	border-radius: 1px;
+	background-color: {track};
+	box-shadow: #000000a6 0px 0px 4px 0px;
+}}
+
+.AdmShareFill
+{{
+	width: 100%;
+	height: 100%;
+	border-radius: 1px;
+	background-color: #ffffff;
+	clip: rect( 0%, 0%, 100%, 0% );
+}}
+
+.AdmSharePct
+{{
+	width: 72px;
+	vertical-align: center;
+	text-align: right;
+	font-family: {FONT_BOLD};
+	font-size: 18px;
+	letter-spacing: 1px;
+	color: #ffffff;
+}}
+
+.AdmOvrRow
+{{
+	flow-children: right;
+	width: 100%;
+	height: 30px;
+	margin-top: 6px;
+}}
+
+.AdmOvrInfo
+{{
+	width: fill-parent-flow( 1.0 );
+	vertical-align: center;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffff8c;
+}}
+""")
+    for rar, (colour, _) in RARITIES.items():
+        bar = fade([(0, mix(colour, "#ffffff", 0.35)), (1, colour)], vertical=True)
+        w(f".AdmTier.rar-{rar} {{ border-left-color: {colour}; background-color: {row_plate(premix(colour))}; }}")
+        w(f".AdmTier.rar-{rar} .AdmTierName {{ color: {_light(colour)}; }}")
+        w(f".AdmTier.rar-{rar} .AdmShareFill {{ background-color: {bar}; }}")
+        w(f".AdmDistSeg.rar-{rar} {{ background-color: {bar}; }}")
+    w("")
+    for step in range(FILL_STEPS + 1):
+        pct = step * 100 // FILL_STEPS
+        w(f".AdmTier.f{step} .AdmShareFill {{ clip: rect( 0%, {pct}%, 100%, 0% ); }}")
+        w(f".AdmDistSeg.f{step} {{ width: {pct}%; }}")
+    w(f"""
+/* ---------- Config ---------- */
+.AdmCols
+{{
+	flow-children: right;
+	width: 100%;
+	height: fill-parent-flow( 1.0 );
+}}
+
+.AdmColBox
+{{
+	flow-children: down;
+	width: {ADM_COL_W}px;
+	height: 100%;
+}}
+
+.AdmColBoxR
+{{
+	margin-left: {ADM_COL_GAP}px;
+}}
+
+.AdmList
+{{
+	flow-children: down;
+	width: 100%;
+	margin-top: 4px;
+}}
+
+/* One unsaved change per line, on a gold hairline edge. */
+.AdmLine
+{{
+	width: 100%;
+	height: 26px;
+	margin-bottom: 4px;
+	padding: 4px 0px 0px 12px;
+	border-left: 2px solid {GOLD};
+	background-color: {set_dirty};
+	font-family: {FONT_BODY};
+	font-size: 14px;
+	color: #ffffffd9;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}}
+
+.AdmLine.empty
+{{
+	visibility: collapse;
+}}
+
+/* "Nothing to save" - the line, without the gold. */
+.AdmLine.na
+{{
+	border-left-color: #ffffff1f;
+	background-color: {set_plate};
+	color: #ffffff80;
+}}
+
+/* A big action button: title, the armed title, and a sub-line. */
+.AdmAction
+{{
+	flow-children: down;
+	width: 100%;
+	height: 64px;
+	margin-bottom: 8px;
+	padding: 0px 16px;
+	border: 1px solid #ffffff1f;
+	border-left: 3px solid {GOLD};
+	border-radius: 2px;
+	background-color: {set_plate};
+}}
+
+.AdmAction:hover
+{{
+	background-color: #ffffff14;
+}}
+
+.AdmAction:active
+{{
+	brightness: 0.8;
+}}
+
+.AdmActionDanger
+{{
+	border-left-color: {ERR};
+}}
+
+.AdmActionTitle, .AdmActionArm
+{{
+	margin-top: 13px;
+	font-family: {FONT_BOLD};
+	font-size: 15px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #ffffff;
+}}
+
+.AdmActionArm
+{{
+	color: #ffb4a8;
+	visibility: collapse;
+}}
+
+.AdmActionSub
+{{
+	margin-top: 2px;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffff8c;
+}}
+
+.AdmAction.arm
+{{
+	border: 1px solid {ERR};
+	border-left: 3px solid {ERR};
+	background-color: {ERR}26;
+}}
+
+.AdmAction.arm .AdmActionTitle
+{{
+	visibility: collapse;
+}}
+
+.AdmAction.arm .AdmActionArm
+{{
+	visibility: visible;
+}}
+
+.AdmInfo
+{{
+	width: 100%;
+	margin-top: 4px;
+	font-family: {FONT_BODY};
+	font-size: 13px;
+	color: #ffffffa6;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}}
+
+.AdmInfoPath
+{{
+	color: #ffffff80;
+}}
+
+.AdmInfoWarn
+{{
+	color: {WARN};
+}}
+
+.AdmInfo.empty
+{{
+	visibility: collapse;
+}}
+""")
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------------------------------
+# C# contract
+# ---------------------------------------------------------------------------------------------------
+def setting_rows() -> list[tuple[str, str, object]]:
+    rows = []
+    for page in ("gen", "hud", "rar"):
+        for row in ADM_SETTINGS[page]:
+            if not isinstance(row, str):
+                rows.append((page, row[0], row[3]))
+    return rows
+
+
+def admin_contract() -> str:
+    def pascal(s: str) -> str:
+        return "".join(p[:1].upper() + p[1:] for p in s.replace("-", "_").split("_"))
+
+    lines = [
+        "    // ---------- admin panel (!rolladmin) ----------",
+        '    public const string AdminPanel = "csr_adm";',
+        '    public const string AdminVersion = "csr_adm_ver";',
+        '    public const string AdminUnsaved = "csr_adm_unsaved";',
+        '    public const string AdminClose = "csr_adm_close";',
+        '    public const string AdminStatus = "csr_adm_status";',
+        '    public const string AdminReload = "csr_adm_reload";',
+        '    public const string AdminSave = "csr_adm_save";',
+        '    public const string AdminFilter = "csr_adm_flt";',
+        '    public const string AdminModCount = "csr_adm_mod_count";',
+        '    public const string AdminAllOn = "csr_adm_mod_allon";',
+        '    public const string AdminAllOff = "csr_adm_mod_alloff";',
+        '    public const string AdminPager = "csr_adm_pager";',
+        '    public const string AdminPrev = "csr_adm_prev";',
+        '    public const string AdminNext = "csr_adm_next";',
+        '    public const string AdminPageInfo = "csr_adm_page";',
+        '    public const string AdminOverrideInfo = "csr_adm_ovr_info";',
+        '    public const string AdminOverrideReset = "csr_adm_ovr_reset";',
+        '    public const string AdminConfigCount = "csr_adm_cfg_count";',
+        '    public const string AdminConfigLive = "csr_adm_cfg_live";',
+        '    public const string AdminConfigPath = "csr_adm_cfg_path";',
+        '    public const string AdminConfigConVar = "csr_adm_cfg_cvar";',
+        '    public const string AdminReroll = "csr_adm_reroll";',
+        '    public const string AdminClear = "csr_adm_clear";',
+        "",
+        f"    public const int AdminSlots = {ADM_SLOTS};",
+        f"    public const int AdminConfigLines = {ADM_CFG_LINES};",
+        "",
+        "    public static readonly string[] AdminPages = [" + ", ".join(f'"{k}"' for k, _, _ in ADM_PAGES) + "];",
+        "    public static readonly string[] AdminFilters = [" + ", ".join(f'"{k}"' for k, _ in ADM_FILTERS) + "];",
+        "    public static readonly string[] AdminTiers = [" + ", ".join(f'"{k}"' for k, _ in ADM_TIERS) + "];",
+        "",
+        "    /// <summary>Setting rows: the row panel (classes v0/v1/v2, min/max, dirty, na); option buttons are Row + \"_\" + option.</summary>",
+    ]
+    for page, key, control in setting_rows():
+        kind = "step" if control == "step" else "text" if control == "text" else "choice"
+        if kind == "choice":
+            opts = ", ".join(f'"{o[0]}"' for o in control)
+            lines.append(f'    public const string Set{pascal(key)} = "csr_adm_s_{key}";   // {page}, choice: {opts}')
+        elif kind == "step":
+            lines.append(f'    public const string Set{pascal(key)} = "csr_adm_s_{key}";   // {page}, stepper: _dec, _inc, _val')
+        else:
+            lines.append(f'    public const string Set{pascal(key)}Value = "csr_adm_s_{key}_val";   // {page}, read-only text')
+    lines += [
+        "",
+        '    public static string AdminTab(string page) => $"csr_adm_tab_{page}";',
+        '    public static string AdminTabSub(string page) => $"csr_adm_tab_{page}_sub";   // "mod" and "cfg" only',
+        '    public static string AdminFilterChip(string filter) => $"csr_adm_flt_{filter}";',
+        '    public static string AdminMod(int i) => $"csr_adm_m{i}";',
+        '    public static string AdminModIcon(int i) => $"csr_adm_m{i}_ico";',
+        '    public static string AdminModName(int i) => $"csr_adm_m{i}_name";',
+        '    public static string AdminModTier(int i) => $"csr_adm_m{i}_tier";      // button',
+        '    public static string AdminModTierText(int i) => $"csr_adm_m{i}_rar";',
+        '    public static string AdminModShort(int i) => $"csr_adm_m{i}_short";',
+        '    public static string AdminModToggle(int i) => $"csr_adm_m{i}_tog";     // button',
+        '    public static string AdminDist(string tier) => $"csr_adm_dist_{tier}";',
+        '    public static string AdminWeight(string tier) => $"csr_adm_w_{tier}";   // + _dec5 _dec _inc _inc5 (buttons), _val _info _pct (text)',
+        '    public static string AdminConfigLine(int i) => $"csr_adm_cfg_l{i}";',
+        "",
+        '    public static string AdminPageClass(string page) => $"pg-{page}";',
+        '    public static string ChoiceClass(int option) => $"v{option}";',
+        "",
+        '    public const string VarRarity = "rar";',
+        "",
+        '    public const string Dirty = "dirty";',
+        '    public const string AtMin = "min";',
+        '    public const string AtMax = "max";',
+        '    public const string NotApplicable = "na";',
+        '    public const string Off = "off";',
+        '    public const string Empty = "empty";',
+        '    public const string Live = "live";',
+        '    public const string Overridden = "ovr";',
+        '    public const string Armed = "arm";',
+        '    public const string StatusOk = "ok";',
+        '    public const string StatusWarn = "warn";',
+        '    public const string StatusError = "err";',
+        '    public const string FilterAll = "cat-all";',
+    ]
+    return "\n".join(lines)
 
 
 def main() -> None:

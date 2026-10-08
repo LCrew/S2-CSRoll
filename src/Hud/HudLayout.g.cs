@@ -139,4 +139,87 @@ public static partial class HudLayout
     public const string Won = "won";
     public const string Landed = "landed";
     public const string Brand = "brand";
+
+    // ---------- admin panel (!rolladmin) ----------
+    public const string AdminPanel = "csr_adm";
+    public const string AdminVersion = "csr_adm_ver";
+    public const string AdminUnsaved = "csr_adm_unsaved";
+    public const string AdminClose = "csr_adm_close";
+    public const string AdminStatus = "csr_adm_status";
+    public const string AdminReload = "csr_adm_reload";
+    public const string AdminSave = "csr_adm_save";
+    public const string AdminFilter = "csr_adm_flt";
+    public const string AdminModCount = "csr_adm_mod_count";
+    public const string AdminAllOn = "csr_adm_mod_allon";
+    public const string AdminAllOff = "csr_adm_mod_alloff";
+    public const string AdminPager = "csr_adm_pager";
+    public const string AdminPrev = "csr_adm_prev";
+    public const string AdminNext = "csr_adm_next";
+    public const string AdminPageInfo = "csr_adm_page";
+    public const string AdminOverrideInfo = "csr_adm_ovr_info";
+    public const string AdminOverrideReset = "csr_adm_ovr_reset";
+    public const string AdminConfigCount = "csr_adm_cfg_count";
+    public const string AdminConfigLive = "csr_adm_cfg_live";
+    public const string AdminConfigPath = "csr_adm_cfg_path";
+    public const string AdminConfigConVar = "csr_adm_cfg_cvar";
+    public const string AdminReroll = "csr_adm_reroll";
+    public const string AdminClear = "csr_adm_clear";
+
+    public const int AdminSlots = 14;
+    public const int AdminConfigLines = 8;
+
+    public static readonly string[] AdminPages = ["gen", "mod", "rar", "hud", "cfg"];
+    public static readonly string[] AdminFilters = ["all", "move", "weap", "util", "surv", "stealth", "chaos"];
+    public static readonly string[] AdminTiers = ["milspec", "restricted", "classified", "covert", "gold"];
+
+    /// <summary>Setting rows: the row panel (classes v0/v1/v2, min/max, dirty, na); option buttons are Row + "_" + option.</summary>
+    public const string SetRr = "csr_adm_s_rr";   // gen, choice: "on", "off"
+    public const string SetMode = "csr_adm_s_mode";   // gen, choice: "player", "team", "game"
+    public const string SetMin = "csr_adm_s_min";   // gen, stepper: _dec, _inc, _val
+    public const string SetMax = "csr_adm_s_max";   // gen, stepper: _dec, _inc, _val
+    public const string SetCd = "csr_adm_s_cd";   // gen, stepper: _dec, _inc, _val
+    public const string SetRep = "csr_adm_s_rep";   // gen, choice: "on", "off"
+    public const string SetWarm = "csr_adm_s_warm";   // gen, choice: "on", "off"
+    public const string SetReveal = "csr_adm_s_reveal";   // hud, choice: "on", "off"
+    public const string SetSpin = "csr_adm_s_spin";   // hud, choice: "on", "off"
+    public const string SetSpec = "csr_adm_s_spec";   // hud, choice: "on", "off"
+    public const string SetHud = "csr_adm_s_hud";   // hud, choice: "on", "off"
+    public const string SetHudmode = "csr_adm_s_hudmode";   // hud, choice: "optin", "everyone"
+    public const string SetHudspec = "csr_adm_s_hudspec";   // hud, choice: "on", "off"
+    public const string SetListy = "csr_adm_s_listy";   // hud, stepper: _dec, _inc, _val
+    public const string SetBrandValue = "csr_adm_s_brand_val";   // hud, read-only text
+    public const string SetRar = "csr_adm_s_rar";   // rar, choice: "on", "off"
+
+    public static string AdminTab(string page) => $"csr_adm_tab_{page}";
+    public static string AdminTabSub(string page) => $"csr_adm_tab_{page}_sub";   // "mod" and "cfg" only
+    public static string AdminFilterChip(string filter) => $"csr_adm_flt_{filter}";
+    public static string AdminMod(int i) => $"csr_adm_m{i}";
+    public static string AdminModIcon(int i) => $"csr_adm_m{i}_ico";
+    public static string AdminModName(int i) => $"csr_adm_m{i}_name";
+    public static string AdminModTier(int i) => $"csr_adm_m{i}_tier";      // button
+    public static string AdminModTierText(int i) => $"csr_adm_m{i}_rar";
+    public static string AdminModShort(int i) => $"csr_adm_m{i}_short";
+    public static string AdminModToggle(int i) => $"csr_adm_m{i}_tog";     // button
+    public static string AdminDist(string tier) => $"csr_adm_dist_{tier}";
+    public static string AdminWeight(string tier) => $"csr_adm_w_{tier}";   // + _dec5 _dec _inc _inc5 (buttons), _val _info _pct (text)
+    public static string AdminConfigLine(int i) => $"csr_adm_cfg_l{i}";
+
+    public static string AdminPageClass(string page) => $"pg-{page}";
+    public static string ChoiceClass(int option) => $"v{option}";
+
+    public const string VarRarity = "rar";
+
+    public const string Dirty = "dirty";
+    public const string AtMin = "min";
+    public const string AtMax = "max";
+    public const string NotApplicable = "na";
+    public const string Off = "off";
+    public const string Empty = "empty";
+    public const string Live = "live";
+    public const string Overridden = "ovr";
+    public const string Armed = "arm";
+    public const string StatusOk = "ok";
+    public const string StatusWarn = "warn";
+    public const string StatusError = "err";
+    public const string FilterAll = "cat-all";
 }

@@ -1409,6 +1409,9 @@ public sealed class ModifierRuntime
     public IEnumerable<GameModifierBase> GetAllKnownModifiers() =>
         _allModifierFactories.Select(kv => GetRegisteredModifierByName(kv.Key) ?? kv.Value());
 
+    /// <summary>The name of every modifier CSRoll can construct, registered or not - fixed after Initialise.</summary>
+    public IReadOnlyCollection<string> KnownModifierNames => _allModifierFactories.Keys;
+
     public void RemoveModifierByName(string modifierName, out string message)
     {
         if (_activeModifiers.Count == 0)

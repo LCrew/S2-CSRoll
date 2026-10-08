@@ -210,5 +210,572 @@
       <Label class="CsrPromptTitle" text="NEW HUD READY" />
       <Label class="CsrPromptText" text="Type !hud in chat to switch from the centre text to this HUD." />
     </Panel>
+    <Panel id="csr_adm" class="AdmRoot" hittest="false">
+      <Panel class="AdmDim" />
+      <Panel class="AdmWin">
+        <Panel class="AdmHead">
+          <Panel class="AdmMark" />
+          <Label class="AdmTitle" text="CSRoll" />
+          <Label class="AdmTitle AdmTitleGold" text="Admin" />
+          <Label id="csr_adm_ver" class="AdmVer" text="{s:val}" />
+          <Panel class="AdmHeadFill" />
+          <Panel class="AdmUnsaved"><Panel class="AdmDirty" /><Label id="csr_adm_unsaved" class="AdmUnsavedTxt" text="{s:val}" /></Panel>
+          <Button id="csr_adm_close" class="AdmClose"><Label class="AdmCloseX" hittest="false" text="✕" /></Button>
+        </Panel>
+        <Panel class="AdmRule" />
+        <Panel class="AdmBody">
+          <Panel class="AdmNav">
+            <Button id="csr_adm_tab_gen" class="AdmTab AdmTab-gen">
+              <Panel class="AdmTabBar" hittest="false" />
+              <Panel class="AdmTabText" hittest="false"><Label class="AdmTabName" hittest="false" text="General" /><Label class="AdmTabSub" hittest="false" text="Rolls &amp; rounds" /></Panel>
+              <Panel class="AdmDirty AdmTabDot" hittest="false" />
+              <Panel class="AdmTabNotch" hittest="false" />
+            </Button>
+            <Button id="csr_adm_tab_mod" class="AdmTab AdmTab-mod">
+              <Panel class="AdmTabBar" hittest="false" />
+              <Panel class="AdmTabText" hittest="false"><Label class="AdmTabName" hittest="false" text="Modifiers" /><Label id="csr_adm_tab_mod_sub" class="AdmTabSub" hittest="false" text="{s:val}" /></Panel>
+              <Panel class="AdmDirty AdmTabDot" hittest="false" />
+              <Panel class="AdmTabNotch" hittest="false" />
+            </Button>
+            <Button id="csr_adm_tab_rar" class="AdmTab AdmTab-rar">
+              <Panel class="AdmTabBar" hittest="false" />
+              <Panel class="AdmTabText" hittest="false"><Label class="AdmTabName" hittest="false" text="Rarity" /><Label class="AdmTabSub" hittest="false" text="Case odds" /></Panel>
+              <Panel class="AdmDirty AdmTabDot" hittest="false" />
+              <Panel class="AdmTabNotch" hittest="false" />
+            </Button>
+            <Button id="csr_adm_tab_hud" class="AdmTab AdmTab-hud">
+              <Panel class="AdmTabBar" hittest="false" />
+              <Panel class="AdmTabText" hittest="false"><Label class="AdmTabName" hittest="false" text="Display" /><Label class="AdmTabSub" hittest="false" text="Reveal &amp; HUD" /></Panel>
+              <Panel class="AdmDirty AdmTabDot" hittest="false" />
+              <Panel class="AdmTabNotch" hittest="false" />
+            </Button>
+            <Button id="csr_adm_tab_cfg" class="AdmTab AdmTab-cfg">
+              <Panel class="AdmTabBar" hittest="false" />
+              <Panel class="AdmTabText" hittest="false"><Label class="AdmTabName" hittest="false" text="Config" /><Label id="csr_adm_tab_cfg_sub" class="AdmTabSub" hittest="false" text="{s:val}" /></Panel>
+              <Panel class="AdmDirty AdmTabDot" hittest="false" />
+              <Panel class="AdmTabNotch" hittest="false" />
+            </Button>
+            <Panel class="AdmNavFill" />
+            <Label class="AdmNavHint" text="Changes apply live." />
+            <Label class="AdmNavHint" text="!rolladmin or F6 closes this." />
+          </Panel>
+          <Panel class="AdmMain">
+            <Panel class="AdmPage AdmPage-gen">
+              <Panel class="AdmPageHead"><Label class="AdmPageTitle" text="General" /><Label class="AdmPageNote" text="How random rounds hand out modifiers" /></Panel>
+              <Panel class="AdmPageRule" />
+              <Panel id="csr_adm_s_rr" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Random rounds" /><Label class="AdmSetHint" text="Roll modifiers as each round starts" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_rr_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_rr_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_mode" class="AdmSet">
+                <Panel class="AdmSetText">
+                  <Label class="AdmSetName" text="Roll mode" />
+                  <Label class="AdmSetHint AdmHintV AdmHintV0" text="Every player rolls their own" />
+                  <Label class="AdmSetHint AdmHintV AdmHintV1" text="Each team shares one roll" />
+                  <Label class="AdmSetHint AdmHintV AdmHintV2" text="One roll for the whole server" />
+                </Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_mode_player" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Player" /></Button>
+                  <Button id="csr_adm_s_mode_team" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Team" /></Button>
+                  <Button id="csr_adm_s_mode_game" class="AdmOpt AdmOpt2"><Label class="AdmOptTxt" hittest="false" text="Game" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_min" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Fewest per roll" /><Label class="AdmSetHint" text="Modifiers a roll hands out, at least" /></Panel>
+                <Panel class="AdmStep">
+                  <Button id="csr_adm_s_min_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                  <Panel class="AdmStepVal"><Label id="csr_adm_s_min_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                  <Button id="csr_adm_s_min_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_max" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Most per roll" /><Label class="AdmSetHint" text="Modifiers a roll hands out, at most" /></Panel>
+                <Panel class="AdmStep">
+                  <Button id="csr_adm_s_max_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                  <Panel class="AdmStepVal"><Label id="csr_adm_s_max_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                  <Button id="csr_adm_s_max_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_cd" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Repeat cooldown" /><Label class="AdmSetHint" text="Rounds before a player can roll the same modifier again" /></Panel>
+                <Panel class="AdmStep">
+                  <Button id="csr_adm_s_cd_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                  <Panel class="AdmStepVal"><Label id="csr_adm_s_cd_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                  <Button id="csr_adm_s_cd_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_rep" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Repeat last set" /><Label class="AdmSetHint" text="Game mode: the same set may come up two rounds running" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_rep_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_rep_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_warm" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Roll in warmup" /><Label class="AdmSetHint" text="Random rounds while warmup is running" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_warm_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_warm_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+            </Panel>
+            <Panel class="AdmPage AdmPage-mod">
+              <Panel class="AdmPageHead">
+                <Label class="AdmPageTitle" text="Modifiers" />
+                <Label id="csr_adm_mod_count" class="AdmPageMeta" text="{s:val}" />
+                <Panel class="AdmHeadFill" />
+                <Button id="csr_adm_mod_allon" class="AdmBtn AdmBtnSm"><Label class="AdmBtnTxt" hittest="false" text="All on" /></Button>
+                <Button id="csr_adm_mod_alloff" class="AdmBtn AdmBtnSm"><Label class="AdmBtnTxt" hittest="false" text="All off" /><Label class="AdmBtnArm" hittest="false" text="Again to confirm" /></Button>
+              </Panel>
+              <Panel class="AdmPageRule" />
+              <Panel id="csr_adm_flt" class="AdmFilter">
+                <Button id="csr_adm_flt_all" class="AdmChip AdmChip-all"><Label class="AdmChipTxt" hittest="false" text="All" /></Button>
+                <Button id="csr_adm_flt_move" class="AdmChip AdmChip-move"><Panel class="AdmChipDot" hittest="false" /><Label class="AdmChipTxt" hittest="false" text="Movement" /></Button>
+                <Button id="csr_adm_flt_weap" class="AdmChip AdmChip-weap"><Panel class="AdmChipDot" hittest="false" /><Label class="AdmChipTxt" hittest="false" text="Weapons" /></Button>
+                <Button id="csr_adm_flt_util" class="AdmChip AdmChip-util"><Panel class="AdmChipDot" hittest="false" /><Label class="AdmChipTxt" hittest="false" text="Grenades" /></Button>
+                <Button id="csr_adm_flt_surv" class="AdmChip AdmChip-surv"><Panel class="AdmChipDot" hittest="false" /><Label class="AdmChipTxt" hittest="false" text="Survival" /></Button>
+                <Button id="csr_adm_flt_stealth" class="AdmChip AdmChip-stealth"><Panel class="AdmChipDot" hittest="false" /><Label class="AdmChipTxt" hittest="false" text="Stealth" /></Button>
+                <Button id="csr_adm_flt_chaos" class="AdmChip AdmChip-chaos"><Panel class="AdmChipDot" hittest="false" /><Label class="AdmChipTxt" hittest="false" text="Chaos" /></Button>
+              </Panel>
+              <Panel class="AdmGrid">
+                <Panel class="AdmCol">
+                  <Panel id="csr_adm_m0" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m0_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m0_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m0_tier" class="AdmRar"><Label id="csr_adm_m0_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m0_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m0_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m1" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m1_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m1_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m1_tier" class="AdmRar"><Label id="csr_adm_m1_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m1_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m1_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m2" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m2_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m2_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m2_tier" class="AdmRar"><Label id="csr_adm_m2_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m2_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m2_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m3" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m3_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m3_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m3_tier" class="AdmRar"><Label id="csr_adm_m3_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m3_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m3_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m4" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m4_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m4_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m4_tier" class="AdmRar"><Label id="csr_adm_m4_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m4_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m4_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m5" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m5_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m5_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m5_tier" class="AdmRar"><Label id="csr_adm_m5_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m5_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m5_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m6" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m6_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m6_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m6_tier" class="AdmRar"><Label id="csr_adm_m6_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m6_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m6_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                </Panel>
+                <Panel class="AdmCol AdmCol1">
+                  <Panel id="csr_adm_m7" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m7_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m7_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m7_tier" class="AdmRar"><Label id="csr_adm_m7_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m7_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m7_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m8" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m8_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m8_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m8_tier" class="AdmRar"><Label id="csr_adm_m8_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m8_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m8_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m9" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m9_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m9_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m9_tier" class="AdmRar"><Label id="csr_adm_m9_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m9_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m9_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m10" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m10_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m10_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m10_tier" class="AdmRar"><Label id="csr_adm_m10_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m10_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m10_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m11" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m11_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m11_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m11_tier" class="AdmRar"><Label id="csr_adm_m11_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m11_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m11_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m12" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m12_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m12_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m12_tier" class="AdmRar"><Label id="csr_adm_m12_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m12_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m12_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                  <Panel id="csr_adm_m13" class="AdmMod">
+                    <Panel class="AdmModRail" />
+                    <Panel class="AdmModBody">
+                      <Panel class="AdmTile"><Panel id="csr_adm_m13_ico" class="CsrIco CsrRowIco" /></Panel>
+                      <Panel class="AdmModText">
+                        <Label id="csr_adm_m13_name" class="AdmModName" text="{s:name}" />
+                        <Panel class="AdmModLine">
+                          <Button id="csr_adm_m13_tier" class="AdmRar"><Label id="csr_adm_m13_rar" class="AdmRarTxt" hittest="false" text="{s:rar}" /><Panel class="AdmRarOvr" hittest="false" /></Button>
+                          <Label id="csr_adm_m13_short" class="AdmModShort" text="{s:short}" />
+                        </Panel>
+                      </Panel>
+                      <Panel class="AdmDirty" />
+                      <Button id="csr_adm_m13_tog" class="AdmTog"><Panel class="AdmTogKnob" hittest="false" /></Button>
+                    </Panel>
+                  </Panel>
+                </Panel>
+              </Panel>
+              <Panel class="AdmFootRow">
+                <Label class="AdmLegend" text="Lit tile = active this round  ·  Click a tier to move the modifier up a tier" />
+                <Panel id="csr_adm_pager" class="AdmPager">
+                  <Button id="csr_adm_prev" class="AdmPageBtn AdmPrev"><Label class="AdmPageBtnTxt" hittest="false" text="‹  Prev" /></Button>
+                  <Label id="csr_adm_page" class="AdmPageInfo" text="{s:val}" />
+                  <Button id="csr_adm_next" class="AdmPageBtn AdmNext"><Label class="AdmPageBtnTxt" hittest="false" text="Next  ›" /></Button>
+                </Panel>
+              </Panel>
+            </Panel>
+            <Panel class="AdmPage AdmPage-rar">
+              <Panel class="AdmPageHead"><Label class="AdmPageTitle" text="Rarity" /><Label class="AdmPageNote" text="Each tier's share of every pick, like a case's odds" /></Panel>
+              <Panel class="AdmPageRule" />
+              <Panel id="csr_adm_s_rar" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Rarity tiers" /><Label class="AdmSetHint" text="Pick a tier by weight, then a modifier inside it" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_rar_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_rar_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+              <Panel class="AdmSection"><Label class="AdmKicker" text="Case odds" /><Panel class="AdmSectionRule" /></Panel>
+              <Panel class="AdmDist">
+                <Panel id="csr_adm_dist_milspec" class="AdmDistSeg rar-milspec" />
+                <Panel id="csr_adm_dist_restricted" class="AdmDistSeg rar-restricted" />
+                <Panel id="csr_adm_dist_classified" class="AdmDistSeg rar-classified" />
+                <Panel id="csr_adm_dist_covert" class="AdmDistSeg rar-covert" />
+                <Panel id="csr_adm_dist_gold" class="AdmDistSeg rar-gold" />
+              </Panel>
+              <Label class="AdmRarOffNote" text="Rarity is off - every enabled modifier is equally likely" />
+              <Panel class="AdmTierList">
+                <Panel id="csr_adm_w_milspec" class="AdmTier rar-milspec">
+                  <Panel class="AdmTierText"><Label class="AdmTierName" text="Mil-Spec" /><Label id="csr_adm_w_milspec_info" class="AdmTierInfo" text="{s:val}" /></Panel>
+                  <Panel class="AdmDirty" />
+                  <Panel class="AdmStep">
+                    <Button id="csr_adm_w_milspec_dec5" class="AdmStepBtn AdmStepDec AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="−5" /></Button>
+                    <Button id="csr_adm_w_milspec_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                    <Panel class="AdmStepVal"><Label id="csr_adm_w_milspec_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                    <Button id="csr_adm_w_milspec_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                    <Button id="csr_adm_w_milspec_inc5" class="AdmStepBtn AdmStepInc AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="+5" /></Button>
+                  </Panel>
+                  <Panel class="AdmShare">
+                    <Panel class="AdmShareBar"><Panel class="AdmShareFill" /></Panel>
+                    <Label id="csr_adm_w_milspec_pct" class="AdmSharePct" text="{s:val}" />
+                  </Panel>
+                </Panel>
+                <Panel id="csr_adm_w_restricted" class="AdmTier rar-restricted">
+                  <Panel class="AdmTierText"><Label class="AdmTierName" text="Restricted" /><Label id="csr_adm_w_restricted_info" class="AdmTierInfo" text="{s:val}" /></Panel>
+                  <Panel class="AdmDirty" />
+                  <Panel class="AdmStep">
+                    <Button id="csr_adm_w_restricted_dec5" class="AdmStepBtn AdmStepDec AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="−5" /></Button>
+                    <Button id="csr_adm_w_restricted_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                    <Panel class="AdmStepVal"><Label id="csr_adm_w_restricted_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                    <Button id="csr_adm_w_restricted_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                    <Button id="csr_adm_w_restricted_inc5" class="AdmStepBtn AdmStepInc AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="+5" /></Button>
+                  </Panel>
+                  <Panel class="AdmShare">
+                    <Panel class="AdmShareBar"><Panel class="AdmShareFill" /></Panel>
+                    <Label id="csr_adm_w_restricted_pct" class="AdmSharePct" text="{s:val}" />
+                  </Panel>
+                </Panel>
+                <Panel id="csr_adm_w_classified" class="AdmTier rar-classified">
+                  <Panel class="AdmTierText"><Label class="AdmTierName" text="Classified" /><Label id="csr_adm_w_classified_info" class="AdmTierInfo" text="{s:val}" /></Panel>
+                  <Panel class="AdmDirty" />
+                  <Panel class="AdmStep">
+                    <Button id="csr_adm_w_classified_dec5" class="AdmStepBtn AdmStepDec AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="−5" /></Button>
+                    <Button id="csr_adm_w_classified_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                    <Panel class="AdmStepVal"><Label id="csr_adm_w_classified_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                    <Button id="csr_adm_w_classified_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                    <Button id="csr_adm_w_classified_inc5" class="AdmStepBtn AdmStepInc AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="+5" /></Button>
+                  </Panel>
+                  <Panel class="AdmShare">
+                    <Panel class="AdmShareBar"><Panel class="AdmShareFill" /></Panel>
+                    <Label id="csr_adm_w_classified_pct" class="AdmSharePct" text="{s:val}" />
+                  </Panel>
+                </Panel>
+                <Panel id="csr_adm_w_covert" class="AdmTier rar-covert">
+                  <Panel class="AdmTierText"><Label class="AdmTierName" text="Covert" /><Label id="csr_adm_w_covert_info" class="AdmTierInfo" text="{s:val}" /></Panel>
+                  <Panel class="AdmDirty" />
+                  <Panel class="AdmStep">
+                    <Button id="csr_adm_w_covert_dec5" class="AdmStepBtn AdmStepDec AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="−5" /></Button>
+                    <Button id="csr_adm_w_covert_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                    <Panel class="AdmStepVal"><Label id="csr_adm_w_covert_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                    <Button id="csr_adm_w_covert_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                    <Button id="csr_adm_w_covert_inc5" class="AdmStepBtn AdmStepInc AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="+5" /></Button>
+                  </Panel>
+                  <Panel class="AdmShare">
+                    <Panel class="AdmShareBar"><Panel class="AdmShareFill" /></Panel>
+                    <Label id="csr_adm_w_covert_pct" class="AdmSharePct" text="{s:val}" />
+                  </Panel>
+                </Panel>
+                <Panel id="csr_adm_w_gold" class="AdmTier rar-gold">
+                  <Panel class="AdmTierText"><Label class="AdmTierName" text="★ Gold" /><Label id="csr_adm_w_gold_info" class="AdmTierInfo" text="{s:val}" /></Panel>
+                  <Panel class="AdmDirty" />
+                  <Panel class="AdmStep">
+                    <Button id="csr_adm_w_gold_dec5" class="AdmStepBtn AdmStepDec AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="−5" /></Button>
+                    <Button id="csr_adm_w_gold_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                    <Panel class="AdmStepVal"><Label id="csr_adm_w_gold_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                    <Button id="csr_adm_w_gold_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                    <Button id="csr_adm_w_gold_inc5" class="AdmStepBtn AdmStepInc AdmStepBig"><Label class="AdmStepGlyph" hittest="false" text="+5" /></Button>
+                  </Panel>
+                  <Panel class="AdmShare">
+                    <Panel class="AdmShareBar"><Panel class="AdmShareFill" /></Panel>
+                    <Label id="csr_adm_w_gold_pct" class="AdmSharePct" text="{s:val}" />
+                  </Panel>
+                </Panel>
+              </Panel>
+              <Panel class="AdmOvrRow">
+                <Label id="csr_adm_ovr_info" class="AdmOvrInfo" text="{s:val}" />
+                <Button id="csr_adm_ovr_reset" class="AdmBtn AdmBtnSm"><Label class="AdmBtnTxt" hittest="false" text="Reset tiers" /><Label class="AdmBtnArm" hittest="false" text="Again to confirm" /></Button>
+              </Panel>
+              <Label class="AdmFootnote" text="Weights needn't add up to 100: a tier's share is its weight over the total of the tiers that have an enabled modifier." />
+            </Panel>
+            <Panel class="AdmPage AdmPage-hud">
+              <Panel class="AdmPageHead"><Label class="AdmPageTitle" text="Display" /><Label class="AdmPageNote" text="What players see when a roll lands" /></Panel>
+              <Panel class="AdmPageRule" />
+              <Panel class="AdmSection"><Label class="AdmKicker" text="Reveal" /><Panel class="AdmSectionRule" /></Panel>
+              <Panel id="csr_adm_s_reveal" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Roll reveal" /><Label class="AdmSetHint" text="Show each roll on screen - the reel, or centre text" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_reveal_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_reveal_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_spin" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Centre-text spin" /><Label class="AdmSetHint" text="Spin through names before the result. The HUD reel always spins" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_spin_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_spin_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_spec" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Spectator panel" /><Label class="AdmSetHint" text="Centre-text list of the watched player's modifiers" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_spec_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_spec_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+              <Panel class="AdmSection"><Label class="AdmKicker" text="Workshop HUD" /><Panel class="AdmSectionRule" /></Panel>
+              <Panel id="csr_adm_s_hud" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Workshop HUD" /><Label class="AdmSetHint" text="Reel, list and gauges for players with the addon" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_hud_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_hud_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_hudmode" class="AdmSet">
+                <Panel class="AdmSetText">
+                  <Label class="AdmSetName" text="HUD mode" />
+                  <Label class="AdmSetHint AdmHintV AdmHintV0" text="Players switch it on with !hud" />
+                  <Label class="AdmSetHint AdmHintV AdmHintV1" text="On for everyone - !hud switches back" />
+                </Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_hudmode_optin" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Opt-in" /></Button>
+                  <Button id="csr_adm_s_hudmode_everyone" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Everyone" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_hudspec" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Spectator team" /><Label class="AdmSetHint" text="Players on the spectator team get the HUD too" /></Panel>
+                <Panel class="AdmSeg">
+                  <Button id="csr_adm_s_hudspec_on" class="AdmOpt AdmOpt0"><Label class="AdmOptTxt" hittest="false" text="Enabled" /></Button>
+                  <Button id="csr_adm_s_hudspec_off" class="AdmOpt AdmOpt1"><Label class="AdmOptTxt" hittest="false" text="Disabled" /></Button>
+                </Panel>
+              </Panel>
+              <Panel id="csr_adm_s_listy" class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="List position" /><Label class="AdmSetHint" text="0 sits highest - lower it if the radar covers the list" /></Panel>
+                <Panel class="AdmStep">
+                  <Button id="csr_adm_s_listy_dec" class="AdmStepBtn AdmStepDec"><Label class="AdmStepGlyph" hittest="false" text="−" /></Button>
+                  <Panel class="AdmStepVal"><Label id="csr_adm_s_listy_val" class="AdmStepNum" text="{s:val}" /></Panel>
+                  <Button id="csr_adm_s_listy_inc" class="AdmStepBtn AdmStepInc"><Label class="AdmStepGlyph" hittest="false" text="+" /></Button>
+                </Panel>
+              </Panel>
+              <Panel class="AdmSet">
+                <Panel class="AdmSetText"><Label class="AdmSetName" text="Brand caption" /><Label class="AdmSetHint" text="Read-only here - edit CustomHud.BrandText in config.jsonc" /></Panel>
+                <Panel class="AdmReadonly"><Label id="csr_adm_s_brand_val" class="AdmReadonlyTxt" text="{s:val}" /></Panel>
+              </Panel>
+            </Panel>
+            <Panel class="AdmPage AdmPage-cfg">
+              <Panel class="AdmPageHead"><Label class="AdmPageTitle" text="Config" /><Label class="AdmPageNote" text="Changes apply live - Save keeps them" /></Panel>
+              <Panel class="AdmPageRule" />
+              <Panel class="AdmCols">
+                <Panel class="AdmColBox">
+                  <Panel class="AdmSection"><Label class="AdmKicker" text="Unsaved changes" /><Panel class="AdmSectionRule" /><Label id="csr_adm_cfg_count" class="AdmSectionMeta" text="{s:val}" /></Panel>
+                  <Panel class="AdmList">
+                    <Label id="csr_adm_cfg_l0" class="AdmLine" text="{s:val}" />
+                    <Label id="csr_adm_cfg_l1" class="AdmLine" text="{s:val}" />
+                    <Label id="csr_adm_cfg_l2" class="AdmLine" text="{s:val}" />
+                    <Label id="csr_adm_cfg_l3" class="AdmLine" text="{s:val}" />
+                    <Label id="csr_adm_cfg_l4" class="AdmLine" text="{s:val}" />
+                    <Label id="csr_adm_cfg_l5" class="AdmLine" text="{s:val}" />
+                    <Label id="csr_adm_cfg_l6" class="AdmLine" text="{s:val}" />
+                    <Label id="csr_adm_cfg_l7" class="AdmLine" text="{s:val}" />
+                  </Panel>
+                  <Label class="AdmFootnote" text="Save or discard them with the buttons below." />
+                </Panel>
+                <Panel class="AdmColBox AdmColBoxR">
+                  <Panel class="AdmSection"><Label class="AdmKicker" text="Round actions" /><Panel class="AdmSectionRule" /></Panel>
+                  <Button id="csr_adm_reroll" class="AdmAction">
+                    <Label class="AdmActionTitle" hittest="false" text="Re-roll now" />
+                    <Label class="AdmActionArm" hittest="false" text="Click again to re-roll" />
+                    <Label class="AdmActionSub" hittest="false" text="Strip every active modifier and roll again, with the reel" />
+                  </Button>
+                  <Button id="csr_adm_clear" class="AdmAction AdmActionDanger">
+                    <Label class="AdmActionTitle" hittest="false" text="Remove all active" />
+                    <Label class="AdmActionArm" hittest="false" text="Click again to remove" />
+                    <Label class="AdmActionSub" hittest="false" text="Strip every active modifier until the next roll" />
+                  </Button>
+                  <Panel class="AdmSection"><Label class="AdmKicker" text="Server" /><Panel class="AdmSectionRule" /></Panel>
+                  <Label id="csr_adm_cfg_live" class="AdmInfo" text="{s:val}" />
+                  <Label id="csr_adm_cfg_path" class="AdmInfo AdmInfoPath" text="{s:val}" />
+                  <Label id="csr_adm_cfg_cvar" class="AdmInfo AdmInfoWarn" text="{s:val}" />
+                </Panel>
+              </Panel>
+            </Panel>
+          </Panel>
+        </Panel>
+        <Panel class="AdmFoot">
+          <Label id="csr_adm_status" class="AdmStatus" text="{s:val}" />
+          <Button id="csr_adm_reload" class="AdmBtn"><Label class="AdmBtnTxt" hittest="false" text="Reload from disk" /><Label class="AdmBtnArm" hittest="false" text="Again to discard changes" /></Button>
+          <Button id="csr_adm_save" class="AdmBtn AdmBtnSave"><Label class="AdmBtnTxt" hittest="false" text="Save to config" /></Button>
+        </Panel>
+      </Panel>
+    </Panel>
   </Panel>
 </root>
