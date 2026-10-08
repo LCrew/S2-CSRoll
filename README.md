@@ -6,9 +6,10 @@
 </div>
 
 Each round all players roll a random modifiers that apply for a round.
-|  |  |
-|--|--|
-| ![demo](./demo.gif) | ![demo](./demo2.gif) |
+<p align="center">
+  <img src="./demo.gif" width="49%" alt="CSRoll demo" />
+  <img src="./demo2.gif" width="49%" alt="CSRoll custom HUD demo" />
+</p>
 
 ## Requirements
 
