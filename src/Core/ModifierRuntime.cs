@@ -491,8 +491,9 @@ public sealed class ModifierRuntime
             RemoveAllModifiers();
         }
 
-        CSRollUtils.PrintTitleToChatAll(_core, RandomRoundsEnabled ? "Random rounds enabled for next round!" : "Random rounds disabled!");
-        CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildRandomRoundsToggleHtml(RandomRoundsEnabled), 4000);
+        // Admins only, like every settings change - players just see the next round roll or not.
+        CSRollUtils.PrintTitleToAdminsOnly(_core, RandomRoundsEnabled ? "Random rounds enabled for next round!" : "Random rounds disabled!");
+        CSRollUtils.ShowMessageCentreAdminsOnly(_core, CSRollUtils.BuildRandomRoundsToggleHtml(RandomRoundsEnabled), 4000);
     }
 
     public void ApplyRandomRoundsForRound(bool showBanner = true)

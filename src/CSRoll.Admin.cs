@@ -121,8 +121,7 @@ public partial class CSRoll : IAdminPanelHost
 
     void IAdminPanelHost.SyncConVar(string name) => SyncConVar(name);
 
-    void IAdminPanelHost.AnnounceRollMode(ModifierRollMode mode) =>
-        CSRollUtils.PrintTitleToChatAll(Core, $"Roll mode set to {mode} - {DescribeRollMode(mode)}. Takes effect from the next roll.");
+    void IAdminPanelHost.AnnounceRollMode(ModifierRollMode mode) => AnnounceRollMode(mode);
 
     bool IAdminPanelHost.Save(AdminSnapshot live, out string error)
     {

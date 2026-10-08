@@ -622,6 +622,15 @@ public static partial class CSRollUtils
         core.PlayerManager.SendCenterHTML(html, durationMs);
     }
 
+    /// <summary>ShowMessageCentreAll for connected admins only - settings changes are their business, not the players'.</summary>
+    public static void ShowMessageCentreAdminsOnly(ISwiftlyCore core, string html, int durationMs = 5000)
+    {
+        foreach (var admin in GetAdmins(core))
+        {
+            admin.SendCenterHTML(html, durationMs);
+        }
+    }
+
     /// <summary>
     /// Builds the "Activating Modifiers" center banner: a red title, then each activated modifier on
     /// its own line. Deliberately no fontSize class (reverted after v1.32.0's larger sizing was

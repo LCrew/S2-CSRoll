@@ -402,7 +402,7 @@ public partial class CSRoll
         }
 
         SyncConVar("csr_rollmode");
-        CSRollUtils.PrintTitleToChatAll(Core, $"Roll mode set to {mode} - {DescribeRollMode(mode)}. Takes effect from the next roll.");
+        AnnounceRollMode(mode);
         if (!saved)
         {
             CSRollUtils.PrintTitleToChat(Core, context.Sender, $"Couldn't save it to config.jsonc ({error}) - it lasts until the config reloads.");
@@ -454,6 +454,10 @@ public partial class CSRoll
         ModifierRollMode.Game => "everyone gets the same roll",
         _ => "every player rolls their own",
     };
+
+    /// <summary>Tells the admins - only them; a settings change is nothing the players need in chat.</summary>
+    private void AnnounceRollMode(ModifierRollMode mode) =>
+        CSRollUtils.PrintTitleToAdminsOnly(Core, $"Roll mode set to {mode} - {DescribeRollMode(mode)}. Takes effect from the next roll.");
 
     /// <summary>
     /// Writes RollMode into config.jsonc by editing that one value in the text, so the admin's comments
