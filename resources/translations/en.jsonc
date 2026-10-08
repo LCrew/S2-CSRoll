@@ -219,7 +219,7 @@
 
   // "{count}" is KamikazeChickens.ChickensPerWave and "{fuse}" its FuseSeconds, both from config.jsonc.
   "KamikazeChickens.DisplayName": "Kamikaze Chickens",
-  "KamikazeChickens.Description": "Press [green]Inspect[default] to release {count} beeping chickens that explode on the nearest enemy",
+  "KamikazeChickens.Description": "Press [green]Inspect[default] to release {count} beeping chickens - they run where you aim and blow up on the first enemy they spot",
   "KamikazeChickens.Short": "Inspect: {count} exploding chickens",
 
   "Regeneration.DisplayName": "Regeneration",

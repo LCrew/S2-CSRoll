@@ -65,7 +65,7 @@ Each round all players roll a random modifiers that apply for a round.
 | Increased Spread | Your aim just got worse... |
 | Plant Anywhere | Plant anywhere after a delay (configurable) |
 | Flanker | Press Inspect Weapon to teleport behind an enemy |
-| Kamikaze Chickens | Press Inspect Weapon (30s cooldown) to release 3 beeping chickens that run at the nearest enemy and explode like HE grenades at 75% damage - on contact, after 6s, or when shot |
+| Kamikaze Chickens | Press Inspect Weapon (30s cooldown) to release 3 beeping chickens that run where you aim and chase the first enemy they spot, exploding like HE grenades at 75% damage - on contact, after 6s, or when shot |
 | Regeneration | Heals over time - faster standing still |
 | Bounty | Damage enemies for bonus money |
 | Weapon Roulette | Random weapon, re-rolled often |

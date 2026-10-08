@@ -764,13 +764,8 @@ public class KamikazeChickensConfig
     /// <summary>Each blast's damage as a share of a normal HE grenade's (0.75 = 75%).</summary>
     public float DamageMultiplier { get; set; } = 0.75f;
 
-    /// <summary>
-    /// How chickens chase their target: "Direct" moves each chicken straight at its target every tick
-    /// at RunSpeed, stepping up ledges and sliding along walls; "Leader" makes the target the chicken's
-    /// leader so its own AI chases them instead - at its own speed, and live testing saw some of those
-    /// run in circles.
-    /// </summary>
-    public string SteeringMode { get; set; } = "Direct";
+    /// <summary>How far (units) a running chicken spots an enemy it has a clear line to, and turns to chase them. Until then it runs the way its owner was aiming.</summary>
+    public float SeekRadius { get; set; } = 800f;
 
     /// <summary>Also call the engine's grenade Detonate function directly when a chicken blows, in case writing the fuse alone leaves the normal ~1.5s HE delay. Experimental.</summary>
     public bool DetonateViaInvoke { get; set; } = false;

@@ -19,17 +19,17 @@ namespace CSRoll.Modifiers;
 
 /// <summary>
 /// Player-triggered ability on Flanker's Inspect-Weapon pattern (cooldown, gauge, status HTML):
-/// pressing Inspect releases a wave of ChickensPerWave chickens, SpawnGapSeconds apart, that run at
-/// the nearest living enemy. Each one beeps like a planted C4 - faster and faster as its FuseSeconds
-/// run out, with the C4's red timer blink on every beep - and blows up as an HE grenade thrown by the
-/// owner (so the owner gets the kill), dealing DamageMultiplier of its normal damage, when it reaches
-/// an enemy, when the fuse runs out, or when shot.
+/// pressing Inspect releases a wave of ChickensPerWave chickens, SpawnGapSeconds apart, that run the
+/// way the owner was aiming until they spot an enemy - within SeekRadius, with nothing solid in
+/// between - and then chase that one. Each one beeps like a planted C4 - faster and faster as its
+/// FuseSeconds run out, with the C4's red timer blink on every beep - and blows up as an HE grenade
+/// thrown by the owner (so the owner gets the kill), dealing DamageMultiplier of its normal damage,
+/// when it reaches an enemy, when the fuse runs out, or when shot.
 ///
-/// Steering: "Direct" (default) moves the chicken itself, every tick, straight at its target at
-/// RunSpeed - stepping up ledges, sliding along walls and dropping to the ground with hull traces.
-/// "Leader" instead makes the target the chicken's Leader (the field a player's +use sets) and lets
-/// its own AI chase them; live testing showed those chickens sometimes ran in circles, at the AI's own
-/// speed.
+/// Steering: the plugin moves each chicken itself, every tick, at RunSpeed - stepping up ledges,
+/// sliding along walls and dropping to the ground with hull traces. An earlier version made the target
+/// the chicken's Leader (the field a player's +use sets) and let its own AI chase them; live testing
+/// showed those chickens running in circles, at the AI's own speed.
 ///
 /// The blink is the C4's own timer-light effect, spawned per beep and parented to the chicken. The
 /// planted bomb's c4_timer_light is a composite effect, and composites never render when a plugin
@@ -64,6 +64,13 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
 
     private const float GrenadeTrackSeconds = 3f;
 
+    /// <summary>How often a chicken without a target looks for one.</summary>
+    private const float SeekIntervalSeconds = 0.1f;
+
+    /// <summary>Where a chicken looks from, and where on an enemy it looks at, above the feet.</summary>
+    private const float ChickenEyeHeight = 16f;
+    private const float EnemyChestHeight = 48f;
+
     /// <summary>How long each beep's blink effect lives before it is removed.</summary>
     private const float BlinkSeconds = 0.4f;
 
@@ -93,6 +100,11 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
         public required float ArmedAt { get; init; }
         public required float ExplodeAt { get; init; }
         public int TargetSlot { get; set; } = -1;
+
+        /// <summary>The way it runs while it has no target: the owner's aim at release, then wherever it last chased.</summary>
+        public float HeadingYaw { get; set; }
+
+        public float NextSeekAt { get; set; }
         public float NextBeepAt { get; set; }
         public float LastSteerAt { get; set; }
         public bool DetonateRequested { get; set; }
@@ -262,13 +274,6 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
                 continue;
             }
 
-            // Not consuming the cooldown in either case - there's nothing to waste a wave on yet.
-            if (LivingEnemiesOf(controller.Team).Count == 0)
-            {
-                NotifyFailed(player, now, "No living enemy for the chickens to chase - try again!");
-                continue;
-            }
-
             var count = Math.Max(1, Cfg.ChickensPerWave);
             if (_chickens.Count + _pendingSpawns.Count + count > MaxLiveChickens)
             {
@@ -343,6 +348,7 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
             ExplodeAt = now + Math.Max(0.5f, Cfg.FuseSeconds),
             NextBeepAt = now,
             LastSteerAt = now,
+            HeadingYaw = yawRadians,
         };
 
         _chickens.Add(live);
@@ -407,43 +413,69 @@ public sealed class GameModifierKamikazeChickens : GameModifierBase
         return false;
     }
 
-    /// <summary>Keeps the chicken after its target - retargeting the nearest living enemy when the current one dies.</summary>
+    /// <summary>
+    /// Runs along its heading until it spots an enemy, then chases that one - looking again if they die,
+    /// and carrying on in the direction it last ran while nobody's in sight.
+    /// </summary>
     private void Steer(LiveChicken live, CChicken chicken, Vector position, float now)
     {
         var enemies = LivingEnemiesOf(live.OwnerTeam);
-        var target = enemies.FirstOrDefault(p => p.Slot == live.TargetSlot) ??
-            enemies.MinBy(p => p.PlayerPawn!.AbsOrigin is { } at ? at.DistanceSquared(position) : float.MaxValue);
-        if (target?.PlayerPawn is not { } targetPawn || targetPawn.AbsOrigin is not { } targetPosition)
+        var target = enemies.FirstOrDefault(p => p.Slot == live.TargetSlot);
+        if (target is null && now >= live.NextSeekAt)
         {
-            return;
+            live.NextSeekAt = now + SeekIntervalSeconds;
+            target = SpotEnemy(position, enemies);
+
+            if (target is not null && Runtime.DebugMode)
+            {
+                Core.Logger.LogInformation("[CSRoll] KamikazeChickens: chicken #{Index} spotted slot {Target}.", chicken.Index, target.Slot);
+            }
         }
 
-        if (Runtime.DebugMode && target.Slot != live.TargetSlot)
+        live.TargetSlot = target?.Slot ?? -1;
+
+        Vector goal;
+        if (target?.PlayerPawn?.AbsOrigin is { } targetPosition)
         {
-            Core.Logger.LogInformation("[CSRoll] KamikazeChickens: chicken #{Index} -> slot {Target} ({Distance:0}u).", chicken.Index, target.Slot, targetPosition.Distance(position));
+            live.HeadingYaw = MathF.Atan2(targetPosition.Y - position.Y, targetPosition.X - position.X);
+            goal = targetPosition;
+        }
+        else
+        {
+            goal = new Vector(position.X + (MathF.Cos(live.HeadingYaw) * 1000f), position.Y + (MathF.Sin(live.HeadingYaw) * 1000f), position.Z);
         }
 
-        live.TargetSlot = target.Slot;
+        SteerDirect(live, chicken, position, goal, now);
+    }
 
-        if (!string.Equals(Cfg.SteeringMode, "Leader", StringComparison.OrdinalIgnoreCase))
+    /// <summary>The nearest enemy within SeekRadius the chicken has a clear line to - walls, doors and props block it; players and chickens don't.</summary>
+    private IPlayer? SpotEnemy(Vector position, List<IPlayer> enemies)
+    {
+        var radius = Math.Max(0f, Cfg.SeekRadius);
+        var eye = new Vector(position.X, position.Y, position.Z + ChickenEyeHeight);
+        var sightLine = new TraceParams { ShouldHitEntity = entity => entity.DesignerName is not ("player" or ChickenDesignerName) };
+
+        var byDistance = enemies
+            .Select(enemy => (Enemy: enemy, At: enemy.PlayerPawn!.AbsOrigin))
+            .Where(candidate => candidate.At is not null)
+            .Select(candidate => (candidate.Enemy, Chest: new Vector(candidate.At!.Value.X, candidate.At.Value.Y, candidate.At.Value.Z + EnemyChestHeight)))
+            .OrderBy(candidate => candidate.Chest.DistanceSquared(eye));
+
+        foreach (var (enemy, chest) in byDistance)
         {
-            SteerDirect(live, chicken, position, targetPosition, now);
-            return;
+            if (chest.Distance(eye) > radius)
+            {
+                break;
+            }
+
+            var sight = Core.Trace.TraceShapeLine(eye, chest, sightLine);
+            if (!sight.StartInSolid && sight.Fraction >= 0.99f)
+            {
+                return enemy;
+            }
         }
 
-        // Only written when it changed - it's networked, and a player pressing +use on the chicken
-        // reassigns it, which this also undoes.
-        var leader = Core.EntitySystem.GetRefEHandle(targetPawn);
-        if (chicken.Leader.Raw != leader.Raw)
-        {
-            chicken.Leader = leader;
-            chicken.LeaderUpdated();
-        }
-
-        if (chicken.FleeFrom.IsValid)
-        {
-            chicken.FleeFrom = CHandle<CBaseEntity>.Invalid;
-        }
+        return null;
     }
 
     /// <summary>
