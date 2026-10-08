@@ -64,7 +64,7 @@ Each round all players roll a random modifiers that apply for a round.
 | Random Loadout | Random loadout |
 | Walking Grenadier | No guns - unlimited HE grenades |
 | Heavy Boots | Slower - armor, helmet and bonus health |
-| Human Shield | You carry a hostage on your back: 25% slower, but hits from behind deal 30% less damage |
+| Human Shield | Carry a hostage - slower, but shielded from behind |
 | Jetpack | Hold jump in the air to thrust |
 | Bunny Hop | Hold jump to auto bunny-hop - every hop is faster |
 | Infinite Ammo | All weapons go brrrrrr... |
@@ -72,7 +72,7 @@ Each round all players roll a random modifiers that apply for a round.
 | Increased Spread | Your aim just got worse... |
 | Plant Anywhere | Plant anywhere after a delay (configurable) |
 | Flanker | Press Inspect Weapon to teleport behind an enemy |
-| Kamikaze Chickens | Press Inspect Weapon (30s cooldown) to release 3 beeping chickens that run where you aim and chase the first enemy they spot, exploding like HE grenades at 75% damage - on contact, after 6s, or when shot |
+| Kamikaze Chickens | Inspect releases beeping chickens that explode on enemies |
 | Regeneration | Heals over time - faster standing still |
 | Bounty | Damage enemies for bonus money |
 | Weapon Roulette | Random weapon, re-rolled often |
