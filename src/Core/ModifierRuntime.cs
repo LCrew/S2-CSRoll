@@ -491,8 +491,9 @@ public sealed class ModifierRuntime
             RemoveAllModifiers();
         }
 
-        CSRollUtils.PrintTitleToChatAll(_core, RandomRoundsEnabled ? "Random rounds enabled for next round!" : "Random rounds disabled!");
-        CSRollUtils.ShowMessageCentreAll(_core, CSRollUtils.BuildRandomRoundsToggleHtml(RandomRoundsEnabled), 4000);
+        // Admins only, like every settings change - players just see the next round roll or not.
+        CSRollUtils.PrintTitleToAdminsOnly(_core, RandomRoundsEnabled ? "Random rounds enabled for next round!" : "Random rounds disabled!");
+        CSRollUtils.ShowMessageCentreAdminsOnly(_core, CSRollUtils.BuildRandomRoundsToggleHtml(RandomRoundsEnabled), 4000);
     }
 
     public void ApplyRandomRoundsForRound(bool showBanner = true)
@@ -1408,6 +1409,9 @@ public sealed class ModifierRuntime
     /// </summary>
     public IEnumerable<GameModifierBase> GetAllKnownModifiers() =>
         _allModifierFactories.Select(kv => GetRegisteredModifierByName(kv.Key) ?? kv.Value());
+
+    /// <summary>The name of every modifier CSRoll can construct, registered or not - fixed after Initialise.</summary>
+    public IReadOnlyCollection<string> KnownModifierNames => _allModifierFactories.Keys;
 
     public void RemoveModifierByName(string modifierName, out string message)
     {

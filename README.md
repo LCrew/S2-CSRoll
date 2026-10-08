@@ -92,6 +92,7 @@ All commands are chat commands (prefix with `!`).
 | `!rollactive` | Everyone | Prints the name, scope (Global or which player(s)), and description for each active modifier. |
 | `!rollhelp` | Everyone | Prints every available CSRoll command. |
 | `!rollmenu` | Admin | Opens the CSRoll configuration menu (random rounds, modifiers-per-player, per-modifier enable/disable). |
+| `!rolladmin` | Admin | Opens the clickable admin panel on the Workshop HUD: every setting, the modifier list and rarity weights, with a Save button. Bind it with `bind F6 rolladmin`. |
 | `!memodifier <name>` | Admin | Apply a modifier scoped to just yourself, without affecting anyone else. |
 | `!rolltoggle <name>` | Admin | Adds the modifier globally if inactive, removes it (from everyone currently assigned) if active. |
 | `!removemodifier <name>` | Admin | Remove an active modifier. |
@@ -123,7 +124,7 @@ All commands are chat commands (prefix with `!`).
 
 A weight is the tier's share of every pick, however many modifiers it holds - Gold at 4 comes up for a player about once every 24 rounds. Move a modifier with `"Overrides": { "Drunk": "Gold" }`, set a weight to `0` to stop a tier rolling, or turn it all off with `"Enabled": false`. The custom HUD colours the reel, the winner and the card by tier (needs the current Workshop addon); the classic centre text and chat use the tier colours too. Servers upgrading from an older config get these defaults automatically, so rolls are weighted from the first round after the update.
 
-`MinRandomRounds`/`MaxRandomRounds` have no dedicated chat command - set them in `config.jsonc`, or adjust them at runtime via `!rollmenu` (menu changes are runtime-only and revert to the config file on the next full plugin reload). `Wallhack` is a regular modifier (manage it like any other via `!rolltoggle Wallhack` or `!memodifier`), not a dedicated command.
+`MinRandomRounds`/`MaxRandomRounds` have no dedicated chat command - set them in `config.jsonc`, adjust them via `!rollmenu` (runtime-only, reverts on the next full plugin reload), or in `!rolladmin` and click Save. `Wallhack` is a regular modifier (manage it like any other via `!rolltoggle Wallhack` or `!memodifier`), not a dedicated command.
 
 ## Server CVARs
 

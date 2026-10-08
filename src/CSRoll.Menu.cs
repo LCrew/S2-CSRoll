@@ -94,8 +94,8 @@ public partial class CSRoll
 
         // Random rounds on/off. Reads the CURRENT state as the toggle's default so the menu always
         // opens reflecting reality rather than a stale value, and routes the change through
-        // Runtime.ToggleRandomRounds() (not a direct property write) so the existing broadcast
-        // chat/banner announcement still happens exactly as it does for !randomrounds.
+        // Runtime.ToggleRandomRounds() (not a direct property write) so the admins' chat/banner
+        // announcement still happens exactly as it does for !randomrounds.
         var randomRounds = new ToggleMenuOption("Random Rounds", Runtime.RandomRoundsEnabled);
         randomRounds.Click += (_, args) =>
         {

@@ -49,12 +49,24 @@ public static class ModifierRarity
         // WeaponRoulette, HumanShield, and any ConVar .cfg modifier - is Mil-Spec.
     };
 
+    /// <summary>The tier map and the config it was built from, swapped as one reference so a reader never pairs one config with another's map.</summary>
+    private sealed record TierCache(RarityConfig Config, Dictionary<string, ModifierTier> Tiers);
+
     // Rebuilt whenever a config reload hands over a new RarityConfig object.
-    private static RarityConfig? _cachedFor;
-    private static Dictionary<string, ModifierTier> _cached = new(StringComparer.OrdinalIgnoreCase);
+    private static TierCache? _cache;
 
     /// <summary>Set by the runtime, so a bad Overrides entry is reported rather than silently ignored.</summary>
     public static ILogger? Logger { get; set; }
+
+    /// <summary>A modifier's tier before any override - what the admin panel's tier cycling returns to.</summary>
+    public static ModifierTier BuiltInTier(string modifierName) =>
+        DefaultTiers.TryGetValue(modifierName, out var tier) ? tier : ModifierTier.MilSpec;
+
+    /// <summary>
+    /// Drops the cached tier map. It's keyed on the RarityConfig object, which a config reload replaces -
+    /// but the admin panel edits Overrides in place, which the cache can't see on its own.
+    /// </summary>
+    public static void Invalidate() => _cache = null;
 
     public static ModifierTier Resolve(GameModifierBase modifier, RarityConfig config) => Resolve(modifier.Name, config);
 
@@ -173,9 +185,9 @@ public static class ModifierRarity
 
     private static Dictionary<string, ModifierTier> TiersFor(RarityConfig config)
     {
-        if (ReferenceEquals(config, _cachedFor))
+        if (_cache is { } cache && ReferenceEquals(config, cache.Config))
         {
-            return _cached;
+            return cache.Tiers;
         }
 
         var tiers = new Dictionary<string, ModifierTier>(DefaultTiers, StringComparer.OrdinalIgnoreCase);
@@ -191,8 +203,7 @@ public static class ModifierRarity
             }
         }
 
-        _cachedFor = config;
-        _cached = tiers;
+        _cache = new TierCache(config, tiers);
         return tiers;
     }
 }

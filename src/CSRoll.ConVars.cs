@@ -117,7 +117,7 @@ public partial class CSRoll
                 Config.RandomizePlayers = null;
                 if (announce)
                 {
-                    CSRollUtils.PrintTitleToChatAll(Core, $"Roll mode set to {mode} - {DescribeRollMode(mode)}. Takes effect from the next roll.");
+                    AnnounceRollMode(mode);
                 }
 
                 return true;

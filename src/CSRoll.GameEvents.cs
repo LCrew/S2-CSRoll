@@ -86,7 +86,7 @@ public partial class CSRoll
 
             if (Runtime.RegisteredModifiers.Count == 0)
             {
-                CSRollUtils.PrintTitleToChatAll(Core, "No registered modifiers found! Skipping random round...");
+                CSRollUtils.PrintTitleToAdminsOnly(Core, "No registered modifiers found! Skipping random round...");
                 return HookResult.Continue;
             }
 

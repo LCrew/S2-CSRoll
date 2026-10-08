@@ -36,7 +36,7 @@ namespace CSRoll.Hud;
 /// - The entity can disappear (round restart, map change) and is recreated on the next tick; every
 ///   cache is dropped with it, since the new entity starts blank.
 /// </summary>
-public sealed class CustomHudService
+public sealed partial class CustomHudService
 {
     private const string DesignerName = "custom_hud_layout";
     private const float RefreshIntervalSeconds = 0.1f;
@@ -126,6 +126,7 @@ public sealed class CustomHudService
         _core.Event.OnClientDisconnected += OnClientDisconnected;
         _core.Event.OnMapLoad += OnMapLoad;
         _core.Event.OnMapUnload += OnMapUnload;
+        _core.Event.OnCustomHudClicked += OnCustomHudClicked;
         _spawnHookId = _core.GameEvent.HookPost<EventPlayerSpawn>(OnPlayerSpawn);
 
         // A reload mid-map leaves the previous load's entity behind; two layouts would draw the whole
@@ -144,8 +145,11 @@ public sealed class CustomHudService
         _core.Event.OnClientDisconnected -= OnClientDisconnected;
         _core.Event.OnMapLoad -= OnMapLoad;
         _core.Event.OnMapUnload -= OnMapUnload;
+        _core.Event.OnCustomHudClicked -= OnCustomHudClicked;
         _core.GameEvent.Unhook(_spawnHookId);
 
+        // The entity goes with the plugin, and every admin's cursor with it.
+        _admins.Clear();
         LandPendingRolls();
         DespawnLayout();
         _installed = false;
@@ -518,13 +522,28 @@ public sealed class CustomHudService
     {
         EnsureEntity();
 
+        var now = Now;
+        if (_layout is { IsValid: true })
+        {
+            ApplyListOffset();
+
+            // Before the !Live return: an admin panel stays up with the HUD itself switched off.
+            TickAdmins(now);
+        }
+
         if (!Live)
         {
             LandPendingRolls();
+
+            // Alive only for an admin panel - nobody is on the HUD, so none of it may stay on screen.
+            if (_layout is { IsValid: true })
+            {
+                HideHudForAll();
+            }
+
             return;
         }
 
-        var now = Now;
         foreach (var player in _core.PlayerManager.GetAllValidPlayers())
         {
             if (player.IsFakeClient || !IsAddressable(player.Slot))
@@ -663,6 +682,36 @@ public sealed class CustomHudService
     private static string DisplayName(IPlayer player) =>
         player.Controller is { IsValid: true } controller ? controller.PlayerName : player.Name;
 
+    /// <summary>The HUD was switched off while an admin panel keeps the entity alive: whatever a player still had up comes down.</summary>
+    private void HideHudForAll()
+    {
+        foreach (var (slot, state) in _players)
+        {
+            SetFlag(slot, state, HudLayout.HudPanel, HudLayout.On, false);
+            SetFlag(slot, state, HudLayout.PromptPanel, HudLayout.On, false);
+            SetFlag(slot, state, HudLayout.RollPanel, HudLayout.On, false);
+            SetFlag(slot, state, HudLayout.Card, HudLayout.On, false);
+        }
+    }
+
+    /// <summary>
+    /// Keeps the list's y-offset class on the entity matching CustomHud.ListOffset - checked every tick,
+    /// so a change from the admin panel or a config reload lands without respawning the entity. 0 is
+    /// the stylesheet's default position, so it's the class withdrawn rather than a y0.
+    /// </summary>
+    private void ApplyListOffset()
+    {
+        var offset = Math.Clamp(Cfg.ListOffset, 0, HudLayout.ListOffsets - 1);
+        if (offset > 0)
+        {
+            SetGlobalExclusive(HudLayout.ListPanel, "y", HudLayout.ListOffsetClass(offset));
+        }
+        else if (_globalExclusive.Remove((HudLayout.ListPanel, "y"), out var current))
+        {
+            Guard(HudLayout.ListPanel, () => _layout!.SetHasClass(HudLayout.ListPanel, current, Unset));
+        }
+    }
+
     // -------------------------------------------------------------------------------------------------
     // Entity
     // -------------------------------------------------------------------------------------------------
@@ -674,9 +723,10 @@ public sealed class CustomHudService
             return;
         }
 
-        if (!Cfg.Enabled)
+        // An open admin panel keeps the entity alive with the HUD off: the panel is part of its layout.
+        if (!Cfg.Enabled && _admins.Count == 0)
         {
-            // Switched off by a config reload while live.
+            // Switched off by a config reload while live, or the last admin panel closed with the HUD off.
             if (_layout is not null)
             {
                 LandPendingRolls();
@@ -722,15 +772,10 @@ public sealed class CustomHudService
             entity.DispatchSpawn();
 
             _layout = entity;
+            _entityGeneration++;
             _createAttempts = 0;
             _lastCreateError = null;
             ResetEntityState();
-
-            var offset = Math.Clamp(Cfg.ListOffset, 0, HudLayout.ListOffsets - 1);
-            if (offset > 0)
-            {
-                Guard(HudLayout.ListPanel, () => entity.SetHasClass(HudLayout.ListPanel, HudLayout.ListOffsetClass(offset), HasClass));
-            }
 
             _core.Logger.LogInformation("[CSRoll][HUD] Spawned {DesignerName} #{Index} with layout {Layout}.", DesignerName, entity.Index, Cfg.LayoutPath);
         }
@@ -804,6 +849,7 @@ public sealed class CustomHudService
         // timestamp along with it.
         _layout = null;
         _players.Clear();
+        _admins.Clear();
         ResetEntityState();
         _createAttempts = 0;
         _nextCreateAt = 0f;
@@ -813,6 +859,7 @@ public sealed class CustomHudService
     {
         _layout = null;
         _players.Clear();
+        _admins.Clear();
         ResetEntityState();
     }
 
@@ -842,6 +889,13 @@ public sealed class CustomHudService
     private void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         var slot = @event.PlayerId;
+
+        // Input capture is per-slot entity state as well - the next player into this slot mustn't inherit a cursor.
+        if (_admins.Remove(slot) && _layout is { IsValid: true } captured && IsAddressable(slot))
+        {
+            Guard(HudLayout.AdminPanel, () => captured.SetInputCaptureEnabledForPlayer(slot, false));
+        }
+
         if (!_players.Remove(slot, out var state))
         {
             return;
@@ -930,6 +984,15 @@ public sealed class CustomHudService
 
         state.Exclusive[key] = cls;
         Guard(panel, () => _layout!.SetHasClassForPlayer(slot, panel, cls, HasClass));
+    }
+
+    /// <summary>Withdraws whichever class of a group a panel has, leaving it with none (the admin status line's idle look).</summary>
+    private void ClearExclusive(int slot, PlayerState state, string panel, string group)
+    {
+        if (state.Exclusive.Remove((panel, group), out var current))
+        {
+            Guard(panel, () => _layout!.SetHasClassForPlayer(slot, panel, current, Unset));
+        }
     }
 
     private void SetGlobalExclusive(string panel, string group, string cls)
