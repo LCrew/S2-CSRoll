@@ -6,10 +6,16 @@
 </div>
 
 Each round all players roll a random modifiers that apply for a round.
-<p align="center">
-  <img src="./demo.gif" width="49%" alt="CSRoll demo" />
-  <img src="./demo2.gif" width="49%" alt="CSRoll custom HUD demo" />
-</p>
+<table align="center">
+  <tr>
+    <th>Non-Workshop HUD</th>
+    <th>Workshop HUD</th>
+  </tr>
+  <tr>
+    <td><img src="./demo.gif" width="400" alt="CSRoll with the classic centre-text reveal" /></td>
+    <td><img src="./demo2.gif" width="400" alt="CSRoll with the custom Workshop HUD" /></td>
+  </tr>
+</table>
 
 ## Requirements
 
