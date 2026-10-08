@@ -19,7 +19,7 @@ public partial class CSRoll : BasePlugin
 {
     // Single source of truth for the version - also referenced in the PluginMetadata attribute
     // above and logged on every load, so the running build is always identifiable in the console.
-    private const string PluginVersion = "1.41.1";
+    private const string PluginVersion = "1.42.0";
 
     private IServiceProvider _serviceProvider = null!;
     private ICvarRollbackService _cvarService = null!;
@@ -83,6 +83,7 @@ public partial class CSRoll : BasePlugin
 
         InitializeCommands();
         InitializeGameEvents();
+        InitializeConVars();
 
         Core.Logger.LogInformation("[CSRoll] Successfully loaded! Version {Version} ({Count} modifiers registered)", PluginVersion, Runtime.RegisteredModifiers.Count);
     }
@@ -90,6 +91,7 @@ public partial class CSRoll : BasePlugin
     public override void Unload()
     {
         _isLoaded = false;
+        UninitializeConVars();
         UninitializeCommands();
         UninitializeGameEvents();
         _customHud?.Uninstall();
@@ -141,6 +143,9 @@ public partial class CSRoll : BasePlugin
             // take effect on a running server, permanently stuck at whatever was live on last Load().
             Runtime.MinRandomRounds = newConfig.MinRandomRounds;
             Runtime.MaxRandomRounds = newConfig.MaxRandomRounds;
+
+            // csr_ convars set from the console or a .cfg keep overriding the reloaded file.
+            ReapplyConVarOverrides();
         }
 
         if (disabledModifiersChanged)

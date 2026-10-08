@@ -125,6 +125,21 @@ A weight is the tier's share of every pick, however many modifiers it holds - Go
 
 `MinRandomRounds`/`MaxRandomRounds` have no dedicated chat command - set them in `config.jsonc`, or adjust them at runtime via `!rollmenu` (menu changes are runtime-only and revert to the config file on the next full plugin reload). `Wallhack` is a regular modifier (manage it like any other via `!rolltoggle Wallhack` or `!memodifier`), not a dedicated command.
 
+## Server CVARs
+
+The general settings are also server convars, for the server console, RCON and `.cfg` files:
+
+| CVAR | Values |
+| --- | --- |
+| `csr_randomrounds` | `0` off, `1` on |
+| `csr_rollmode` | `1` each player, `2` per team, `3` everyone |
+| `csr_minrounds` / `csr_maxrounds` | modifiers per roll (`0`-`10`) |
+| `csr_rarity` | `0` off, `1` on |
+| `csr_hud` | `0` off, `1` on |
+| `csr_hud_mode` | `0` opt-in (`!hud`), `1` everyone |
+
+`config.jsonc` gives the starting values; a CVAR overrides it (nothing is written back to the file) until the plugin reloads. Put them in `server.cfg`, which runs on every map load - a `.cfg` that runs before CSRoll has loaded (such as `autoexec.cfg` on some setups) only gets "unknown command".
+
 ## Installation
 
 1. Build the plugin (or grab a prebuilt release zip):

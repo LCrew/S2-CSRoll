@@ -390,6 +390,8 @@ public partial class CSRoll
             return;
         }
 
+        // Before the save: it reloads the config, which would otherwise put an old csr_rollmode override back.
+        _overriddenConVars.Remove("csr_rollmode");
         var saved = SaveRollMode(mode, out var error);
         if (!saved)
         {
@@ -399,6 +401,7 @@ public partial class CSRoll
             Core.Logger.LogWarning("[CSRoll] !rollmode couldn't save to config.jsonc: {Error}", error);
         }
 
+        SyncConVar("csr_rollmode");
         CSRollUtils.PrintTitleToChatAll(Core, $"Roll mode set to {mode} - {DescribeRollMode(mode)}. Takes effect from the next roll.");
         if (!saved)
         {
@@ -521,6 +524,7 @@ public partial class CSRoll
         }
 
         Runtime.ToggleRandomRounds();
+        SyncConVar("csr_randomrounds");
     }
 
     public void OnRandomRoundsReRoll(ICommandContext context)

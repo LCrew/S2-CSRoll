@@ -104,6 +104,7 @@ public partial class CSRoll
             if (randomRounds.GetToggleState(args.Player) != Runtime.RandomRoundsEnabled)
             {
                 Runtime.ToggleRandomRounds();
+                SyncConVar("csr_randomrounds");
             }
 
             return ValueTask.CompletedTask;
@@ -192,6 +193,7 @@ public partial class CSRoll
             }
 
             Runtime.MinRandomRounds = value;
+            SyncConVar("csr_minrounds");
             return ValueTask.CompletedTask;
         };
 
@@ -205,6 +207,7 @@ public partial class CSRoll
             }
 
             Runtime.MaxRandomRounds = value;
+            SyncConVar("csr_maxrounds");
             return ValueTask.CompletedTask;
         };
 
